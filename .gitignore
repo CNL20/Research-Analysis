@@ -1,0 +1,41 @@
+# Build
+bin/
+obj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Rider
+.idea/
+
+# Logs
+logs/
+*.log
+
+# NuGet
+packages/
+*.nupkg
+
+# User Secrets
+secrets.json
+appsettings.Development.json
+
+# Node
+node_modules/
+
+# React/Vite
+dist/
+.vite/
+
+# Coverage
+coverage/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# SQL LocalDB
+*.mdf
+*.ldf
