@@ -1,0 +1,6 @@
+  Determining projects to restore...
+C:\Users\Admin\Documents\Ky_8\SWP_391\ScholarTrend\ScholarTrend.Application\ScholarTrend.Application.csproj : error NU1605: Warning As Error: Detected package downgrade: Microsoft.Extensions.Configuration.Abstractions from 9.0.8 to 9.0.0. Reference the package directly from the project to select a different version.  [C:\Users\Admin\Documents\Ky_8\SWP_391\ScholarTrend\ScholarTrend.sln]
+C:\Users\Admin\Documents\Ky_8\SWP_391\ScholarTrend\ScholarTrend.Application\ScholarTrend.Application.csproj : error NU1605:  ScholarTrend.Application -> ScholarTrend.Domain -> Microsoft.AspNetCore.Identity.EntityFrameworkCore 9.0.8 -> Microsoft.EntityFrameworkCore.Relational 9.0.8 -> Microsoft.Extensions.Configuration.Abstractions (>= 9.0.8)  [C:\Users\Admin\Documents\Ky_8\SWP_391\ScholarTrend\ScholarTrend.sln]
+C:\Users\Admin\Documents\Ky_8\SWP_391\ScholarTrend\ScholarTrend.Application\ScholarTrend.Application.csproj : error NU1605:  ScholarTrend.Application -> Microsoft.Extensions.Configuration.Abstractions (>= 9.0.0) [C:\Users\Admin\Documents\Ky_8\SWP_391\ScholarTrend\ScholarTrend.sln]
+  Failed to restore C:\Users\Admin\Documents\Ky_8\SWP_391\ScholarTrend\ScholarTrend.Application\ScholarTrend.Application.csproj (in 215 ms).
+  4 of 5 projects are up-to-date for restore.

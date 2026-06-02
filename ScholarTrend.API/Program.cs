@@ -1,10 +1,16 @@
+using Hangfire;
+using Hangfire.SqlServer;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
+using ScholarTrend.Application.Interfaces;
+using ScholarTrend.Application.Services;
 using ScholarTrend.Domain.Entities;
 using ScholarTrend.Infrastructure.Data;
 using ScholarTrend.Infrastructure.Data.Seeders;
+using ScholarTrend.Infrastructure.Repositories;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -68,13 +74,59 @@ builder.Services.AddCors(options =>
     });
 });
 
-// 5. Controllers
+// 5. Dependency Injection — Repositories & Services
+builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+
+// 6. Hangfire — Background Job Scheduler
+builder.Services.AddHangfire(config =>
+    config.SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+          .UseSimpleAssemblyNameTypeSerializer()
+          .UseRecommendedSerializerSettings()
+          .UseSqlServerStorage(connectionString, new SqlServerStorageOptions
+          {
+              CommandBatchMaxTimeout = TimeSpan.FromMinutes(5),
+              SlidingInvisibilityTimeout = TimeSpan.FromMinutes(5),
+              QueuePollInterval = TimeSpan.Zero,
+              UseRecommendedIsolationLevel = true,
+              DisableGlobalLocks = true
+          }));
+builder.Services.AddHangfireServer();
+
+// 7. Controllers
 builder.Services.AddControllers();
 
-// 6. Swagger
+// 8. Swagger with JWT support
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new() { Title = "ScholarTrend API", Version = "v1" });
+
+    // Add JWT Bearer authentication to Swagger
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "Enter your JWT token. Example: eyJhbGciOi..."
+    });
+
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
 });
 
 // ============ BUILD APP ============
@@ -88,16 +140,22 @@ using (var scope = app.Services.CreateScope())
 }
 
 // ============ MIDDLEWARE ============
+app.UseSwagger();
+app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "ScholarTrend API v1"));
+
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "ScholarTrend API v1"));
+    // Các cấu hình chỉ dành riêng cho Dev (nếu có)
 }
 
 app.UseHttpsRedirection();
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Hangfire Dashboard (dev only)
+app.UseHangfireDashboard("/hangfire");
+
 app.MapControllers();
 
 app.Run();
