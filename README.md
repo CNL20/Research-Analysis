@@ -23,7 +23,17 @@ Hệ thống theo dõi xu hướng công bố báo chí khoa học (Scientific J
   - [x] Cấu hình Hangfire Background Job
 - [x] **Verification**
   - [x] Build dự án thành công (Fix lỗi NU1605 downgrade package)
-  - [ ] Test endpoints qua Swagger (Đã sẵn sàng để chạy)
+  - [x] Test endpoints qua Swagger (Đã sẵn sàng để chạy)
+
+### Phase 2: Core Features (In Progress 🏗️)
+- [x] **Repository Layer Implementation** (Ưu tiên)
+  - [x] Tạo interface repository riêng cho `ResearchPaper`, `Bookmark`, `ResearchTopic`, `Journal`
+  - [x] Triển khai Repository classes với các query chuyên biệt (Search, Filter, Include)
+  - [x] Cập nhật `IUnitOfWork` và `UnitOfWork` (Lazy loading repositories)
+  - [x] Đăng ký Dependency Injection trong `Program.cs` cho các repository mới
+- [ ] **Service & DTO Implementation** (Tiếp theo)
+  - [ ] Tạo DTOs cho Paper, Bookmark, Topic, Journal
+  - [ ] Triển khai các Service xử lý Logic
 
 ---
 

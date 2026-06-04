@@ -1,3 +1,5 @@
+using ScholarTrend.Application.Interfaces.Repositories;
+
 namespace ScholarTrend.Application.Interfaces;
 
 /// <summary>
@@ -5,5 +7,9 @@ namespace ScholarTrend.Application.Interfaces;
 /// </summary>
 public interface IUnitOfWork : IDisposable
 {
+    IResearchPaperRepository ResearchPapers { get; }
+    IBookmarkRepository Bookmarks { get; }
+    IResearchTopicRepository Topics { get; }
+    IJournalRepository Journals { get; }
     Task<int> SaveChangesAsync();
 }

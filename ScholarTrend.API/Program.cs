@@ -76,6 +76,10 @@ builder.Services.AddCors(options =>
 
 // 5. Dependency Injection — Repositories & Services
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
+builder.Services.AddScoped<IResearchPaperRepository, ResearchPaperRepository>();
+builder.Services.AddScoped<IBookmarkRepository, BookmarkRepository>();
+builder.Services.AddScoped<IResearchTopicRepository, ResearchTopicRepository>();
+builder.Services.AddScoped<IJournalRepository, JournalRepository>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 
