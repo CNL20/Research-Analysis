@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity;
 
 namespace ScholarTrend.Domain.Entities;
 
@@ -17,4 +17,5 @@ public class User : IdentityUser
     public ICollection<Notification> Notifications { get; set; } = [];
     public ICollection<SearchHistory> SearchHistories { get; set; } = [];
     public NotificationSetting? NotificationSetting { get; set; }
+    public ICollection<RefreshToken> RefreshTokens { get; set; } = [];
 }

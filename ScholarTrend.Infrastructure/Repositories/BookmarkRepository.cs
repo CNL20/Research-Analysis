@@ -14,8 +14,9 @@ public class BookmarkRepository : GenericRepository<Bookmark>, IBookmarkReposito
     public async Task<IEnumerable<Bookmark>> GetUserBookmarksAsync(string userId)
     {
         return await _dbSet
-            .Include(b => b.Paper)
+            .Include(b => b.Paper).ThenInclude(p => p.Journal)
             .Where(b => b.UserId == userId)
+            .OrderByDescending(b => b.SavedAt)
             .ToListAsync();
     }
 

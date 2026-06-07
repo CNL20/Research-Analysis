@@ -1,46 +1,51 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using ScholarTrend.Application.DTOs.Auth;
 using ScholarTrend.Application.Interfaces;
+using ScholarTrend.Application.Interfaces.Repositories;
 using ScholarTrend.Domain.Entities;
 using ScholarTrend.Domain.Enums;
 
 namespace ScholarTrend.Application.Services;
 
 /// <summary>
-/// Authentication service handling register, login, and profile operations.
+/// Authentication service handling register, login, refresh token, and profile operations.
 /// </summary>
 public class AuthService : IAuthService
 {
     private readonly UserManager<User> _userManager;
+    private readonly RoleManager<IdentityRole> _roleManager;
+    private readonly IRefreshTokenRepository _refreshTokenRepository;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly IConfiguration _configuration;
 
-    public AuthService(UserManager<User> userManager, IConfiguration configuration)
+    public AuthService(
+        UserManager<User> userManager,
+        RoleManager<IdentityRole> roleManager,
+        IRefreshTokenRepository refreshTokenRepository,
+        IUnitOfWork unitOfWork,
+        IConfiguration configuration)
     {
         _userManager = userManager;
+        _roleManager = roleManager;
+        _refreshTokenRepository = refreshTokenRepository;
+        _unitOfWork = unitOfWork;
         _configuration = configuration;
     }
 
     public async Task<AuthResponse> RegisterAsync(RegisterRequest request)
     {
-        // Check if user already exists
         var existingUser = await _userManager.FindByEmailAsync(request.Email);
         if (existingUser != null)
         {
             throw new InvalidOperationException("Email is already registered.");
         }
 
-        // Validate password match
-        if (request.Password != request.ConfirmPassword)
-        {
-            throw new InvalidOperationException("Password and Confirm Password do not match.");
-        }
-
-        // Create user
         var user = new User
         {
             UserName = request.Email,
@@ -60,22 +65,10 @@ public class AuthService : IAuthService
             throw new InvalidOperationException($"Failed to create user: {errors}");
         }
 
-        // Assign default role
+        await EnsureDefaultRoleExistsAsync();
         await _userManager.AddToRoleAsync(user, UserRole.LecturerStudent.ToString());
 
-        // Generate token and return
-        var roles = await _userManager.GetRolesAsync(user);
-        var token = GenerateJwtToken(user, roles);
-
-        return new AuthResponse
-        {
-            Token = token,
-            Expiration = DateTime.UtcNow.AddMinutes(GetTokenExpirationMinutes()),
-            UserId = user.Id,
-            Email = user.Email!,
-            FullName = user.FullName,
-            Roles = roles.ToList()
-        };
+        return await BuildAuthResponseAsync(user);
     }
 
     public async Task<AuthResponse> LoginAsync(LoginRequest request)
@@ -97,23 +90,24 @@ public class AuthService : IAuthService
             throw new InvalidOperationException("Invalid email or password.");
         }
 
-        // Update last login
         user.LastLoginAt = DateTime.UtcNow;
         await _userManager.UpdateAsync(user);
 
-        // Generate token
-        var roles = await _userManager.GetRolesAsync(user);
-        var token = GenerateJwtToken(user, roles);
+        return await BuildAuthResponseAsync(user);
+    }
 
-        return new AuthResponse
+    public async Task<AuthResponse> RefreshTokenAsync(RefreshTokenRequest request)
+    {
+        var storedToken = await _refreshTokenRepository.GetActiveByTokenAsync(request.RefreshToken);
+        if (storedToken == null)
         {
-            Token = token,
-            Expiration = DateTime.UtcNow.AddMinutes(GetTokenExpirationMinutes()),
-            UserId = user.Id,
-            Email = user.Email!,
-            FullName = user.FullName,
-            Roles = roles.ToList()
-        };
+            throw new InvalidOperationException("Invalid or expired refresh token.");
+        }
+
+        await _refreshTokenRepository.RevokeAsync(storedToken);
+        await _unitOfWork.SaveChangesAsync();
+
+        return await BuildAuthResponseAsync(storedToken.User);
     }
 
     public async Task<UserProfileDto> GetProfileAsync(string userId)
@@ -126,6 +120,34 @@ public class AuthService : IAuthService
 
         var roles = await _userManager.GetRolesAsync(user);
 
+        return MapToProfile(user, roles);
+    }
+
+    public async Task<UserProfileDto> UpdateProfileAsync(string userId, UpdateProfileRequest request)
+    {
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null)
+        {
+            throw new InvalidOperationException("User not found.");
+        }
+
+        user.FullName = request.FullName;
+        user.Institution = request.Institution;
+        user.ResearchField = request.ResearchField;
+
+        var result = await _userManager.UpdateAsync(user);
+        if (!result.Succeeded)
+        {
+            var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+            throw new InvalidOperationException($"Failed to update profile: {errors}");
+        }
+
+        var roles = await _userManager.GetRolesAsync(user);
+        return MapToProfile(user, roles);
+    }
+
+    private static UserProfileDto MapToProfile(User user, IList<string> roles)
+    {
         return new UserProfileDto
         {
             Id = user.Id,
@@ -139,10 +161,60 @@ public class AuthService : IAuthService
         };
     }
 
+    private async Task EnsureDefaultRoleExistsAsync()
+    {
+        var roleName = UserRole.LecturerStudent.ToString();
+        if (await _roleManager.RoleExistsAsync(roleName))
+        {
+            return;
+        }
+
+        var result = await _roleManager.CreateAsync(new IdentityRole(roleName));
+        if (!result.Succeeded)
+        {
+            var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+            throw new InvalidOperationException($"Failed to ensure default role exists: {errors}");
+        }
+    }
+
+    private async Task<AuthResponse> BuildAuthResponseAsync(User user)
+    {
+        var roles = await _userManager.GetRolesAsync(user);
+        var accessToken = GenerateJwtToken(user, roles);
+        var refreshToken = await CreateRefreshTokenAsync(user);
+
+        return new AuthResponse
+        {
+            Token = accessToken,
+            Expiration = DateTime.UtcNow.AddMinutes(GetTokenExpirationMinutes()),
+            RefreshToken = refreshToken.Token,
+            RefreshTokenExpiration = refreshToken.ExpiresAt,
+            UserId = user.Id,
+            Email = user.Email!,
+            FullName = user.FullName,
+            Roles = roles.ToList()
+        };
+    }
+
+    private async Task<RefreshToken> CreateRefreshTokenAsync(User user)
+    {
+        var refreshToken = new RefreshToken
+        {
+            Token = GenerateRefreshTokenValue(),
+            UserId = user.Id,
+            ExpiresAt = DateTime.UtcNow.AddDays(GetRefreshTokenExpirationDays()),
+            CreatedAt = DateTime.UtcNow
+        };
+
+        await _refreshTokenRepository.AddAsync(refreshToken);
+        await _unitOfWork.SaveChangesAsync();
+
+        return refreshToken;
+    }
+
     private string GenerateJwtToken(User user, IList<string> roles)
     {
-        var jwtSettings = _configuration.GetSection("Authentication:Jwt");
-        var secretKey = jwtSettings["SecretKey"]!;
+        var secretKey = GetJwtSecretKey();
         var key = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(secretKey));
 
         var claims = new List<Claim>
@@ -153,17 +225,15 @@ public class AuthService : IAuthService
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 
-        // Add role claims
         foreach (var role in roles)
         {
             claims.Add(new Claim(ClaimTypes.Role, role));
         }
 
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-        var expirationMinutes = GetTokenExpirationMinutes();
 
         var token = new JwtSecurityToken(
-            expires: DateTime.UtcNow.AddMinutes(expirationMinutes),
+            expires: DateTime.UtcNow.AddMinutes(GetTokenExpirationMinutes()),
             claims: claims,
             signingCredentials: credentials
         );
@@ -171,9 +241,34 @@ public class AuthService : IAuthService
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
+    private static string GenerateRefreshTokenValue()
+    {
+        var randomBytes = RandomNumberGenerator.GetBytes(64);
+        return Convert.ToBase64String(randomBytes);
+    }
+
+    private string GetJwtSecretKey()
+    {
+        var secretKey = _configuration["Authentication:Jwt:SecretKey"]
+            ?? Environment.GetEnvironmentVariable("JWT_SECRET_KEY");
+
+        if (string.IsNullOrWhiteSpace(secretKey))
+        {
+            throw new InvalidOperationException("JWT SecretKey is missing from configuration.");
+        }
+
+        return secretKey;
+    }
+
     private int GetTokenExpirationMinutes()
     {
         var minutes = _configuration.GetSection("Authentication:Jwt")["ExpirationMinutes"];
         return int.TryParse(minutes, out var result) ? result : 60;
+    }
+
+    private int GetRefreshTokenExpirationDays()
+    {
+        var days = _configuration.GetSection("Authentication:Jwt")["RefreshTokenExpirationDays"];
+        return int.TryParse(days, out var result) ? result : 7;
     }
 }

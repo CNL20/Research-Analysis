@@ -551,6 +551,43 @@ namespace ScholarTrend.Infrastructure.Migrations
                     b.ToTable("PaperTopics");
                 });
 
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.RefreshToken", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsRevoked")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Token")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("RefreshTokens");
+                });
+
             modelBuilder.Entity("ScholarTrend.Domain.Entities.ResearchPaper", b =>
                 {
                     b.Property<int>("Id")
@@ -1063,6 +1100,17 @@ namespace ScholarTrend.Infrastructure.Migrations
                     b.Navigation("Topic");
                 });
 
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.RefreshToken", b =>
+                {
+                    b.HasOne("ScholarTrend.Domain.Entities.User", "User")
+                        .WithMany("RefreshTokens")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("ScholarTrend.Domain.Entities.ResearchPaper", b =>
                 {
                     b.HasOne("ScholarTrend.Domain.Entities.Journal", "Journal")
@@ -1147,6 +1195,8 @@ namespace ScholarTrend.Infrastructure.Migrations
                     b.Navigation("NotificationSetting");
 
                     b.Navigation("Notifications");
+
+                    b.Navigation("RefreshTokens");
 
                     b.Navigation("SearchHistories");
                 });

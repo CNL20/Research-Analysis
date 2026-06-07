@@ -1,0 +1,174 @@
+using ScholarTrend.Application.DTOs.Notifications;
+using ScholarTrend.Application.Interfaces;
+using ScholarTrend.Domain.Entities;
+
+namespace ScholarTrend.Application.Services;
+
+public class NotificationService : INotificationService
+{
+    private readonly IUnitOfWork _unitOfWork;
+
+    public NotificationService(IUnitOfWork unitOfWork)
+    {
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<IReadOnlyList<NotificationDto>> GetNotificationsAsync(string userId, bool? isRead, int limit = 20)
+    {
+        var notifications = await _unitOfWork.Notifications.GetUserNotificationsAsync(userId, isRead, limit);
+        return notifications.Select(MapToDto).ToList();
+    }
+
+    public Task<int> GetUnreadCountAsync(string userId)
+    {
+        return _unitOfWork.Notifications.GetUnreadCountAsync(userId);
+    }
+
+    public async Task MarkAsReadAsync(string userId, int notificationId)
+    {
+        var notification = await _unitOfWork.Notifications.GetByIdForUserAsync(notificationId, userId);
+        if (notification == null)
+        {
+            throw new InvalidOperationException("Notification not found.");
+        }
+
+        notification.IsRead = true;
+        notification.ReadAt = DateTime.UtcNow;
+        await _unitOfWork.SaveChangesAsync();
+    }
+
+    public Task MarkAllAsReadAsync(string userId)
+    {
+        return _unitOfWork.Notifications.MarkAllAsReadAsync(userId);
+    }
+
+    public async Task<NotificationSettingDto> GetSettingsAsync(string userId)
+    {
+        var settings = await GetOrCreateSettingsAsync(userId);
+        return MapSettingsToDto(settings);
+    }
+
+    public async Task<NotificationSettingDto> UpdateSettingsAsync(string userId, NotificationSettingDto request)
+    {
+        var settings = await GetOrCreateSettingsAsync(userId);
+        settings.EmailEnabled = request.EmailEnabled;
+        settings.TopicAlertEnabled = request.TopicAlertEnabled;
+        settings.Frequency = request.Frequency;
+
+        await _unitOfWork.SaveChangesAsync();
+        return MapSettingsToDto(settings);
+    }
+
+    public async Task NotifyFollowersForNewPaperAsync(int paperId)
+    {
+        var paper = await _unitOfWork.ResearchPapers.GetPaperWithDetailsAsync(paperId);
+        if (paper == null)
+        {
+            return;
+        }
+
+        var notifiedUsers = new HashSet<string>();
+
+        foreach (var topicId in paper.PaperTopics.Select(pt => pt.TopicId))
+        {
+            var followers = await _unitOfWork.Follows.GetTopicFollowerUserIdsAsync(topicId);
+            foreach (var userId in followers)
+            {
+                await TryNotifyUserAsync(userId, notifiedUsers, "New paper in followed topic",
+                    $"A new paper \"{paper.Title}\" was published in a topic you follow.",
+                    $"/papers/{paper.Id}");
+            }
+        }
+
+        if (paper.JournalId.HasValue)
+        {
+            var followers = await _unitOfWork.Follows.GetJournalFollowerUserIdsAsync(paper.JournalId.Value);
+            foreach (var userId in followers)
+            {
+                await TryNotifyUserAsync(userId, notifiedUsers, "New paper in followed journal",
+                    $"A new paper \"{paper.Title}\" was published in a journal you follow.",
+                    $"/papers/{paper.Id}");
+            }
+        }
+
+        await _unitOfWork.SaveChangesAsync();
+    }
+
+    private async Task TryNotifyUserAsync(
+        string userId,
+        HashSet<string> notifiedUsers,
+        string title,
+        string message,
+        string targetUrl)
+    {
+        if (!notifiedUsers.Add(userId))
+        {
+            return;
+        }
+
+        if (!await IsAlertEnabledAsync(userId))
+        {
+            return;
+        }
+
+        await _unitOfWork.Notifications.AddAsync(new Notification
+        {
+            UserId = userId,
+            Title = title,
+            Message = message,
+            TargetUrl = targetUrl,
+            CreatedAt = DateTime.UtcNow
+        });
+    }
+
+    private async Task<bool> IsAlertEnabledAsync(string userId)
+    {
+        var settings = await _unitOfWork.Notifications.GetSettingsAsync(userId);
+        return settings?.TopicAlertEnabled ?? true;
+    }
+
+    private async Task<NotificationSetting> GetOrCreateSettingsAsync(string userId)
+    {
+        var settings = await _unitOfWork.Notifications.GetSettingsAsync(userId);
+        if (settings != null)
+        {
+            return settings;
+        }
+
+        settings = new NotificationSetting
+        {
+            UserId = userId,
+            EmailEnabled = true,
+            TopicAlertEnabled = true,
+            Frequency = "Daily"
+        };
+
+        await _unitOfWork.Notifications.AddSettingsAsync(settings);
+        await _unitOfWork.SaveChangesAsync();
+        return settings;
+    }
+
+    private static NotificationDto MapToDto(Notification notification)
+    {
+        return new NotificationDto
+        {
+            Id = notification.Id,
+            Title = notification.Title,
+            Message = notification.Message,
+            TargetUrl = notification.TargetUrl,
+            IsRead = notification.IsRead,
+            CreatedAt = notification.CreatedAt,
+            ReadAt = notification.ReadAt
+        };
+    }
+
+    private static NotificationSettingDto MapSettingsToDto(NotificationSetting settings)
+    {
+        return new NotificationSettingDto
+        {
+            EmailEnabled = settings.EmailEnabled,
+            TopicAlertEnabled = settings.TopicAlertEnabled,
+            Frequency = settings.Frequency
+        };
+    }
+}

@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using ScholarTrend.Domain.Entities;
 
@@ -45,6 +45,7 @@ public class ScholarTrendDbContext : IdentityDbContext<User>
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<SearchHistory> SearchHistories => Set<SearchHistory>();
     public DbSet<NotificationSetting> NotificationSettings => Set<NotificationSetting>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     #endregion
 

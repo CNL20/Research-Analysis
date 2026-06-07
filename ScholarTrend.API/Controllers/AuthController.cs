@@ -75,4 +75,45 @@ public class AuthController : ControllerBase
             return NotFound(ApiResponse<UserProfileDto>.FailResponse(ex.Message));
         }
     }
+
+    /// <summary>
+    /// Update current user profile. Requires authentication.
+    /// </summary>
+    [Authorize]
+    [HttpPut("profile")]
+    public async Task<ActionResult<ApiResponse<UserProfileDto>>> UpdateProfile([FromBody] UpdateProfileRequest request)
+    {
+        try
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(ApiResponse<UserProfileDto>.FailResponse("User not authenticated."));
+            }
+
+            var result = await _authService.UpdateProfileAsync(userId, request);
+            return Ok(ApiResponse<UserProfileDto>.SuccessResponse(result, "Profile updated successfully."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<UserProfileDto>.FailResponse(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Exchange a valid refresh token for a new access token and refresh token pair.
+    /// </summary>
+    [HttpPost("refresh-token")]
+    public async Task<ActionResult<ApiResponse<AuthResponse>>> RefreshToken([FromBody] RefreshTokenRequest request)
+    {
+        try
+        {
+            var result = await _authService.RefreshTokenAsync(request);
+            return Ok(ApiResponse<AuthResponse>.SuccessResponse(result, "Token refreshed successfully."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<AuthResponse>.FailResponse(ex.Message));
+        }
+    }
 }

@@ -13,6 +13,6 @@ public class ResearchTopicRepository : GenericRepository<ResearchTopic>, IResear
 
     public async Task<ResearchTopic?> GetByNameAsync(string name)
     {
-        return await _dbSet.FirstOrDefaultAsync(t => t.Name == name);
+        return await _dbSet.FirstOrDefaultAsync(t => t.TopicName == name);
     }
 }

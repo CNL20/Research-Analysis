@@ -5,7 +5,7 @@ namespace ScholarTrend.Infrastructure.Data.Seeders;
 
 public static class RoleSeeder
 {
-    public static async Task SeedAsync(RoleManager<IdentityRole> roleManager)
+    public static async Task EnsureRolesExistAsync(RoleManager<IdentityRole> roleManager)
     {
         string[] roles =
         [
@@ -22,4 +22,7 @@ public static class RoleSeeder
             }
         }
     }
+
+    public static Task SeedAsync(RoleManager<IdentityRole> roleManager)
+        => EnsureRolesExistAsync(roleManager);
 }

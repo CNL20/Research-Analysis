@@ -1,3 +1,5 @@
+using FluentValidation;
+using FluentValidation.AspNetCore;
 using Hangfire;
 using Hangfire.SqlServer;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -5,12 +7,18 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using ScholarTrend.API.Filters;
 using ScholarTrend.Application.Interfaces;
+using ScholarTrend.Application.Interfaces.Repositories;
 using ScholarTrend.Application.Services;
+using ScholarTrend.Application.Validators;
 using ScholarTrend.Domain.Entities;
 using ScholarTrend.Infrastructure.Data;
 using ScholarTrend.Infrastructure.Data.Seeders;
+using ScholarTrend.Infrastructure.ExternalApis;
+using ScholarTrend.Infrastructure.Jobs;
 using ScholarTrend.Infrastructure.Repositories;
+using ScholarTrend.Application.Interfaces.External;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -35,11 +43,11 @@ builder.Services.AddIdentity<User, IdentityRole>(options =>
     .AddDefaultTokenProviders();
 
 // 3. JWT Authentication
-var jwtSettings = builder.Configuration.GetSection("Authentication:Jwt");
-var secretKey = jwtSettings["SecretKey"];
+var secretKey = builder.Configuration["Authentication:Jwt:SecretKey"]
+    ?? Environment.GetEnvironmentVariable("JWT_SECRET_KEY");
 if (string.IsNullOrWhiteSpace(secretKey))
 {
-    throw new InvalidOperationException("JWT SecretKey is missing from configuration.");
+    throw new InvalidOperationException("JWT SecretKey is missing. Set Authentication:Jwt:SecretKey or JWT_SECRET_KEY.");
 }
 
 var key = Encoding.ASCII.GetBytes(secretKey);
@@ -80,8 +88,37 @@ builder.Services.AddScoped<IResearchPaperRepository, ResearchPaperRepository>();
 builder.Services.AddScoped<IBookmarkRepository, BookmarkRepository>();
 builder.Services.AddScoped<IResearchTopicRepository, ResearchTopicRepository>();
 builder.Services.AddScoped<IJournalRepository, JournalRepository>();
+builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IPaperService, PaperService>();
+builder.Services.AddScoped<IBookmarkService, BookmarkService>();
+builder.Services.AddScoped<ITopicService, TopicService>();
+builder.Services.AddScoped<IJournalService, JournalService>();
+builder.Services.AddScoped<ITrendRepository, TrendRepository>();
+builder.Services.AddScoped<IStatisticsRepository, StatisticsRepository>();
+builder.Services.AddScoped<ITrendService, TrendService>();
+builder.Services.AddScoped<IFollowService, FollowService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<IAdminDashboardService, AdminDashboardService>();
+builder.Services.AddScoped<IReportService, ReportService>();
+builder.Services.AddScoped<ISyncService, SyncService>();
+builder.Services.AddScoped<IPaperImportRepository, PaperImportRepository>();
+builder.Services.AddScoped<SyncJob>();
+
+builder.Services.AddHttpClient<ISemanticScholarClient, SemanticScholarClient>();
+builder.Services.AddHttpClient<IOpenAlexClient, OpenAlexClient>();
+
+builder.Services.AddMemoryCache();
+
+builder.Services.AddValidatorsFromAssemblyContaining<RegisterRequestValidator>();
+builder.Services.AddFluentValidationAutoValidation();
+
+// 7. Controllers
+builder.Services.AddControllers();
+builder.Services.AddApiValidationResponse();
 
 // 6. Hangfire — Background Job Scheduler
 builder.Services.AddHangfire(config =>
@@ -97,9 +134,6 @@ builder.Services.AddHangfire(config =>
               DisableGlobalLocks = true
           }));
 builder.Services.AddHangfireServer();
-
-// 7. Controllers
-builder.Services.AddControllers();
 
 // 8. Swagger with JWT support
 builder.Services.AddSwaggerGen(c =>
@@ -141,6 +175,7 @@ using (var scope = app.Services.CreateScope())
     var dbContext = scope.ServiceProvider.GetRequiredService<ScholarTrendDbContext>();
     await dbContext.Database.MigrateAsync();
     await DatabaseSeeder.SeedAsync(app.Services);
+    await ApiDataSourceSeeder.SeedAsync(dbContext);
 }
 
 // ============ MIDDLEWARE ============
@@ -159,6 +194,8 @@ app.UseAuthorization();
 
 // Hangfire Dashboard (dev only)
 app.UseHangfireDashboard("/hangfire");
+
+RecurringJob.AddOrUpdate<SyncJob>("daily-paper-sync", job => job.RunAsync(), Cron.Daily);
 
 app.MapControllers();
 
