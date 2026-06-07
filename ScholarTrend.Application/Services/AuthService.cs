@@ -215,7 +215,7 @@ public class AuthService : IAuthService
     private string GenerateJwtToken(User user, IList<string> roles)
     {
         var secretKey = GetJwtSecretKey();
-        var key = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(secretKey));
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
 
         var claims = new List<Claim>
         {
@@ -262,13 +262,13 @@ public class AuthService : IAuthService
 
     private int GetTokenExpirationMinutes()
     {
-        var minutes = _configuration.GetSection("Authentication:Jwt")["ExpirationMinutes"];
+        var minutes = _configuration["Authentication:Jwt:ExpirationMinutes"];
         return int.TryParse(minutes, out var result) ? result : 60;
     }
 
     private int GetRefreshTokenExpirationDays()
     {
-        var days = _configuration.GetSection("Authentication:Jwt")["RefreshTokenExpirationDays"];
+        var days = _configuration["Authentication:Jwt:RefreshTokenExpirationDays"];
         return int.TryParse(days, out var result) ? result : 7;
     }
 }
