@@ -31,9 +31,8 @@ public class AuthServiceTests
 
         // Setup common config
         _mockConfig.Setup(c => c["Authentication:Jwt:SecretKey"]).Returns("SuperSecretKeyAtLeast32CharactersLong!");
-
         _mockConfig.Setup(c => c["Authentication:Jwt:ExpirationMinutes"]).Returns("1440");
-    _mockConfig.Setup(c => c["Authentication:Jwt:RefreshTokenExpirationDays"]).Returns("30");
+        _mockConfig.Setup(c => c["Authentication:Jwt:RefreshTokenExpirationDays"]).Returns("30");
         
         _authService = new AuthService(
             _mockUserManager.Object,
