@@ -68,6 +68,16 @@ public class AuthService : IAuthService
         await EnsureDefaultRoleExistsAsync();
         await _userManager.AddToRoleAsync(user, UserRole.LecturerStudent.ToString());
 
+        await _unitOfWork.Notifications.AddAsync(new Notification
+        {
+            UserId = user.Id,
+            Title = "Welcome to ScholarTrend",
+            Message = "Your account has been created successfully. Start exploring research trends, search papers, and build your personal library!",
+            TargetUrl = "/dashboard",
+            CreatedAt = DateTime.UtcNow
+        });
+        await _unitOfWork.SaveChangesAsync();
+
         return await BuildAuthResponseAsync(user);
     }
 
