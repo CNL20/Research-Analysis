@@ -12,6 +12,9 @@ public class SyncJob
         _serviceProvider = serviceProvider;
     }
 
+    /// <summary>
+    /// Fetches papers from external APIs and creates a pending sync proposal for admin approval.
+    /// </summary>
     public async Task RunAsync()
     {
         using var scope = _serviceProvider.CreateScope();

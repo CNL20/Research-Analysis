@@ -53,6 +53,8 @@ public class ScholarTrendDbContext : IdentityDbContext<User>
 
     public DbSet<SyncLog> SyncLogs => Set<SyncLog>();
     public DbSet<ApiDataSource> ApiDataSources => Set<ApiDataSource>();
+    public DbSet<SyncProposal> SyncProposals => Set<SyncProposal>();
+    public DbSet<PendingPaper> PendingPapers => Set<PendingPaper>();
 
     #endregion
 

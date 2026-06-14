@@ -11,4 +11,5 @@ public interface INotificationService
     Task<NotificationSettingDto> GetSettingsAsync(string userId);
     Task<NotificationSettingDto> UpdateSettingsAsync(string userId, NotificationSettingDto request);
     Task NotifyFollowersForNewPaperAsync(int paperId);
+    Task NotifyAdminsPendingSyncAsync(int proposalId, int pendingCount);
 }

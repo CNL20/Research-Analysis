@@ -16,5 +16,6 @@ public interface IUnitOfWork : IDisposable
     INotificationRepository Notifications { get; }
     IApiDataSourceRepository ApiDataSources { get; }
     ISyncLogRepository SyncLogs { get; }
+    ISyncProposalRepository SyncProposals { get; }
     Task<int> SaveChangesAsync();
 }

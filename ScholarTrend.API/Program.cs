@@ -187,7 +187,10 @@ if (app.Environment.IsDevelopment())
     // Các cấu hình chỉ dành riêng cho Dev (nếu có)
 }
 
-app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();

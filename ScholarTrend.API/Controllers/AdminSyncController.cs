@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ScholarTrend.Application.DTOs.Common;
@@ -19,17 +20,73 @@ public class AdminSyncController : ControllerBase
         _syncService = syncService;
     }
 
+    /// <summary>
+    /// Fetch papers from external APIs and create a pending sync proposal (does not import until approved).
+    /// </summary>
     [HttpPost("trigger")]
     public async Task<ActionResult<ApiResponse<SyncResultDto>>> TriggerSync([FromBody] TriggerSyncRequest? request)
     {
         try
         {
             var result = await _syncService.RunSyncAsync(request?.SourceName);
-            return Ok(ApiResponse<SyncResultDto>.SuccessResponse(result, "Sync triggered successfully."));
+            return Ok(ApiResponse<SyncResultDto>.SuccessResponse(result, "Sync proposal created successfully."));
         }
         catch (InvalidOperationException ex)
         {
             return BadRequest(ApiResponse<SyncResultDto>.FailResponse(ex.Message));
+        }
+    }
+
+    [HttpGet("pending")]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<SyncProposalListItemDto>>>> GetPendingProposals([FromQuery] int limit = 50)
+    {
+        var result = await _syncService.GetPendingProposalsAsync(limit);
+        return Ok(ApiResponse<IReadOnlyList<SyncProposalListItemDto>>.SuccessResponse(result));
+    }
+
+    [HttpGet("pending/{id:int}")]
+    public async Task<ActionResult<ApiResponse<SyncProposalDto>>> GetPendingProposal(int id)
+    {
+        try
+        {
+            var result = await _syncService.GetPendingProposalByIdAsync(id);
+            return Ok(ApiResponse<SyncProposalDto>.SuccessResponse(result));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ApiResponse<SyncProposalDto>.FailResponse(ex.Message));
+        }
+    }
+
+    [HttpPost("pending/{id:int}/approve")]
+    public async Task<ActionResult<ApiResponse<ApproveSyncResultDto>>> ApprovePendingSync(
+        int id,
+        [FromBody] ApproveSyncRequest? request)
+    {
+        try
+        {
+            var adminUserId = GetUserId();
+            var result = await _syncService.ApprovePendingSyncAsync(id, adminUserId, request ?? new ApproveSyncRequest());
+            return Ok(ApiResponse<ApproveSyncResultDto>.SuccessResponse(result, result.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<ApproveSyncResultDto>.FailResponse(ex.Message));
+        }
+    }
+
+    [HttpPost("pending/{id:int}/reject")]
+    public async Task<ActionResult<ApiResponse<ApproveSyncResultDto>>> RejectPendingSync(int id)
+    {
+        try
+        {
+            var adminUserId = GetUserId();
+            var result = await _syncService.RejectPendingSyncAsync(id, adminUserId);
+            return Ok(ApiResponse<ApproveSyncResultDto>.SuccessResponse(result, result.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<ApproveSyncResultDto>.FailResponse(ex.Message));
         }
     }
 
@@ -61,5 +118,11 @@ public class AdminSyncController : ControllerBase
         {
             return NotFound(ApiResponse<ApiDataSourceDto>.FailResponse(ex.Message));
         }
+    }
+
+    private string GetUserId()
+    {
+        return User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? throw new InvalidOperationException("User not authenticated.");
     }
 }

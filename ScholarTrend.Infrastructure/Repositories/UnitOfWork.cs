@@ -19,6 +19,7 @@ public class UnitOfWork : IUnitOfWork
     private INotificationRepository? _notifications;
     private IApiDataSourceRepository? _apiDataSources;
     private ISyncLogRepository? _syncLogs;
+    private ISyncProposalRepository? _syncProposals;
 
     public UnitOfWork(ScholarTrendDbContext context)
     {
@@ -34,6 +35,7 @@ public class UnitOfWork : IUnitOfWork
     public INotificationRepository Notifications => _notifications ??= new NotificationRepository(_context);
     public IApiDataSourceRepository ApiDataSources => _apiDataSources ??= new ApiDataSourceRepository(_context);
     public ISyncLogRepository SyncLogs => _syncLogs ??= new SyncLogRepository(_context);
+    public ISyncProposalRepository SyncProposals => _syncProposals ??= new SyncProposalRepository(_context);
 
     public async Task<int> SaveChangesAsync()
     {

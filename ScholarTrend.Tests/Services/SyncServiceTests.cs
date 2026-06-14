@@ -1,0 +1,134 @@
+using FluentAssertions;
+using Microsoft.Extensions.Configuration;
+using Moq;
+using ScholarTrend.Application.DTOs.Sync;
+using ScholarTrend.Application.Interfaces;
+using ScholarTrend.Application.Interfaces.External;
+using ScholarTrend.Application.Interfaces.Repositories;
+using ScholarTrend.Application.Services;
+using ScholarTrend.Domain.Constants;
+using ScholarTrend.Domain.Entities;
+
+namespace ScholarTrend.Tests.Services;
+
+public class SyncServiceTests
+{
+    private readonly Mock<IUnitOfWork> _mockUnitOfWork;
+    private readonly Mock<ISyncProposalRepository> _mockSyncProposalRepo;
+    private readonly Mock<IPaperImportRepository> _mockPaperImportRepo;
+    private readonly Mock<ISemanticScholarClient> _mockSemanticClient;
+    private readonly Mock<IOpenAlexClient> _mockOpenAlexClient;
+    private readonly Mock<INotificationService> _mockNotificationService;
+    private readonly Mock<IConfiguration> _mockConfig;
+    private readonly SyncService _syncService;
+
+    public SyncServiceTests()
+    {
+        _mockUnitOfWork = new Mock<IUnitOfWork>();
+        _mockSyncProposalRepo = new Mock<ISyncProposalRepository>();
+        _mockPaperImportRepo = new Mock<IPaperImportRepository>();
+        _mockSemanticClient = new Mock<ISemanticScholarClient>();
+        _mockOpenAlexClient = new Mock<IOpenAlexClient>();
+        _mockNotificationService = new Mock<INotificationService>();
+        _mockConfig = new Mock<IConfiguration>();
+
+        _mockUnitOfWork.Setup(u => u.SyncProposals).Returns(_mockSyncProposalRepo.Object);
+
+        _syncService = new SyncService(
+            _mockUnitOfWork.Object,
+            _mockPaperImportRepo.Object,
+            _mockSemanticClient.Object,
+            _mockOpenAlexClient.Object,
+            _mockNotificationService.Object,
+            _mockConfig.Object
+        );
+    }
+
+    [Fact]
+    public async Task RunSyncAsync_ShouldCreatePendingProposal_AndNotifyAdmins()
+    {
+        var source = new ApiDataSource { Name = "SemanticScholar", IsActive = true };
+        _mockUnitOfWork.Setup(u => u.ApiDataSources.GetActiveAsync())
+            .ReturnsAsync(new List<ApiDataSource> { source });
+        _mockUnitOfWork.Setup(u => u.SyncLogs.AddAsync(It.IsAny<SyncLog>()))
+            .Returns(Task.CompletedTask);
+        _mockSyncProposalRepo.Setup(r => r.AddAsync(It.IsAny<SyncProposal>()))
+            .Callback<SyncProposal>(p => p.Id = 101)
+            .Returns(Task.CompletedTask);
+        _mockSyncProposalRepo.Setup(r => r.IsPaperAlreadyQueuedOrStoredAsync(It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync(false);
+
+        var externalPapers = new List<ExternalPaperDto>
+        {
+            new() { ExternalId = "ext1", Title = "Paper 1", Source = "SemanticScholar", Doi = "10.123/1" }
+        };
+
+        _mockSemanticClient.Setup(c => c.SearchPapersAsync(It.IsAny<string>(), It.IsAny<int>()))
+            .ReturnsAsync(externalPapers);
+
+        var result = await _syncService.RunSyncAsync("SemanticScholar");
+
+        result.Status.Should().Be("AwaitingApproval");
+        result.PapersAdded.Should().Be(0);
+        result.SyncProposalId.Should().Be(101);
+        _mockPaperImportRepo.Verify(r => r.ImportAsync(It.IsAny<ExternalPaperDto>(), It.IsAny<int?>()), Times.Never);
+        _mockNotificationService.Verify(n => n.NotifyAdminsPendingSyncAsync(101, 1), Times.Once);
+        _mockNotificationService.Verify(n => n.NotifyFollowersForNewPaperAsync(It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ApprovePendingSyncAsync_ShouldImportPapers_AndNotifyFollowers()
+    {
+        var proposal = new SyncProposal
+        {
+            Id = 101,
+            Status = SyncProposalStatus.Pending,
+            PendingPapers =
+            [
+                new PendingPaper
+                {
+                    Id = 1,
+                    ExternalId = "ext1",
+                    ExternalSource = "SemanticScholar",
+                    Title = "Paper 1",
+                    AuthorNamesJson = "[]",
+                    Status = PendingPaperStatus.Pending
+                }
+            ]
+        };
+
+        _mockSyncProposalRepo.Setup(r => r.GetByIdWithPapersAsync(101)).ReturnsAsync(proposal);
+        _mockUnitOfWork.Setup(u => u.Journals.GetAllAsync())
+            .ReturnsAsync(new List<Journal> { new() { Id = 1 } });
+        _mockPaperImportRepo.Setup(r => r.ImportAsync(It.IsAny<ExternalPaperDto>(), It.IsAny<int?>()))
+            .ReturnsAsync(new ResearchPaperImportResult { IsNew = true, PaperId = 501 });
+
+        var result = await _syncService.ApprovePendingSyncAsync(101, "admin-id", new ApproveSyncRequest());
+
+        result.Status.Should().Be(SyncProposalStatus.Approved);
+        result.PapersApproved.Should().Be(1);
+        _mockPaperImportRepo.Verify(r => r.ImportAsync(It.IsAny<ExternalPaperDto>(), It.IsAny<int?>()), Times.Once);
+        _mockNotificationService.Verify(n => n.NotifyFollowersForNewPaperAsync(501), Times.Once);
+    }
+
+    [Fact]
+    public async Task RunSyncAsync_ShouldHandleApiFailure_Gracefully()
+    {
+        var source = new ApiDataSource { Name = "SemanticScholar", IsActive = true };
+        _mockUnitOfWork.Setup(u => u.ApiDataSources.GetActiveAsync())
+            .ReturnsAsync(new List<ApiDataSource> { source });
+        _mockUnitOfWork.Setup(u => u.SyncLogs.AddAsync(It.IsAny<SyncLog>()))
+            .Returns(Task.CompletedTask);
+        _mockSyncProposalRepo.Setup(r => r.AddAsync(It.IsAny<SyncProposal>()))
+            .Returns(Task.CompletedTask);
+
+        _mockSemanticClient.Setup(c => c.SearchPapersAsync(It.IsAny<string>(), It.IsAny<int>()))
+            .ThrowsAsync(new Exception("API Down"));
+
+        var result = await _syncService.RunSyncAsync("SemanticScholar");
+
+        result.Status.Should().Be("Failed");
+        result.Message.Should().Be("API Down");
+        _mockUnitOfWork.Verify(u => u.SaveChangesAsync(), Times.AtLeastOnce);
+    }
+}

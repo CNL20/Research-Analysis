@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ScholarTrend.Infrastructure.Data;
 
@@ -11,9 +12,11 @@ using ScholarTrend.Infrastructure.Data;
 namespace ScholarTrend.Infrastructure.Migrations
 {
     [DbContext(typeof(ScholarTrendDbContext))]
-    partial class ScholarTrendDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260613135741_AddSyncProposalPendingPaper")]
+    partial class AddSyncProposalPendingPaper
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
