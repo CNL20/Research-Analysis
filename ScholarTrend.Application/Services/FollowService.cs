@@ -130,4 +130,122 @@ public class FollowService : IFollowService
         _unitOfWork.Follows.RemoveJournal(follow);
         await _unitOfWork.SaveChangesAsync();
     }
+
+    public async Task<IReadOnlyList<FollowItemDto>> GetFollowedAuthorsAsync(string userId)
+    {
+        var follows = await _unitOfWork.Follows.GetUserFollowedAuthorsAsync(userId);
+        return follows.Select(f => new FollowItemDto
+        {
+            Id = f.Id,
+            TargetId = f.AuthorId,
+            Name = f.Author.Name,
+            Type = "author",
+            FollowedAt = f.FollowedAt
+        }).ToList();
+    }
+
+    public async Task<IReadOnlyList<FollowItemDto>> GetFollowedPapersAsync(string userId)
+    {
+        var follows = await _unitOfWork.Follows.GetUserFollowedPapersAsync(userId);
+        return follows.Select(f => new FollowItemDto
+        {
+            Id = f.Id,
+            TargetId = f.PaperId,
+            Name = f.Paper.Title,
+            Type = "paper",
+            FollowedAt = f.FollowedAt
+        }).ToList();
+    }
+
+    public async Task<FollowItemDto> FollowAuthorAsync(string userId, int authorId)
+    {
+        var author = await _unitOfWork.Follows.GetAuthorByIdAsync(authorId);
+        if (author == null)
+        {
+            throw new InvalidOperationException("Author not found.");
+        }
+
+        var existing = await _unitOfWork.Follows.GetFollowedAuthorAsync(userId, authorId);
+        if (existing != null)
+        {
+            throw new InvalidOperationException("Author is already followed.");
+        }
+
+        var follow = new FollowedAuthor
+        {
+            UserId = userId,
+            AuthorId = authorId,
+            FollowedAt = DateTime.UtcNow
+        };
+
+        await _unitOfWork.Follows.AddAuthorAsync(follow);
+        await _unitOfWork.SaveChangesAsync();
+
+        return new FollowItemDto
+        {
+            Id = follow.Id,
+            TargetId = authorId,
+            Name = author.Name,
+            Type = "author",
+            FollowedAt = follow.FollowedAt
+        };
+    }
+
+    public async Task UnfollowAuthorAsync(string userId, int authorId)
+    {
+        var follow = await _unitOfWork.Follows.GetFollowedAuthorAsync(userId, authorId);
+        if (follow == null)
+        {
+            throw new InvalidOperationException("Author is not followed.");
+        }
+
+        _unitOfWork.Follows.RemoveAuthor(follow);
+        await _unitOfWork.SaveChangesAsync();
+    }
+
+    public async Task<FollowItemDto> FollowPaperAsync(string userId, int paperId)
+    {
+        var paper = await _unitOfWork.ResearchPapers.GetByIdAsync(paperId);
+        if (paper == null)
+        {
+            throw new InvalidOperationException("Paper not found.");
+        }
+
+        var existing = await _unitOfWork.Follows.GetFollowedPaperAsync(userId, paperId);
+        if (existing != null)
+        {
+            throw new InvalidOperationException("Paper is already followed.");
+        }
+
+        var follow = new FollowedPaper
+        {
+            UserId = userId,
+            PaperId = paperId,
+            FollowedAt = DateTime.UtcNow
+        };
+
+        await _unitOfWork.Follows.AddPaperAsync(follow);
+        await _unitOfWork.SaveChangesAsync();
+
+        return new FollowItemDto
+        {
+            Id = follow.Id,
+            TargetId = paperId,
+            Name = paper.Title,
+            Type = "paper",
+            FollowedAt = follow.FollowedAt
+        };
+    }
+
+    public async Task UnfollowPaperAsync(string userId, int paperId)
+    {
+        var follow = await _unitOfWork.Follows.GetFollowedPaperAsync(userId, paperId);
+        if (follow == null)
+        {
+            throw new InvalidOperationException("Paper is not followed.");
+        }
+
+        _unitOfWork.Follows.RemovePaper(follow);
+        await _unitOfWork.SaveChangesAsync();
+    }
 }

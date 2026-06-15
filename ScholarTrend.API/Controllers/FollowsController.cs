@@ -89,6 +89,76 @@ public class FollowsController : ControllerBase
         }
     }
 
+    [HttpGet("authors")]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<FollowItemDto>>>> GetFollowedAuthors()
+    {
+        var result = await _followService.GetFollowedAuthorsAsync(GetUserId());
+        return Ok(ApiResponse<IReadOnlyList<FollowItemDto>>.SuccessResponse(result));
+    }
+
+    [HttpGet("papers")]
+    public async Task<ActionResult<ApiResponse<IReadOnlyList<FollowItemDto>>>> GetFollowedPapers()
+    {
+        var result = await _followService.GetFollowedPapersAsync(GetUserId());
+        return Ok(ApiResponse<IReadOnlyList<FollowItemDto>>.SuccessResponse(result));
+    }
+
+    [HttpPost("authors/{authorId:int}")]
+    public async Task<ActionResult<ApiResponse<FollowItemDto>>> FollowAuthor(int authorId)
+    {
+        try
+        {
+            var result = await _followService.FollowAuthorAsync(GetUserId(), authorId);
+            return Ok(ApiResponse<FollowItemDto>.SuccessResponse(result, "Author followed successfully."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<FollowItemDto>.FailResponse(ex.Message));
+        }
+    }
+
+    [HttpDelete("authors/{authorId:int}")]
+    public async Task<ActionResult<ApiResponse<object>>> UnfollowAuthor(int authorId)
+    {
+        try
+        {
+            await _followService.UnfollowAuthorAsync(GetUserId(), authorId);
+            return Ok(ApiResponse<object>.SuccessResponse(new { }, "Author unfollowed successfully."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ApiResponse<object>.FailResponse(ex.Message));
+        }
+    }
+
+    [HttpPost("papers/{paperId:int}")]
+    public async Task<ActionResult<ApiResponse<FollowItemDto>>> FollowPaper(int paperId)
+    {
+        try
+        {
+            var result = await _followService.FollowPaperAsync(GetUserId(), paperId);
+            return Ok(ApiResponse<FollowItemDto>.SuccessResponse(result, "Paper followed successfully."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<FollowItemDto>.FailResponse(ex.Message));
+        }
+    }
+
+    [HttpDelete("papers/{paperId:int}")]
+    public async Task<ActionResult<ApiResponse<object>>> UnfollowPaper(int paperId)
+    {
+        try
+        {
+            await _followService.UnfollowPaperAsync(GetUserId(), paperId);
+            return Ok(ApiResponse<object>.SuccessResponse(new { }, "Paper unfollowed successfully."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ApiResponse<object>.FailResponse(ex.Message));
+        }
+    }
+
     private string GetUserId()
     {
         return User.FindFirstValue(ClaimTypes.NameIdentifier)

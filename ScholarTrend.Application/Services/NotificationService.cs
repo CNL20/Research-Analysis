@@ -95,6 +95,17 @@ public class NotificationService : INotificationService
             }
         }
 
+        foreach (var authorId in paper.PaperAuthors.Select(pa => pa.AuthorId))
+        {
+            var followers = await _unitOfWork.Follows.GetAuthorFollowerUserIdsAsync(authorId);
+            foreach (var userId in followers)
+            {
+                await TryNotifyUserAsync(userId, notifiedUsers, "New paper by followed author",
+                    $"A new paper \"{paper.Title}\" was published by an author you follow.",
+                    $"/papers/{paper.Id}");
+            }
+        }
+
         await _unitOfWork.SaveChangesAsync();
     }
 
