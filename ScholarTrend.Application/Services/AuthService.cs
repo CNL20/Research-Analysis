@@ -7,6 +7,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using ScholarTrend.Application.DTOs.Auth;
 using ScholarTrend.Application.Interfaces;
+using ScholarTrend.Application.Interfaces.External;
 using ScholarTrend.Application.Interfaces.Repositories;
 using ScholarTrend.Domain.Entities;
 using ScholarTrend.Domain.Enums;
@@ -23,19 +24,22 @@ public class AuthService : IAuthService
     private readonly IRefreshTokenRepository _refreshTokenRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IConfiguration _configuration;
+    private readonly IEmailService _emailService;
 
     public AuthService(
         UserManager<User> userManager,
         RoleManager<IdentityRole> roleManager,
         IRefreshTokenRepository refreshTokenRepository,
         IUnitOfWork unitOfWork,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IEmailService emailService)
     {
         _userManager = userManager;
         _roleManager = roleManager;
         _refreshTokenRepository = refreshTokenRepository;
         _unitOfWork = unitOfWork;
         _configuration = configuration;
+        _emailService = emailService;
     }
 
     public async Task<AuthResponse> RegisterAsync(RegisterRequest request)
@@ -53,7 +57,7 @@ public class AuthService : IAuthService
             FullName = request.FullName,
             Institution = request.Institution,
             ResearchField = request.ResearchField,
-            EmailConfirmed = true,
+            EmailConfirmed = false, // Chờ verify
             IsActive = true,
             CreatedAt = DateTime.UtcNow
         };
@@ -68,8 +72,59 @@ public class AuthService : IAuthService
         await EnsureDefaultRoleExistsAsync();
         await _userManager.AddToRoleAsync(user, UserRole.LecturerStudent.ToString());
 
+        // Sinh Token xác thực
+        var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+    
+        // Đọc link Frontend từ appsettings.json
+        var clientUrl = _configuration["ClientSettings:ClientUrl"] ?? "http://localhost:5173";
+    
+        // Link trỏ đến trang verify của Frontend
+        var verificationLink = $"{clientUrl}/verify-email?email={System.Web.HttpUtility.UrlEncode(user.Email)}&token={System.Web.HttpUtility.UrlEncode(token)}";
+
+        // Gửi email thực tế thông qua dịch vụ đã tạo ở Phần 2
+        var emailBody = $"<h3>Chào mừng {user.FullName} đến với ScholarTrend!</h3>" +
+                        $"<p>Vui lòng click vào link bên dưới để xác thực tài khoản của bạn:</p>" +
+                        $"<a href='{verificationLink}' style='padding: 10px 20px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px;'>Xác thực ngay</a>";
+
+        await _emailService.SendEmailAsync(user.Email, "Xác thực tài khoản ScholarTrend", emailBody);
+
         return await BuildAuthResponseAsync(user);
     }
+    public async Task<bool> VerifyEmailAsync(VerifyEmailRequest request)
+    {
+        var user = await _userManager.FindByEmailAsync(request.Email);
+        if (user == null)
+        {
+            throw new InvalidOperationException("User not found.");
+        }
+        var result = await _userManager.ConfirmEmailAsync(user, request.Token);
+        if (!result.Succeeded)
+        {
+            var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+            throw new InvalidOperationException($"Verification failed: {errors}");
+        }
+        return true;
+    }
+    public async Task<bool> ResendVerificationEmailAsync(ResendVerifyEmailRequest request, string clientUrl)
+    {
+        var user = await _userManager.FindByEmailAsync(request.Email);
+        if (user == null)
+        {
+            throw new InvalidOperationException("User not found.");
+        }
+        if (user.EmailConfirmed)
+        {
+            throw new InvalidOperationException("Email is already confirmed.");
+        }
+        var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+        var verificationLink = $"{clientUrl}/verify-email?email={System.Web.HttpUtility.UrlEncode(user.Email)}&token={System.Web.HttpUtility.UrlEncode(token)}";
+        var emailBody = $"<h3>Yêu cầu gửi lại link xác thực ScholarTrend</h3>" +
+                        $"<p>Vui lòng click vào link bên dưới để hoàn tất xác thực:</p>" +
+                        $"<a href='{verificationLink}' style='padding: 10px 20px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px;'>Xác thực ngay</a>";
+        await _emailService.SendEmailAsync(user.Email, "Xác thực tài khoản ScholarTrend (Gửi lại)", emailBody);
+        return true;
+    }
+
 
     public async Task<AuthResponse> LoginAsync(LoginRequest request)
     {
@@ -82,6 +137,11 @@ public class AuthService : IAuthService
         if (!user.IsActive)
         {
             throw new InvalidOperationException("Account has been deactivated. Please contact administrator.");
+        }
+
+        if (!user.EmailConfirmed)
+        {
+            throw new InvalidOperationException("Please confirm your email before logging in.");
         }
 
         var isPasswordValid = await _userManager.CheckPasswordAsync(user, request.Password);
@@ -287,4 +347,6 @@ public class AuthService : IAuthService
         }
         return true;
     }
+
+    
 }

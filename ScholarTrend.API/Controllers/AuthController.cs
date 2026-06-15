@@ -12,10 +12,12 @@ namespace ScholarTrend.API.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly IConfiguration _configuration;
 
-    public AuthController(IAuthService authService)
+    public AuthController(IAuthService authService, IConfiguration configuration)
     {
         _authService = authService;
+        _configuration = configuration;
     }
 
     /// <summary>
@@ -34,6 +36,43 @@ public class AuthController : ControllerBase
             return BadRequest(ApiResponse<AuthResponse>.FailResponse(ex.Message));
         }
     }
+
+        /// <summary>
+    /// Verify email using token. Called by Frontend.
+    /// </summary>
+    [HttpPost("verify-email")]
+    public async Task<ActionResult<ApiResponse<bool>>> VerifyEmail([FromBody] VerifyEmailRequest request)
+    {
+        try
+        {
+            var result = await _authService.VerifyEmailAsync(request);
+            return Ok(ApiResponse<bool>.SuccessResponse(result, "Email verified successfully."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<bool>.FailResponse(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Resend verification email.
+    /// </summary>
+    [HttpPost("resend-verification")]
+    public async Task<ActionResult<ApiResponse<bool>>> ResendVerification([FromBody] ResendVerifyEmailRequest request)
+    {
+        try
+        {
+            // Lấy clientUrl từ cấu hình hoặc fallback
+            var clientUrl = _configuration["ClientSettings:ClientUrl"] ?? "http://localhost:5173";
+            var result = await _authService.ResendVerificationEmailAsync(request, clientUrl);
+            return Ok(ApiResponse<bool>.SuccessResponse(result, "Verification email sent successfully."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<bool>.FailResponse(ex.Message));
+        }
+    }
+
 
     /// <summary>
     /// Login with email and password. Returns JWT token.

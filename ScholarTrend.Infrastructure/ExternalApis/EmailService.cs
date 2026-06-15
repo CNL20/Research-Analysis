@@ -19,7 +19,7 @@ public class EmailService : IEmailService
     {
         using var client = new SmtpClient(_emailSettings.SmtpServer, _emailSettings.Port)
         {
-            Credentials = new NetworkCredential(_emailSettings.Username, _emailSettings.Password),
+            Credentials = new NetworkCredential(_emailSettings.SenderEmail, _emailSettings.AppPassword),
             EnableSsl = _emailSettings.EnableSsl
         };
 

@@ -1,4 +1,4 @@
-﻿namespace ScholarTrend.Tests;
+namespace ScholarTrend.Tests;
 
 public class UnitTest1
 {
