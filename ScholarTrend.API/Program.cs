@@ -96,6 +96,7 @@ builder.Services.AddScoped<IPaperService, PaperService>();
 builder.Services.AddScoped<IBookmarkService, BookmarkService>();
 builder.Services.AddScoped<ITopicService, TopicService>();
 builder.Services.AddScoped<IJournalService, JournalService>();
+builder.Services.AddScoped<IAuthorService, AuthorService>();
 builder.Services.AddScoped<ITrendRepository, TrendRepository>();
 builder.Services.AddScoped<IStatisticsRepository, StatisticsRepository>();
 builder.Services.AddScoped<ITrendService, TrendService>();

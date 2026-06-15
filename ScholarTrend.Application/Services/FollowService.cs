@@ -159,7 +159,7 @@ public class FollowService : IFollowService
 
     public async Task<FollowItemDto> FollowAuthorAsync(string userId, int authorId)
     {
-        var author = await _unitOfWork.Follows.GetAuthorByIdAsync(authorId);
+        var author = await _unitOfWork.Authors.GetByIdAsync(authorId);
         if (author == null)
         {
             throw new InvalidOperationException("Author not found.");

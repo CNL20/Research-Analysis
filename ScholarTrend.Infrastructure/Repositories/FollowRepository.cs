@@ -140,9 +140,4 @@ public class FollowRepository : IFollowRepository
             .Distinct()
             .ToListAsync();
     }
-
-    public Task<Author?> GetAuthorByIdAsync(int authorId)
-    {
-        return _context.Authors.FirstOrDefaultAsync(a => a.Id == authorId);
-    }
 }

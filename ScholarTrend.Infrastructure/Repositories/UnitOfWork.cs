@@ -14,6 +14,7 @@ public class UnitOfWork : IUnitOfWork
     private IBookmarkRepository? _bookmarks;
     private IResearchTopicRepository? _topics;
     private IJournalRepository? _journals;
+    private IAuthorRepository? _authors;
     private ISearchHistoryRepository? _searchHistories;
     private IFollowRepository? _follows;
     private INotificationRepository? _notifications;
@@ -30,6 +31,7 @@ public class UnitOfWork : IUnitOfWork
     public IBookmarkRepository Bookmarks => _bookmarks ??= new BookmarkRepository(_context);
     public IResearchTopicRepository Topics => _topics ??= new ResearchTopicRepository(_context);
     public IJournalRepository Journals => _journals ??= new JournalRepository(_context);
+    public IAuthorRepository Authors => _authors ??= new AuthorRepository(_context);
     public ISearchHistoryRepository SearchHistories => _searchHistories ??= new SearchHistoryRepository(_context);
     public IFollowRepository Follows => _follows ??= new FollowRepository(_context);
     public INotificationRepository Notifications => _notifications ??= new NotificationRepository(_context);

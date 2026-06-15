@@ -23,5 +23,4 @@ public interface IFollowRepository
     Task<IReadOnlyList<string>> GetTopicFollowerUserIdsAsync(int topicId);
     Task<IReadOnlyList<string>> GetJournalFollowerUserIdsAsync(int journalId);
     Task<IReadOnlyList<string>> GetAuthorFollowerUserIdsAsync(int authorId);
-    Task<Author?> GetAuthorByIdAsync(int authorId);
 }
