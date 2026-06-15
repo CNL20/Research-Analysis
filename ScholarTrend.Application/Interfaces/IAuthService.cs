@@ -12,4 +12,5 @@ public interface IAuthService
     Task<AuthResponse> RefreshTokenAsync(RefreshTokenRequest request);
     Task<UserProfileDto> GetProfileAsync(string userId);
     Task<UserProfileDto> UpdateProfileAsync(string userId, UpdateProfileRequest request);
+    Task<bool> ChangePasswordAsync(string userId, ChangePasswordRequest request);
 }

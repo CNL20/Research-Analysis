@@ -19,6 +19,7 @@ using ScholarTrend.Infrastructure.ExternalApis;
 using ScholarTrend.Infrastructure.Jobs;
 using ScholarTrend.Infrastructure.Repositories;
 using ScholarTrend.Application.Interfaces.External;
+using ScholarTrend.Application.DTOs.Common;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -108,6 +109,11 @@ builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<ISyncService, SyncService>();
 builder.Services.AddScoped<IPaperImportRepository, PaperImportRepository>();
 builder.Services.AddScoped<SyncJob>();
+// Bind cấu hình EmailSettings từ appsettings
+builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
+
+// Đăng ký Email Service vào DI Container
+builder.Services.AddScoped<IEmailService, EmailService>();
 
 builder.Services.AddHttpClient<ISemanticScholarClient, SemanticScholarClient>();
 builder.Services.AddHttpClient<IOpenAlexClient, OpenAlexClient>();

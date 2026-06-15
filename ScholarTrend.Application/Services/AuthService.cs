@@ -271,4 +271,20 @@ public class AuthService : IAuthService
         var days = _configuration.GetSection("Authentication:Jwt")["RefreshTokenExpirationDays"];
         return int.TryParse(days, out var result) ? result : 7;
     }
+
+    public async Task<bool> ChangePasswordAsync(string userId, ChangePasswordRequest request)
+    {
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null)
+        {
+            throw new InvalidOperationException("User not found.");
+        }
+        var result = await _userManager.ChangePasswordAsync(user, request.CurrentPassword, request.NewPassword);
+        if (!result.Succeeded)
+        {
+            var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+            throw new InvalidOperationException($"Failed to change password: {errors}");
+        }
+        return true;
+    }
 }

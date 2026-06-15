@@ -53,6 +53,31 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
+    /// Change password of current user. Requires authentication.
+    /// </summary>
+    [Authorize]
+    [HttpPost("change-password")]
+    public async Task<ActionResult<ApiResponse<bool>>> ChangePassword([FromBody] ChangePasswordRequest request)
+    {
+        try
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(ApiResponse<bool>.FailResponse("User not authenticated."));
+            }
+
+            var result = await _authService.ChangePasswordAsync(userId, request);
+            return Ok(ApiResponse<bool>.SuccessResponse(result, "Password changed successfully."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<bool>.FailResponse(ex.Message));
+        }
+    }
+
+
+    /// <summary>
     /// Get current user profile. Requires authentication.
     /// </summary>
     [Authorize]
