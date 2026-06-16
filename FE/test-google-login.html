@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Google Login</title>
+    <!-- Load thư viện Google Identity Services -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        #token-container {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f4f4f4;
+            border: 1px solid #ddd;
+            word-wrap: break-word;
+            display: none;
+        }
+        #token { font-family: monospace; color: #d63384; font-size: 14px;}
+        .instruction { color: #555; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+
+    <h2>Test Lấy Google id_token</h2>
+    <p class="instruction">
+        Nhấn nút Đăng nhập bên dưới. Sau khi đăng nhập thành công, màn hình sẽ in ra chuỗi <b>id_token</b>. <br>
+        Bạn hãy copy chuỗi đó và dán vào Swagger API <code>POST /api/auth/google-login</code> của Backend để test nhé!
+    </p>
+
+    <!-- Nút Đăng nhập Google -->
+    <div id="g_id_onload"
+         data-client_id="292292825594-oogivh6k5daegpcgprmvd7nk105gji01.apps.googleusercontent.com"
+         data-context="signin"
+         data-ux_mode="popup"
+         data-callback="handleCredentialResponse"
+         data-auto_prompt="false">
+    </div>
+
+    <div class="g_id_signin"
+         data-type="standard"
+         data-shape="rectangular"
+         data-theme="outline"
+         data-text="signin_with"
+         data-size="large"
+         data-logo_alignment="left">
+    </div>
+
+    <!-- Hiển thị Token -->
+    <div id="token-container">
+        <h3>🎉 Đăng nhập thành công! Đây là id_token của bạn:</h3>
+        <p><i>Copy toàn bộ chuỗi bên dưới và đưa vào field "idToken" trên Swagger:</i></p>
+        <p id="token"></p>
+    </div>
+
+    <script>
+        // Hàm callback được Google gọi sau khi người dùng đăng nhập thành công
+        function handleCredentialResponse(response) {
+            console.log("Encoded JWT ID token: " + response.credential);
+            
+            // Hiển thị token lên màn hình cho dễ copy
+            document.getElementById('token-container').style.display = 'block';
+            document.getElementById('token').innerText = response.credential;
+        }
+    </script>
+</body>
+</html>

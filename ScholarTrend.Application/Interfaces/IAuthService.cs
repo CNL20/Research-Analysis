@@ -17,6 +17,6 @@ public interface IAuthService
     Task<bool> ResendVerificationEmailAsync(ResendVerifyEmailRequest request, string clientUrl);
     Task<bool> ForgotPasswordAsync(ForgotPasswordRequest request, string clientUrl);
     Task<bool> ResetPasswordAsync(ResetPasswordRequest request);
-
+    Task<AuthResponse> GoogleLoginAsync(GoogleLoginRequest request);
 
 }

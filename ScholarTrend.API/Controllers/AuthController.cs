@@ -92,6 +92,23 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
+    /// Login with Google id_token. Returns JWT token.
+    /// </summary>
+    [HttpPost("google-login")]
+    public async Task<ActionResult<ApiResponse<AuthResponse>>> GoogleLogin([FromBody] GoogleLoginRequest request)
+    {
+        try
+        {
+            var result = await _authService.GoogleLoginAsync(request);
+            return Ok(ApiResponse<AuthResponse>.SuccessResponse(result, "Google login successful."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<AuthResponse>.FailResponse(ex.Message));
+        }
+    }
+
+    /// <summary>
     /// Change password of current user. Requires authentication.
     /// </summary>
     [Authorize]

@@ -11,6 +11,7 @@ using ScholarTrend.Application.Interfaces.External;
 using ScholarTrend.Application.Interfaces.Repositories;
 using ScholarTrend.Domain.Entities;
 using ScholarTrend.Domain.Enums;
+using Google.Apis.Auth;
 
 namespace ScholarTrend.Application.Services;
 
@@ -152,6 +153,65 @@ public class AuthService : IAuthService
 
         user.LastLoginAt = DateTime.UtcNow;
         await _userManager.UpdateAsync(user);
+
+        return await BuildAuthResponseAsync(user);
+    }
+
+    public async Task<AuthResponse> GoogleLoginAsync(GoogleLoginRequest request)
+    {
+        var clientId = _configuration["GoogleAuth:ClientId"];
+        if (string.IsNullOrEmpty(clientId))
+        {
+            throw new InvalidOperationException("Google ClientId is not configured.");
+        }
+
+        GoogleJsonWebSignature.Payload payload;
+        try
+        {
+            var settings = new GoogleJsonWebSignature.ValidationSettings()
+            {
+                Audience = new List<string>() { clientId }
+            };
+            payload = await GoogleJsonWebSignature.ValidateAsync(request.IdToken, settings);
+        }
+        catch (InvalidJwtException)
+        {
+            throw new InvalidOperationException("Invalid Google token.");
+        }
+
+        var user = await _userManager.FindByEmailAsync(payload.Email);
+        if (user == null)
+        {
+            user = new User
+            {
+                UserName = payload.Email,
+                Email = payload.Email,
+                FullName = payload.Name,
+                EmailConfirmed = true,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            var result = await _userManager.CreateAsync(user);
+            if (!result.Succeeded)
+            {
+                var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+                throw new InvalidOperationException($"Failed to create user: {errors}");
+            }
+
+            await EnsureDefaultRoleExistsAsync();
+            await _userManager.AddToRoleAsync(user, UserRole.LecturerStudent.ToString());
+        }
+        else
+        {
+            if (!user.IsActive)
+            {
+                throw new InvalidOperationException("Account has been deactivated. Please contact administrator.");
+            }
+            
+            user.LastLoginAt = DateTime.UtcNow;
+            await _userManager.UpdateAsync(user);
+        }
 
         return await BuildAuthResponseAsync(user);
     }
