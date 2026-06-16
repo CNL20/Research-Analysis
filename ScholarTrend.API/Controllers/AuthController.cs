@@ -180,4 +180,39 @@ public class AuthController : ControllerBase
             return BadRequest(ApiResponse<AuthResponse>.FailResponse(ex.Message));
         }
     }
+
+    /// <summary>
+    /// Initiate forgot password process. Sends reset email.
+    /// </summary>
+    [HttpPost("forgot-password")]
+    public async Task<ActionResult<ApiResponse<bool>>> ForgotPassword([FromBody] ForgotPasswordRequest request)
+    {
+        try
+        {
+            var clientUrl = _configuration["ClientSettings:ClientUrl"] ?? "http://localhost:5173";
+            var result = await _authService.ForgotPasswordAsync(request, clientUrl);
+            return Ok(ApiResponse<bool>.SuccessResponse(result, "Reset password email sent successfully."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<bool>.FailResponse(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Reset password using token.
+    /// </summary>
+    [HttpPost("reset-password")]
+    public async Task<ActionResult<ApiResponse<bool>>> ResetPassword([FromBody] ResetPasswordRequest request)
+    {
+        try
+        {
+            var result = await _authService.ResetPasswordAsync(request);
+            return Ok(ApiResponse<bool>.SuccessResponse(result, "Password has been reset successfully."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<bool>.FailResponse(ex.Message));
+        }
+    }
 }

@@ -348,5 +348,48 @@ public class AuthService : IAuthService
         return true;
     }
 
-    
+    public async Task<bool> ForgotPasswordAsync(ForgotPasswordRequest request, string clientUrl)
+    {
+        var user = await _userManager.FindByEmailAsync(request.Email);
+        if (user == null)
+        {
+            // Trả về true vì lý do bảo mật (tránh lộ email tồn tại trong hệ thống)
+            return true;
+        }
+
+        var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+        var resetLink = $"{clientUrl}/reset-password?email={System.Web.HttpUtility.UrlEncode(user.Email)}&token={System.Web.HttpUtility.UrlEncode(token)}";
+
+        var emailBody = $"<h3>Yêu cầu đặt lại mật khẩu ScholarTrend</h3>" +
+                        $"<p>Vui lòng click vào link bên dưới để tiến hành đặt lại mật khẩu của bạn:</p>" +
+                        $"<a href='{resetLink}' style='padding: 10px 20px; background-color: #f44336; color: white; text-decoration: none; border-radius: 5px;'>Đặt lại mật khẩu</a>";
+
+        await _emailService.SendEmailAsync(user.Email!, "Đặt lại mật khẩu ScholarTrend", emailBody);
+        return true;
+    }
+
+    public async Task<bool> ResetPasswordAsync(ResetPasswordRequest request)
+    {
+        var user = await _userManager.FindByEmailAsync(request.Email);
+        if (user == null)
+        {
+            throw new InvalidOperationException("User not found.");
+        }
+
+        // Tự động giải mã token nếu token chứa ký tự đặc biệt dạng %XX
+        var decodedToken = request.Token;
+        if (request.Token.Contains("%"))
+        {
+            decodedToken = System.Web.HttpUtility.UrlDecode(request.Token);
+        }
+
+        var result = await _userManager.ResetPasswordAsync(user, decodedToken, request.NewPassword);
+        if (!result.Succeeded)
+        {
+            var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+            throw new InvalidOperationException($"Reset password failed: {errors}");
+        }
+
+        return true;
+    }
 }
