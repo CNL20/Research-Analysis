@@ -1,5 +1,7 @@
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using ScholarTrend.Application.DTOs.Sync;
 using ScholarTrend.Application.Interfaces;
 using ScholarTrend.Application.Interfaces.External;
@@ -13,12 +15,15 @@ public class SyncService : ISyncService
 {
     private const string SemanticScholarName = "SemanticScholar";
     private const string OpenAlexName = "OpenAlex";
+    private const string SyncTypeManual = "Manual";
+    private const string SyncTypeAutomatic = "Automatic";
 
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPaperImportRepository _paperImportRepository;
     private readonly ISemanticScholarClient _semanticScholarClient;
     private readonly IOpenAlexClient _openAlexClient;
     private readonly INotificationService _notificationService;
+    private readonly ILogger<SyncService> _logger;
     private readonly string _defaultSearchQuery;
 
     public SyncService(
@@ -27,18 +32,25 @@ public class SyncService : ISyncService
         ISemanticScholarClient semanticScholarClient,
         IOpenAlexClient openAlexClient,
         INotificationService notificationService,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        ILogger<SyncService> logger)
     {
         _unitOfWork = unitOfWork;
         _paperImportRepository = paperImportRepository;
         _semanticScholarClient = semanticScholarClient;
         _openAlexClient = openAlexClient;
         _notificationService = notificationService;
+        _logger = logger;
         _defaultSearchQuery = configuration["ExternalApis:SemanticScholar:SearchQuery"] ?? "artificial intelligence";
     }
 
-    public async Task<SyncResultDto> RunSyncAsync(string? sourceName = null)
+    public DbContext Context => _unitOfWork.Context;
+
+    public async Task<MultiSyncResultDto> RunSyncAsync(string? sourceName = null, string syncType = "Manual", string? triggeredBy = null)
     {
+        _logger.LogInformation("Starting {SyncType} sync triggered by {TriggeredBy} for source: {Source}",
+            syncType, triggeredBy ?? "system", sourceName ?? "all");
+
         var sources = await _unitOfWork.ApiDataSources.GetActiveAsync();
         if (!string.IsNullOrWhiteSpace(sourceName))
         {
@@ -50,6 +62,60 @@ public class SyncService : ISyncService
             throw new InvalidOperationException("No active API data sources found.");
         }
 
+        var results = new List<SyncResultDto>();
+
+        foreach (var source in sources)
+        {
+            var lockKey = $"{syncType}:{source.Name}";
+
+            if (!SyncLockManager.TryAcquireLock(source.Name, syncType, triggeredBy ?? "system", out var lockInfo))
+            {
+                var existingLock = SyncLockManager.GetLockStatus(source.Name);
+                _logger.LogWarning("Sync for {Source} is already running (Type: {Type}, By: {By})",
+                    source.Name, existingLock?.SyncType, existingLock?.TriggeredBy);
+
+                results.Add(new SyncResultDto
+                {
+                    Source = source.Name,
+                    Status = "Skipped",
+                    Message = $"Sync is already in progress. Started by {existingLock?.SyncType} at {existingLock?.AcquiredAt:g}."
+                });
+                continue;
+            }
+
+            try
+            {
+                var result = await SyncSingleSourceAsync(source, syncType, triggeredBy);
+                results.Add(result);
+            }
+            finally
+            {
+                SyncLockManager.ReleaseLock(source.Name);
+            }
+        }
+
+        var totalFetched = results.Sum(r => r.PapersFetched);
+        var totalQueued = results.Sum(r => r.PapersAdded);
+        var failedCount = results.Count(r => r.Status == "Failed");
+        var skippedCount = results.Count(r => r.Status == "Skipped");
+
+        _logger.LogInformation(
+            "{SyncType} sync completed: TotalFetched={Fetched}, TotalQueued={Queued}, Failed={Failed}, Skipped={Skipped}",
+            syncType, totalFetched, totalQueued, failedCount, skippedCount);
+
+        return new MultiSyncResultDto
+        {
+            Results = results,
+            SyncType = syncType,
+            TriggeredBy = triggeredBy ?? "system",
+            StartedAt = DateTime.UtcNow,
+            TotalFetched = totalFetched,
+            TotalQueued = totalQueued
+        };
+    }
+
+    private async Task<SyncResultDto> SyncSingleSourceAsync(ApiDataSource source, string syncType, string? triggeredBy)
+    {
         var proposal = new SyncProposal
         {
             CreatedAt = DateTime.UtcNow,
@@ -61,7 +127,7 @@ public class SyncService : ISyncService
 
         var log = new SyncLog
         {
-            Source = string.Join(", ", sources.Select(s => s.Name)),
+            Source = source.Name,
             Status = "Running",
             StartedAt = DateTime.UtcNow
         };
@@ -71,30 +137,48 @@ public class SyncService : ISyncService
 
         try
         {
-            foreach (var source in sources)
+            IReadOnlyList<ExternalPaperDto> externalPapers;
+
+            try
             {
-                var externalPapers = source.Name switch
+                externalPapers = source.Name switch
                 {
                     SemanticScholarName => await _semanticScholarClient.SearchPapersAsync(_defaultSearchQuery, 10),
                     OpenAlexName => await _openAlexClient.SearchPapersAsync(_defaultSearchQuery, 10),
                     _ => throw new InvalidOperationException($"Unsupported data source: {source.Name}")
                 };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to fetch papers from {Source}, continuing with empty list", source.Name);
+                externalPapers = [];
+            }
 
-                log.PapersFetched += externalPapers.Count;
+            log.PapersFetched = externalPapers.Count;
 
-                foreach (var external in externalPapers)
+            var journals = await _unitOfWork.Journals.GetAllAsync();
+            var defaultJournalId = journals.FirstOrDefault()?.Id;
+
+            if (defaultJournalId == null)
+            {
+                throw new InvalidOperationException("No journals found in the system. Please seed journals before syncing.");
+            }
+
+            var newPapers = 0;
+
+            foreach (var external in externalPapers)
+            {
+                if (await _unitOfWork.SyncProposals.IsPaperAlreadyQueuedOrStoredAsync(external.ExternalId, external.Source))
                 {
-                    if (await _unitOfWork.SyncProposals.IsPaperAlreadyQueuedOrStoredAsync(external.ExternalId, external.Source))
-                    {
-                        continue;
-                    }
-
-                    proposal.PendingPapers.Add(MapToPendingPaper(external, proposal.Id));
+                    continue;
                 }
 
-                source.LastSyncAt = DateTime.UtcNow;
-                _unitOfWork.ApiDataSources.Update(source);
+                proposal.PendingPapers.Add(MapToPendingPaper(external, proposal.Id));
+                newPapers++;
             }
+
+            source.LastSyncAt = DateTime.UtcNow;
+            _unitOfWork.ApiDataSources.Update(source);
 
             proposal.TotalFetched = proposal.PendingPapers.Count;
             _unitOfWork.SyncProposals.Update(proposal);
@@ -102,7 +186,7 @@ public class SyncService : ISyncService
             log.Status = proposal.TotalFetched > 0 ? "AwaitingApproval" : "Completed";
             log.CompletedAt = DateTime.UtcNow;
             _unitOfWork.SyncLogs.Update(log);
-            await _unitOfWork.SaveChangesAsync();
+            await RetrySaveChangesAsync();
 
             if (proposal.TotalFetched > 0)
             {
@@ -113,9 +197,9 @@ public class SyncService : ISyncService
             {
                 SyncProposalId = proposal.Id,
                 SyncLogId = log.Id,
-                Source = log.Source,
+                Source = source.Name,
                 PapersFetched = log.PapersFetched,
-                PapersAdded = 0,
+                PapersAdded = newPapers,
                 PapersUpdated = 0,
                 Status = log.Status,
                 Message = proposal.TotalFetched > 0
@@ -125,6 +209,8 @@ public class SyncService : ISyncService
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "Sync failed for source {Source}", source.Name);
+
             log.Status = "Failed";
             log.ErrorMessage = ex.Message;
             log.CompletedAt = DateTime.UtcNow;
@@ -132,16 +218,26 @@ public class SyncService : ISyncService
 
             proposal.Status = SyncProposalStatus.Rejected;
             _unitOfWork.SyncProposals.Update(proposal);
-            await _unitOfWork.SaveChangesAsync();
+
+            try
+            {
+                await _unitOfWork.SaveChangesAsync();
+            }
+            catch
+            {
+                // Ignore save errors for failed sync
+            }
 
             return new SyncResultDto
             {
                 SyncProposalId = proposal.Id,
                 SyncLogId = log.Id,
-                Source = log.Source,
+                Source = source.Name,
                 PapersFetched = log.PapersFetched,
+                PapersAdded = 0,
+                PapersUpdated = 0,
                 Status = log.Status,
-                Message = ex.Message
+                Message = $"Sync failed: {ex.Message}"
             };
         }
     }
@@ -242,11 +338,14 @@ public class SyncService : ISyncService
             throw new InvalidOperationException("This sync proposal has already been reviewed.");
         }
 
-        var rejectedCount = 0;
-        foreach (var pending in proposal.PendingPapers.Where(p => p.Status == PendingPaperStatus.Pending))
+        var pendingPapers = proposal.PendingPapers.Where(p => p.Status == PendingPaperStatus.Pending).ToList();
+        var rejectedCount = pendingPapers.Count;
+
+        // Delete rejected pending papers (per workflow diagram)
+        // Remove from the collection - EF Core will delete when SaveChanges is called
+        foreach (var paper in pendingPapers)
         {
-            pending.Status = PendingPaperStatus.Rejected;
-            rejectedCount++;
+            proposal.PendingPapers.Remove(paper);
         }
 
         proposal.Status = SyncProposalStatus.Rejected;
@@ -262,7 +361,7 @@ public class SyncService : ISyncService
             Status = proposal.Status,
             PapersApproved = 0,
             PapersRejected = rejectedCount,
-            Message = $"{rejectedCount} pending paper(s) rejected."
+            Message = $"{rejectedCount} pending paper(s) rejected and deleted."
         };
     }
 
@@ -406,6 +505,62 @@ public class SyncService : ISyncService
             BaseUrl = source.BaseUrl,
             IsActive = source.IsActive,
             LastSyncAt = source.LastSyncAt
+        };
+    }
+
+    private async Task RetrySaveChangesAsync(int maxRetries = 3)
+    {
+        for (var attempt = 1; attempt <= maxRetries; attempt++)
+        {
+            try
+            {
+                await _unitOfWork.SaveChangesAsync();
+                return;
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                _logger.LogWarning(ex, "Concurrency conflict on SaveChanges (attempt {Attempt}/{MaxRetries})", attempt, maxRetries);
+
+                if (attempt == maxRetries)
+                {
+                    throw;
+                }
+
+                foreach (var entry in _unitOfWork.Context.ChangeTracker.Entries().ToList())
+                {
+                    entry.State = EntityState.Detached;
+                }
+
+                await Task.Delay(100 * attempt);
+            }
+        }
+    }
+
+    public bool IsSyncRunning(string sourceName)
+    {
+        return SyncLockManager.GetLockStatus(sourceName) != null;
+    }
+
+    public SyncLockStatusDto? GetSyncLockStatus(string sourceName)
+    {
+        var lockInfo = SyncLockManager.GetLockStatus(sourceName);
+        if (lockInfo == null)
+        {
+            return new SyncLockStatusDto
+            {
+                SourceName = sourceName,
+                IsLocked = false
+            };
+        }
+
+        return new SyncLockStatusDto
+        {
+            SourceName = sourceName,
+            IsLocked = true,
+            SyncType = lockInfo.SyncType,
+            TriggeredBy = lockInfo.TriggeredBy,
+            LockedAt = lockInfo.AcquiredAt,
+            ExpiresAt = lockInfo.ExpiresAt
         };
     }
 }

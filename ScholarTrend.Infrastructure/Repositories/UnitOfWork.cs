@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using ScholarTrend.Application.Interfaces;
 using ScholarTrend.Application.Interfaces.Repositories;
 using ScholarTrend.Infrastructure.Data;
@@ -21,6 +22,10 @@ public class UnitOfWork : IUnitOfWork
     private IApiDataSourceRepository? _apiDataSources;
     private ISyncLogRepository? _syncLogs;
     private ISyncProposalRepository? _syncProposals;
+    private IPendingPaperRepository? _pendingPapers;
+    private Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? _transaction;
+
+    public DbContext Context => _context;
 
     public UnitOfWork(ScholarTrendDbContext context)
     {
@@ -38,14 +43,47 @@ public class UnitOfWork : IUnitOfWork
     public IApiDataSourceRepository ApiDataSources => _apiDataSources ??= new ApiDataSourceRepository(_context);
     public ISyncLogRepository SyncLogs => _syncLogs ??= new SyncLogRepository(_context);
     public ISyncProposalRepository SyncProposals => _syncProposals ??= new SyncProposalRepository(_context);
+    public IPendingPaperRepository PendingPapers => _pendingPapers ??= new PendingPaperRepository(_context);
 
     public async Task<int> SaveChangesAsync()
     {
         return await _context.SaveChangesAsync();
     }
 
+    public async Task<bool> BeginTransactionAsync()
+    {
+        if (_transaction != null)
+        {
+            return false;
+        }
+        _transaction = await _context.Database.BeginTransactionAsync();
+        return true;
+    }
+
+    public async Task CommitTransactionAsync()
+    {
+        if (_transaction != null)
+        {
+            await _context.SaveChangesAsync();
+            await _transaction.CommitAsync();
+            await _transaction.DisposeAsync();
+            _transaction = null;
+        }
+    }
+
+    public async Task RollbackTransactionAsync()
+    {
+        if (_transaction != null)
+        {
+            await _transaction.RollbackAsync();
+            await _transaction.DisposeAsync();
+            _transaction = null;
+        }
+    }
+
     public void Dispose()
     {
+        _transaction?.Dispose();
         _context.Dispose();
     }
 }

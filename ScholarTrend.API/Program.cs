@@ -118,6 +118,9 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddHttpClient<ISemanticScholarClient, SemanticScholarClient>();
 builder.Services.AddHttpClient<IOpenAlexClient, OpenAlexClient>();
 
+builder.Services.AddScoped<ISyncSchedulerService, SyncSchedulerService>();
+builder.Services.AddScoped<ISyncJob, SyncJob>();
+
 builder.Services.AddMemoryCache();
 
 builder.Services.AddValidatorsFromAssemblyContaining<RegisterRequestValidator>();
@@ -205,7 +208,15 @@ app.UseAuthorization();
 // Hangfire Dashboard (dev only)
 app.UseHangfireDashboard("/hangfire");
 
-RecurringJob.AddOrUpdate<SyncJob>("daily-paper-sync", job => job.RunAsync(), Cron.Daily);
+// ============ HANGFIRE RECURRING JOB ============
+// Configure sync schedule from appsettings.json
+var syncEnabled = builder.Configuration.GetValue("SyncSchedule:Enabled", true);
+var syncCron = builder.Configuration["SyncSchedule:CronExpression"] ?? "0 2 * * *";
+
+if (syncEnabled)
+{
+    RecurringJob.AddOrUpdate<ISyncJob>("daily-paper-sync", job => job.RunAsync(), syncCron);
+}
 
 app.MapControllers();
 

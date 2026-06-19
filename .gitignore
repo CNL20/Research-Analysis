@@ -21,6 +21,7 @@ packages/
 # User Secrets
 secrets.json
 appsettings.Development.json
+appsettings.json
 
 # Node
 node_modules/

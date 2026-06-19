@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Moq;
 using ScholarTrend.Application.DTOs.Sync;
 using ScholarTrend.Application.Interfaces;
@@ -20,6 +21,7 @@ public class SyncServiceTests
     private readonly Mock<IOpenAlexClient> _mockOpenAlexClient;
     private readonly Mock<INotificationService> _mockNotificationService;
     private readonly Mock<IConfiguration> _mockConfig;
+    private readonly Mock<ILogger<SyncService>> _mockLogger;
     private readonly SyncService _syncService;
 
     public SyncServiceTests()
@@ -31,6 +33,9 @@ public class SyncServiceTests
         _mockOpenAlexClient = new Mock<IOpenAlexClient>();
         _mockNotificationService = new Mock<INotificationService>();
         _mockConfig = new Mock<IConfiguration>();
+        _mockLogger = new Mock<ILogger<SyncService>>();
+
+        _mockConfig.Setup(c => c["ExternalApis:SemanticScholar:SearchQuery"]).Returns("artificial intelligence");
 
         _mockUnitOfWork.Setup(u => u.SyncProposals).Returns(_mockSyncProposalRepo.Object);
 
@@ -40,14 +45,15 @@ public class SyncServiceTests
             _mockSemanticClient.Object,
             _mockOpenAlexClient.Object,
             _mockNotificationService.Object,
-            _mockConfig.Object
+            _mockConfig.Object,
+            _mockLogger.Object
         );
     }
 
     [Fact]
     public async Task RunSyncAsync_ShouldCreatePendingProposal_AndNotifyAdmins()
     {
-        var source = new ApiDataSource { Name = "SemanticScholar", IsActive = true };
+        var source = new ApiDataSource { Id = 1, Name = "SemanticScholar", IsActive = true };
         _mockUnitOfWork.Setup(u => u.ApiDataSources.GetActiveAsync())
             .ReturnsAsync(new List<ApiDataSource> { source });
         _mockUnitOfWork.Setup(u => u.SyncLogs.AddAsync(It.IsAny<SyncLog>()))
@@ -68,9 +74,11 @@ public class SyncServiceTests
 
         var result = await _syncService.RunSyncAsync("SemanticScholar");
 
-        result.Status.Should().Be("AwaitingApproval");
-        result.PapersAdded.Should().Be(0);
-        result.SyncProposalId.Should().Be(101);
+        result.Results.Should().HaveCount(1);
+        var syncResult = result.Results[0];
+        syncResult.Status.Should().Be("AwaitingApproval");
+        syncResult.PapersAdded.Should().Be(1);
+        syncResult.SyncProposalId.Should().Be(101);
         _mockPaperImportRepo.Verify(r => r.ImportAsync(It.IsAny<ExternalPaperDto>(), It.IsAny<int?>()), Times.Never);
         _mockNotificationService.Verify(n => n.NotifyAdminsPendingSyncAsync(101, 1), Times.Once);
         _mockNotificationService.Verify(n => n.NotifyFollowersForNewPaperAsync(It.IsAny<int>()), Times.Never);
@@ -101,7 +109,7 @@ public class SyncServiceTests
         _mockUnitOfWork.Setup(u => u.Journals.GetAllAsync())
             .ReturnsAsync(new List<Journal> { new() { Id = 1 } });
         _mockPaperImportRepo.Setup(r => r.ImportAsync(It.IsAny<ExternalPaperDto>(), It.IsAny<int?>()))
-            .ReturnsAsync(new ResearchPaperImportResult { IsNew = true, PaperId = 501 });
+            .ReturnsAsync(new Application.Interfaces.Repositories.ResearchPaperImportResult { IsNew = true, PaperId = 501 });
 
         var result = await _syncService.ApprovePendingSyncAsync(101, "admin-id", new ApproveSyncRequest());
 
@@ -114,12 +122,13 @@ public class SyncServiceTests
     [Fact]
     public async Task RunSyncAsync_ShouldHandleApiFailure_Gracefully()
     {
-        var source = new ApiDataSource { Name = "SemanticScholar", IsActive = true };
+        var source = new ApiDataSource { Id = 1, Name = "SemanticScholar", IsActive = true };
         _mockUnitOfWork.Setup(u => u.ApiDataSources.GetActiveAsync())
             .ReturnsAsync(new List<ApiDataSource> { source });
         _mockUnitOfWork.Setup(u => u.SyncLogs.AddAsync(It.IsAny<SyncLog>()))
             .Returns(Task.CompletedTask);
         _mockSyncProposalRepo.Setup(r => r.AddAsync(It.IsAny<SyncProposal>()))
+            .Callback<SyncProposal>(p => p.Id = 1)
             .Returns(Task.CompletedTask);
 
         _mockSemanticClient.Setup(c => c.SearchPapersAsync(It.IsAny<string>(), It.IsAny<int>()))
@@ -127,8 +136,10 @@ public class SyncServiceTests
 
         var result = await _syncService.RunSyncAsync("SemanticScholar");
 
-        result.Status.Should().Be("Failed");
-        result.Message.Should().Be("API Down");
+        result.Results.Should().HaveCount(1);
+        var syncResult = result.Results[0];
+        syncResult.Status.Should().Be("Failed");
+        syncResult.Message.Should().Contain("API Down");
         _mockUnitOfWork.Verify(u => u.SaveChangesAsync(), Times.AtLeastOnce);
     }
 }
