@@ -2,7 +2,9 @@ using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using ScholarTrend.Application.DTOs.Aggregation;
 using ScholarTrend.Application.Interfaces.External;
+using ScholarTrend.Application.Services.Aggregation;
 
 namespace ScholarTrend.Infrastructure.ExternalApis;
 
@@ -65,6 +67,53 @@ public class OpenAlexClient : IOpenAlexClient
         return [];
     }
 
+    public async Task<PaperSourceMetadataDto> GetByDoiAsync(string doi)
+    {
+        var normalizedDoi = MetadataMapper.NormalizeDoi(doi);
+        if (string.IsNullOrWhiteSpace(normalizedDoi))
+        {
+            return MetadataMapper.NotFound("openalex", "DOI is required.");
+        }
+
+        var url = $"works/https://doi.org/{Uri.EscapeDataString(normalizedDoi)}";
+
+        try
+        {
+            var work = await _httpClient.GetFromJsonAsync<OpenAlexWork>(url);
+            if (work == null || string.IsNullOrWhiteSpace(work.Id))
+            {
+                return MetadataMapper.NotFound("openalex", "No OpenAlex record found.");
+            }
+
+            var external = new ExternalPaperDto
+            {
+                ExternalId = work.Id,
+                Source = "openalex",
+                Title = work.DisplayName ?? "Untitled",
+                Abstract = work.AbstractInvertedIndex == null ? null : string.Join(" ", work.AbstractInvertedIndex.Keys),
+                Year = work.PublicationYear,
+                CitationCount = work.CitedByCount,
+                Doi = work.Doi,
+                Url = work.Id,
+                Journal = work.PrimaryLocation?.Source?.DisplayName,
+                AuthorNames = work.Authorships?.Select(a => a.Author?.DisplayName ?? "Unknown").ToList() ?? [],
+                Keywords = work.Keywords?.Select(k => k.DisplayName ?? string.Empty).Where(k => !string.IsNullOrWhiteSpace(k)).ToList() ?? [],
+                PdfUrl = work.OpenAccess?.Url,
+            };
+
+            return MetadataMapper.FromExternal(external, "openalex");
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return MetadataMapper.NotFound("openalex", "No OpenAlex record found.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "OpenAlex DOI lookup failed for {Doi}", normalizedDoi);
+            return MetadataMapper.NotFound("openalex", "Failed to fetch metadata from OpenAlex.");
+        }
+    }
+
     private sealed class OpenAlexSearchResponse
     {
         [JsonPropertyName("results")]
@@ -93,6 +142,39 @@ public class OpenAlexClient : IOpenAlexClient
 
         [JsonPropertyName("authorships")]
         public List<OpenAlexAuthorship>? Authorships { get; set; }
+
+        [JsonPropertyName("primary_location")]
+        public OpenAlexLocation? PrimaryLocation { get; set; }
+
+        [JsonPropertyName("keywords")]
+        public List<OpenAlexKeyword>? Keywords { get; set; }
+
+        [JsonPropertyName("open_access")]
+        public OpenAlexOpenAccess? OpenAccess { get; set; }
+    }
+
+    private sealed class OpenAlexLocation
+    {
+        [JsonPropertyName("source")]
+        public OpenAlexSource? Source { get; set; }
+    }
+
+    private sealed class OpenAlexSource
+    {
+        [JsonPropertyName("display_name")]
+        public string? DisplayName { get; set; }
+    }
+
+    private sealed class OpenAlexKeyword
+    {
+        [JsonPropertyName("display_name")]
+        public string? DisplayName { get; set; }
+    }
+
+    private sealed class OpenAlexOpenAccess
+    {
+        [JsonPropertyName("oa_url")]
+        public string? Url { get; set; }
     }
 
     private sealed class OpenAlexAuthorship

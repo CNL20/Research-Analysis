@@ -114,9 +114,11 @@ builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Emai
 
 // Đăng ký Email Service vào DI Container
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<IPaperAggregationService, PaperAggregationService>();
 
 builder.Services.AddHttpClient<ISemanticScholarClient, SemanticScholarClient>();
 builder.Services.AddHttpClient<IOpenAlexClient, OpenAlexClient>();
+builder.Services.AddHttpClient<ICrossrefClient, CrossrefClient>();
 
 builder.Services.AddMemoryCache();
 

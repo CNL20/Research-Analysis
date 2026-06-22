@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ScholarTrend.Application.DTOs.Aggregation;
 using ScholarTrend.Application.DTOs.Common;
 using ScholarTrend.Application.DTOs.Papers;
 using ScholarTrend.Application.Interfaces;
@@ -13,10 +14,46 @@ namespace ScholarTrend.API.Controllers;
 public class PapersController : ControllerBase
 {
     private readonly IPaperService _paperService;
+    private readonly IPaperAggregationService _paperAggregationService;
 
-    public PapersController(IPaperService paperService)
+    public PapersController(IPaperService paperService, IPaperAggregationService paperAggregationService)
     {
         _paperService = paperService;
+        _paperAggregationService = paperAggregationService;
+    }
+
+    /// <summary>
+    /// Aggregate metadata for a paper from multiple bibliographic sources by DOI.
+    /// </summary>
+    [HttpGet("aggregate")]
+    public async Task<ActionResult<ApiResponse<PaperAggregateResultDto>>> AggregateByDoi([FromQuery] string doi)
+    {
+        try
+        {
+            var result = await _paperAggregationService.AggregateByDoiAsync(doi);
+            return Ok(ApiResponse<PaperAggregateResultDto>.SuccessResponse(result));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<PaperAggregateResultDto>.FailResponse(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Aggregate metadata for a stored paper from multiple bibliographic sources.
+    /// </summary>
+    [HttpGet("{id:int}/aggregate")]
+    public async Task<ActionResult<ApiResponse<PaperAggregateResultDto>>> AggregateByPaperId(int id)
+    {
+        try
+        {
+            var result = await _paperAggregationService.AggregateByPaperIdAsync(id);
+            return Ok(ApiResponse<PaperAggregateResultDto>.SuccessResponse(result));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ApiResponse<PaperAggregateResultDto>.FailResponse(ex.Message));
+        }
     }
 
     /// <summary>
