@@ -14,4 +14,5 @@ public interface IResearchPaperRepository : IGenericRepository<ResearchPaper>
     Task<int> CountByJournalAsync(int journalId);
     Task<int> CountByAuthorAsync(int authorId);
     Task<ResearchPaper?> GetByExternalIdAsync(string externalId, string source);
+    Task<ResearchPaper?> GetByDoiAsync(string doi);
 }

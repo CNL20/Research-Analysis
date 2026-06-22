@@ -106,6 +106,16 @@ public class ResearchPaperRepository : GenericRepository<ResearchPaper>, IResear
         return _dbSet.FirstOrDefaultAsync(p => p.ExternalId == externalId && p.ExternalSource == source);
     }
 
+    public async Task<ResearchPaper?> GetByDoiAsync(string doi)
+    {
+        var normalizedDoi = doi.Trim().ToLowerInvariant();
+        return await _dbSet
+            .Include(p => p.Journal)
+            .Include(p => p.PaperAuthors).ThenInclude(pa => pa.Author)
+            .Include(p => p.PaperKeywords).ThenInclude(pk => pk.Keyword)
+            .FirstOrDefaultAsync(p => p.Doi != null && p.Doi.ToLower() == normalizedDoi);
+    }
+
     private IQueryable<ResearchPaper> BuildSearchQuery(PaperSearchCriteria criteria)
     {
         var query = _dbSet
