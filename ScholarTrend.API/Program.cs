@@ -113,7 +113,7 @@ builder.Services.AddScoped<SyncJob>();
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 
 // Đăng ký Email Service vào DI Container
-builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddHttpClient<IEmailService, EmailService>();
 builder.Services.AddScoped<IPaperAggregationService, PaperAggregationService>();
 
 builder.Services.AddHttpClient<ISemanticScholarClient, SemanticScholarClient>();
@@ -141,7 +141,7 @@ builder.Services.AddHangfire(config =>
           {
               CommandBatchMaxTimeout = TimeSpan.FromMinutes(5),
               SlidingInvisibilityTimeout = TimeSpan.FromMinutes(5),
-              QueuePollInterval = TimeSpan.Zero,
+              QueuePollInterval = TimeSpan.FromSeconds(15),
               UseRecommendedIsolationLevel = true,
               DisableGlobalLocks = true
           }));

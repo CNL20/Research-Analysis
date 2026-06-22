@@ -1,12 +1,9 @@
-﻿namespace ScholarTrend.Application.DTOs.Common
+namespace ScholarTrend.Application.DTOs.Common
 {
     public class EmailSettings
     {
-        public string SmtpServer { get; set; } = string.Empty;
-        public int Port { get; set; }
         public string SenderName { get; set; } = string.Empty;
         public string SenderEmail { get; set; } = string.Empty;
-        public string AppPassword { get; set; } = string.Empty; 
-        public bool EnableSsl { get; set; } = true;
+        public string ApiKey { get; set; } = string.Empty; 
     }
 }
