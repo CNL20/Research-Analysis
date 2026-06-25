@@ -116,15 +116,6 @@ public class SyncService : ISyncService
 
     private async Task<SyncResultDto> SyncSingleSourceAsync(ApiDataSource source, string syncType, string? triggeredBy)
     {
-        var proposal = new SyncProposal
-        {
-            CreatedAt = DateTime.UtcNow,
-            Status = SyncProposalStatus.Pending
-        };
-
-        await _unitOfWork.SyncProposals.AddAsync(proposal);
-        await _unitOfWork.SaveChangesAsync();
-
         var log = new SyncLog
         {
             Source = source.Name,
@@ -164,7 +155,7 @@ public class SyncService : ISyncService
                 throw new InvalidOperationException("No journals found in the system. Please seed journals before syncing.");
             }
 
-            var newPapers = 0;
+            var newPapersToAdd = new List<ExternalPaperDto>();
 
             foreach (var external in externalPapers)
             {
@@ -173,25 +164,55 @@ public class SyncService : ISyncService
                     continue;
                 }
 
-                proposal.PendingPapers.Add(MapToPendingPaper(external, proposal.Id));
-                newPapers++;
+                newPapersToAdd.Add(external);
             }
 
             source.LastSyncAt = DateTime.UtcNow;
             _unitOfWork.ApiDataSources.Update(source);
 
+            if (newPapersToAdd.Count == 0)
+            {
+                log.Status = "Completed";
+                log.CompletedAt = DateTime.UtcNow;
+                _unitOfWork.SyncLogs.Update(log);
+                await RetrySaveChangesAsync();
+
+                return new SyncResultDto
+                {
+                    SyncProposalId = null,
+                    SyncLogId = log.Id,
+                    Source = source.Name,
+                    PapersFetched = log.PapersFetched,
+                    PapersAdded = 0,
+                    PapersUpdated = 0,
+                    Status = log.Status,
+                    Message = "No new papers found to sync."
+                };
+            }
+
+            var proposal = new SyncProposal
+            {
+                CreatedAt = DateTime.UtcNow,
+                Status = SyncProposalStatus.Pending
+            };
+
+            await _unitOfWork.SyncProposals.AddAsync(proposal);
+            await _unitOfWork.SaveChangesAsync();
+
+            foreach (var external in newPapersToAdd)
+            {
+                proposal.PendingPapers.Add(MapToPendingPaper(external, proposal.Id));
+            }
+
             proposal.TotalFetched = proposal.PendingPapers.Count;
             _unitOfWork.SyncProposals.Update(proposal);
 
-            log.Status = proposal.TotalFetched > 0 ? "AwaitingApproval" : "Completed";
+            log.Status = "Completed";
             log.CompletedAt = DateTime.UtcNow;
             _unitOfWork.SyncLogs.Update(log);
             await RetrySaveChangesAsync();
 
-            if (proposal.TotalFetched > 0)
-            {
-                await _notificationService.NotifyAdminsPendingSyncAsync(proposal.Id, proposal.TotalFetched);
-            }
+            await _notificationService.NotifyAdminsPendingSyncAsync(proposal.Id, proposal.TotalFetched);
 
             return new SyncResultDto
             {
@@ -199,12 +220,10 @@ public class SyncService : ISyncService
                 SyncLogId = log.Id,
                 Source = source.Name,
                 PapersFetched = log.PapersFetched,
-                PapersAdded = newPapers,
+                PapersAdded = newPapersToAdd.Count,
                 PapersUpdated = 0,
                 Status = log.Status,
-                Message = proposal.TotalFetched > 0
-                    ? $"{proposal.TotalFetched} paper(s) are awaiting admin approval."
-                    : "No new papers found to sync."
+                Message = $"{proposal.TotalFetched} paper(s) are awaiting admin approval."
             };
         }
         catch (Exception ex)
@@ -215,9 +234,6 @@ public class SyncService : ISyncService
             log.ErrorMessage = ex.Message;
             log.CompletedAt = DateTime.UtcNow;
             _unitOfWork.SyncLogs.Update(log);
-
-            proposal.Status = SyncProposalStatus.Rejected;
-            _unitOfWork.SyncProposals.Update(proposal);
 
             try
             {
@@ -230,7 +246,7 @@ public class SyncService : ISyncService
 
             return new SyncResultDto
             {
-                SyncProposalId = proposal.Id,
+                SyncProposalId = null,
                 SyncLogId = log.Id,
                 Source = source.Name,
                 PapersFetched = log.PapersFetched,

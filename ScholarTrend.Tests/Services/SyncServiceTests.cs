@@ -58,6 +58,8 @@ public class SyncServiceTests
             .ReturnsAsync(new List<ApiDataSource> { source });
         _mockUnitOfWork.Setup(u => u.SyncLogs.AddAsync(It.IsAny<SyncLog>()))
             .Returns(Task.CompletedTask);
+        _mockUnitOfWork.Setup(u => u.Journals.GetAllAsync())
+            .ReturnsAsync(new List<Journal> { new() { Id = 1 } });
         _mockSyncProposalRepo.Setup(r => r.AddAsync(It.IsAny<SyncProposal>()))
             .Callback<SyncProposal>(p => p.Id = 101)
             .Returns(Task.CompletedTask);
@@ -76,7 +78,7 @@ public class SyncServiceTests
 
         result.Results.Should().HaveCount(1);
         var syncResult = result.Results[0];
-        syncResult.Status.Should().Be("AwaitingApproval");
+        syncResult.Status.Should().Be("Completed");
         syncResult.PapersAdded.Should().Be(1);
         syncResult.SyncProposalId.Should().Be(101);
         _mockPaperImportRepo.Verify(r => r.ImportAsync(It.IsAny<ExternalPaperDto>(), It.IsAny<int?>()), Times.Never);
@@ -139,7 +141,7 @@ public class SyncServiceTests
         result.Results.Should().HaveCount(1);
         var syncResult = result.Results[0];
         syncResult.Status.Should().Be("Failed");
-        syncResult.Message.Should().Contain("API Down");
+        syncResult.Message.Should().Contain("API down");
         _mockUnitOfWork.Verify(u => u.SaveChangesAsync(), Times.AtLeastOnce);
     }
 }
