@@ -23,15 +23,15 @@ public static class MetadataQualityAnalyzer
 
   private static readonly Dictionary<string, string[]> FieldSourcePriority = new()
   {
-    ["doi"] = ["crossref", "openalex", "semantic_scholar", "internal"],
-    ["title"] = ["crossref", "openalex", "semantic_scholar", "internal"],
-    ["authors"] = ["openalex", "semantic_scholar", "crossref", "internal"],
-    ["year"] = ["crossref", "openalex", "semantic_scholar", "internal"],
-    ["journal"] = ["crossref", "openalex", "semantic_scholar", "internal"],
-    ["abstract"] = ["semantic_scholar", "openalex", "crossref", "internal"],
-    ["citationCount"] = ["semantic_scholar", "openalex", "crossref", "internal"],
-    ["keywords"] = ["openalex", "semantic_scholar", "internal", "crossref"],
-    ["pdfUrl"] = ["internal", "openalex", "semantic_scholar", "crossref"],
+    ["doi"] = ["crossref", "openalex", "semantic_scholar", "arxiv", "internal"],
+    ["title"] = ["crossref", "openalex", "semantic_scholar", "arxiv", "internal"],
+    ["authors"] = ["openalex", "semantic_scholar", "arxiv", "crossref", "internal"],
+    ["year"] = ["crossref", "openalex", "semantic_scholar", "arxiv", "internal"],
+    ["journal"] = ["crossref", "openalex", "semantic_scholar", "internal", "arxiv"],
+    ["abstract"] = ["semantic_scholar", "arxiv", "openalex", "crossref", "internal"],
+    ["citationCount"] = ["semantic_scholar", "openalex", "crossref", "internal", "arxiv"],
+    ["keywords"] = ["openalex", "semantic_scholar", "internal", "crossref", "arxiv"],
+    ["pdfUrl"] = ["internal", "arxiv", "openalex", "semantic_scholar", "crossref"],
   };
 
   public static PaperAggregateResultDto Analyze(string doi, Dictionary<string, PaperSourceMetadataDto> sources, int? internalPaperId = null)

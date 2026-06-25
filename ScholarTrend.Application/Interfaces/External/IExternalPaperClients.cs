@@ -38,4 +38,5 @@ public interface ICrossrefClient
 public interface IArXivClient
 {
     Task<IReadOnlyList<ExternalPaperDto>> SearchPapersAsync(string query, int limit = 20);
+    Task<PaperSourceMetadataDto> GetByDoiAsync(string doi);
 }

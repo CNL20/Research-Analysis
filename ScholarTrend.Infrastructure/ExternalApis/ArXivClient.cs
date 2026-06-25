@@ -1,10 +1,9 @@
-using System.Net.Http.Json;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Xml.Linq;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using ScholarTrend.Application.DTOs.Aggregation;
 using ScholarTrend.Application.Interfaces.External;
+using ScholarTrend.Application.Services.Aggregation;
 
 namespace ScholarTrend.Infrastructure.ExternalApis;
 
@@ -50,6 +49,36 @@ public class ArXivClient : IArXivClient
         }
 
         return [];
+    }
+
+    public async Task<PaperSourceMetadataDto> GetByDoiAsync(string doi)
+    {
+        var normalizedDoi = MetadataMapper.NormalizeDoi(doi);
+        if (string.IsNullOrWhiteSpace(normalizedDoi))
+        {
+            return MetadataMapper.NotFound("arxiv", "DOI is required.");
+        }
+
+        var url = $"?search_query=doi:{Uri.EscapeDataString(normalizedDoi)}&start=0&max_results=1";
+
+        try
+        {
+            var response = await _httpClient.GetStringAsync(url);
+            var papers = ParseAtomFeed(response);
+            if (papers.Count == 0)
+            {
+                return MetadataMapper.NotFound("arxiv", "No ArXiv record found for this DOI.");
+            }
+
+            var paper = papers[0];
+            paper.PdfUrl = $"https://arxiv.org/pdf/{paper.ExternalId}.pdf";
+            return MetadataMapper.FromExternal(paper, "arxiv");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "ArXiv DOI lookup failed for {Doi}", normalizedDoi);
+            return MetadataMapper.NotFound("arxiv", "Failed to fetch metadata from ArXiv.");
+        }
     }
 
     private static IReadOnlyList<ExternalPaperDto> ParseAtomFeed(string xml)

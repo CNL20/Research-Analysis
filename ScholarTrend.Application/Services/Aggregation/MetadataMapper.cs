@@ -25,6 +25,12 @@ public static class MetadataMapper
 
     public static PaperSourceMetadataDto FromExternal(ExternalPaperDto external, string sourceKey)
     {
+        var arxivId = sourceKey == "arxiv" ? external.ExternalId : null;
+        var pdfUrl = external.PdfUrl
+            ?? (sourceKey == "arxiv" && !string.IsNullOrWhiteSpace(external.ExternalId)
+                ? $"https://arxiv.org/pdf/{external.ExternalId}.pdf"
+                : null);
+
         return new PaperSourceMetadataDto
         {
             Source = sourceKey,
@@ -38,7 +44,8 @@ public static class MetadataMapper
             Abstract = external.Abstract,
             CitationCount = external.CitationCount,
             Keywords = external.Keywords,
-            PdfUrl = external.PdfUrl,
+            PdfUrl = pdfUrl,
+            ArxivId = arxivId,
         };
     }
 

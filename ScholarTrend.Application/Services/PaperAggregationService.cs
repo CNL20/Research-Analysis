@@ -11,6 +11,7 @@ public class PaperAggregationService : IPaperAggregationService
     private readonly IOpenAlexClient _openAlexClient;
     private readonly ISemanticScholarClient _semanticScholarClient;
     private readonly ICrossrefClient _crossrefClient;
+    private readonly IArXivClient _arXivClient;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<PaperAggregationService> _logger;
 
@@ -18,12 +19,14 @@ public class PaperAggregationService : IPaperAggregationService
         IOpenAlexClient openAlexClient,
         ISemanticScholarClient semanticScholarClient,
         ICrossrefClient crossrefClient,
+        IArXivClient arXivClient,
         IUnitOfWork unitOfWork,
         ILogger<PaperAggregationService> logger)
     {
         _openAlexClient = openAlexClient;
         _semanticScholarClient = semanticScholarClient;
         _crossrefClient = crossrefClient;
+        _arXivClient = arXivClient;
         _unitOfWork = unitOfWork;
         _logger = logger;
     }
@@ -69,8 +72,9 @@ public class PaperAggregationService : IPaperAggregationService
         var openAlexTask = SafeFetchAsync("openalex", () => _openAlexClient.GetByDoiAsync(normalizedDoi));
         var semanticTask = SafeFetchAsync("semantic_scholar", () => _semanticScholarClient.GetByDoiAsync(normalizedDoi));
         var crossrefTask = SafeFetchAsync("crossref", () => _crossrefClient.GetByDoiAsync(normalizedDoi));
+        var arxivTask = SafeFetchAsync("arxiv", () => _arXivClient.GetByDoiAsync(normalizedDoi));
 
-        await Task.WhenAll(internalTask, openAlexTask, semanticTask, crossrefTask);
+        await Task.WhenAll(internalTask, openAlexTask, semanticTask, crossrefTask, arxivTask);
 
         return new Dictionary<string, PaperSourceMetadataDto>
         {
@@ -78,6 +82,7 @@ public class PaperAggregationService : IPaperAggregationService
             ["openalex"] = await openAlexTask,
             ["semantic_scholar"] = await semanticTask,
             ["crossref"] = await crossrefTask,
+            ["arxiv"] = await arxivTask,
         };
     }
 
