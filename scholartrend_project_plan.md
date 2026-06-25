@@ -122,19 +122,19 @@ ScholarTrend/
 **Mục tiêu:** Hệ thống chạy được, user đăng nhập được, có Swagger.
 
 #### Backend tasks
-- [ ] Cài **AutoMapper**, **Serilog** vào project
-- [ ] Tạo `Application` layer: interfaces repository + service cơ bản
-- [ ] Implement `GenericRepository<T>` và repository cụ thể
-- [ ] Tạo `AuthController`: Register, Login trả JWT, RefreshToken
-- [ ] Đăng ký **Hangfire** vào [Program.cs](file:///c:/Users/Admin/Documents/Ky_8/SWP_391/ScholarTrend/ScholarTrend.API/Program.cs) (dashboard tại `/hangfire`)
-- [ ] Setup **Swagger** với JWT authentication support
+- [x] Cài **AutoMapper**, **Serilog** vào project
+- [x] Tạo `Application` layer: interfaces repository + service cơ bản
+- [x] Implement `GenericRepository<T>` và repository cụ thể
+- [x] Tạo `AuthController`: Register, Login trả JWT, RefreshToken
+- [x] Đăng ký **Hangfire** vào [Program.cs](file:///c:/Users/Admin/Documents/Ky_8/SWP_391/ScholarTrend/ScholarTrend.API/Program.cs) (dashboard tại `/hangfire`)
+- [x] Setup **Swagger** với JWT authentication support
 
 #### Frontend tasks
-- [ ] Khởi tạo project React + Vite
-- [ ] Layout chính: Sidebar, Navbar, Footer
-- [ ] Trang Login / Register
-- [ ] Axios instance với JWT interceptor (tự động gắn token vào header)
-- [ ] Route guard (redirect về Login nếu chưa đăng nhập)
+- [x] Khởi tạo project React + Vite
+- [x] Layout chính: Sidebar, Navbar, Footer
+- [x] Trang Login / Register
+- [x] Axios instance với JWT interceptor (tự động gắn token vào header)
+- [x] Route guard (redirect về Login nếu chưa đăng nhập)
 
 #### ✅ Có gì khi hoàn thành Phase 1
 - User tạo tài khoản, đăng nhập, nhận JWT token
@@ -151,19 +151,19 @@ ScholarTrend/
 **Mục tiêu:** User tìm được bài báo, xem chi tiết, lưu bookmark.
 
 #### Backend tasks
-- [ ] `PaperController`: Search (keyword/author/journal), GetById, GetList
-- [ ] `BookmarkController`: Add, Remove, GetUserBookmarks
-- [ ] `SearchHistoryController`: Tự động ghi log khi search
-- [ ] `TopicController` + `JournalController`: GetAll, GetById
-- [ ] `UserController`: GetProfile, UpdateProfile
-- [ ] Phân quyền bằng `[Authorize(Roles = "...")]`
+- [x] `PaperController`: Search (keyword/author/journal), GetById, GetList
+- [x] `BookmarkController`: Add, Remove, GetUserBookmarks
+- [x] `SearchHistoryController`: Tự động ghi log khi search
+- [x] `TopicController` + `JournalController`: GetAll, GetById
+- [x] `UserController`: GetProfile, UpdateProfile
+- [x] Phân quyền bằng `[Authorize(Roles = "...")]`
 
 #### Frontend tasks
-- [ ] Trang **Home/Dashboard** cơ bản (placeholder chart)
-- [ ] Trang **Search**: thanh tìm kiếm, filter theo năm/journal, hiển thị kết quả dạng card
-- [ ] Trang **Paper Detail**: full thông tin, danh sách tác giả, keyword, nút bookmark
-- [ ] Trang **My Bookmarks**: danh sách bài đã lưu
-- [ ] Trang **Profile**: thông tin user, edit profile
+- [x] Trang **Home/Dashboard** cơ bản (placeholder chart)
+- [x] Trang **Search**: thanh tìm kiếm, filter theo năm/journal, hiển thị kết quả dạng card
+- [x] Trang **Paper Detail**: full thông tin, danh sách tác giả, keyword, nút bookmark
+- [x] Trang **My Bookmarks**: danh sách bài đã lưu
+- [x] Trang **Profile**: thông tin user, edit profile
 
 #### ✅ Có gì khi hoàn thành Phase 2
 - **Demo được toàn bộ luồng cơ bản**: Đăng nhập → Tìm kiếm → Xem chi tiết → Bookmark
@@ -179,22 +179,22 @@ ScholarTrend/
 **Mục tiêu:** Tính năng cốt lõi differentiator — phân tích xu hướng và đồng bộ dữ liệu ngoài.
 
 #### Backend tasks
-- [ ] `TrendController`: GetKeywordTrends, GetTopicTrends, GetJournalTrends (filter theo tháng/năm)
-- [ ] `TrendCalculatorService`: Tính **GrowthRate** và **TrendingScore** từ dữ liệu bài báo
-- [ ] `SemanticScholarClient`: HTTP client gọi Semantic Scholar API (dùng Polly retry)
-- [ ] `SyncJob` (Hangfire CRON): Mỗi ngày tự động fetch paper mới, cập nhật trend
-- [ ] `NotificationService`: Tạo notification khi có paper mới theo topic/journal user đang follow
-- [ ] `FollowController`: Follow/Unfollow topic, journal
-- [ ] `NotificationController`: GetNotifications, MarkAsRead
+- [x] `TrendController`: GetKeywordTrends, GetTopicTrends, GetJournalTrends (filter theo tháng/năm)
+- [x] `TrendCalculatorService`: Tính **GrowthRate** và **TrendingScore** từ dữ liệu bài báo
+- [x] `SemanticScholarClient`: HTTP client gọi Semantic Scholar API (dùng Polly retry)
+- [x] `SyncJob` (Hangfire CRON): Mỗi ngày tự động fetch paper mới, cập nhật trend
+- [x] `NotificationService`: Tạo notification khi có paper mới theo topic/journal user đang follow
+- [x] `FollowController`: Follow/Unfollow topic, journal
+- [x] `NotificationController`: GetNotifications, MarkAsRead
 
 #### Frontend tasks
-- [ ] Trang **Trending Dashboard**:
+- [x] Trang **Trending Dashboard**:
   - Biểu đồ line chart: số paper theo tháng (Recharts/Chart.js)
   - Top 10 keyword/topic đang tăng mạnh
   - Filter theo khoảng thời gian
-- [ ] Trang **Topic/Journal Detail**: thông tin + trend chart riêng
-- [ ] **Notification bell**: hiển thị số unread, dropdown danh sách
-- [ ] Trang **Follow Management**: danh sách topic/journal đang follow
+- [x] Trang **Topic/Journal Detail**: thông tin + trend chart riêng
+- [x] **Notification bell**: hiển thị số unread, dropdown danh sách
+- [x] Trang **Follow Management**: danh sách topic/journal đang follow
 
 #### ✅ Có gì khi hoàn thành Phase 3
 - Biểu đồ xu hướng thực tế hoạt động với dữ liệu thật
@@ -211,20 +211,20 @@ ScholarTrend/
 **Mục tiêu:** Hoàn thiện, hệ thống production-ready để demo.
 
 #### Backend tasks
-- [ ] `AdminController`: Quản lý user (list, activate/deactivate, change role)
-- [ ] `ApiDataSourceController`: Quản lý nguồn dữ liệu API
-- [ ] `SyncLogController`: Xem lịch sử sync, status
-- [ ] `ReportController`: Export báo cáo thống kê đơn giản (JSON/Excel)
-- [ ] Caching trend data bằng `IMemoryCache` (cache 1 giờ)
-- [ ] Rate limiting cơ bản
-- [ ] Unit tests cho TrendCalculatorService và SearchService
+- [x] `AdminController`: Quản lý user (list, activate/deactivate, change role)
+- [x] `ApiDataSourceController`: Quản lý nguồn dữ liệu API
+- [x] `SyncLogController`: Xem lịch sử sync, status
+- [x] `ReportController`: Export báo cáo thống kê đơn giản (JSON/Excel)
+- [x] Caching trend data bằng `IMemoryCache` (cache 1 giờ)
+- [x] Rate limiting cơ bản
+- [x] Unit tests cho TrendCalculatorService và SearchService
 
 #### Frontend tasks
-- [ ] Trang **Admin Dashboard**: thống kê tổng quan (số user, số paper, số sync)
-- [ ] Trang **User Management**: bảng list user, filter, action
-- [ ] Trang **Sync Management**: kích hoạt sync thủ công, xem log
-- [ ] **Responsive design** — đảm bảo dùng được trên tablet
-- [ ] Loading states, error handling, empty states đẹp
+- [x] Trang **Admin Dashboard**: thống kê tổng quan (số user, số paper, số sync)
+- [x] Trang **User Management**: bảng list user, filter, action
+- [x] Trang **Sync Management**: kích hoạt sync thủ công, xem log
+- [x] **Responsive design** — đảm bảo dùng được trên tablet
+- [x] Loading states, error handling, empty states đẹp
 
 #### ✅ Có gì khi hoàn thành Phase 4
 - Hệ thống hoàn chỉnh end-to-end
@@ -261,3 +261,22 @@ ScholarTrend/
 | Index trên ExternalId, Title, CitationCount | Search nhanh kể cả khi có triệu bài báo |
 | `PaperStatus` enum pipeline | Theo dõi được vòng đời paper từ fetch đến available |
 | Hangfire + Polly đã cài sẵn | Architect đã nghĩ trước cho Phase 3 |
+
+---
+
+## 7. Các tính năng nâng cao đã phát triển thêm (Vượt kế hoạch ban đầu)
+
+Trong quá trình thực tế triển khai, team đã xuất sắc hoàn thiện thêm nhiều tính năng cốt lõi vượt ngoài scope dự kiến của tài liệu này:
+
+### 🛡️ Authentication Nâng Cao (Security & UX)
+- **Google Login (OAuth2):** Tích hợp Đăng nhập bằng Google một chạm thay vì chỉ đăng nhập bằng form truyền thống.
+- **Xác thực tài khoản qua Email:** Tích hợp **Brevo API** (`EmailService`) để gửi link kích hoạt tài khoản khi người dùng đăng ký mới.
+- **Forgot / Reset Password:** Luồng cấp lại mật khẩu an toàn qua Email token.
+
+### 🧠 Data Aggregation & Dynamic Sync
+- **Hợp nhất dữ liệu (`PaperAggregationService`):** Không chỉ lấy dữ liệu đơn thuần, hệ thống tự động gộp (merge) thông tin bài báo từ nhiều API độc lập (Semantic Scholar, OpenAlex, Crossref) để làm giàu metadata, tránh lưu trùng lặp.
+- **Dynamic Sync Scheduler:** Lịch chạy ngầm Hangfire có thể được quản lý, tinh chỉnh trực tiếp từ bảng điều khiển Admin (`AdminSyncController`) thay vì fix cứng trong code.
+
+### 🧑‍🔬 Mở rộng phân tích Tác giả (Authors)
+- Ban đầu dự kiến chỉ phân tích xu hướng theo Keyword/Topic/Journal. Thực tế đã phát triển thêm **`AuthorsController`** và toàn bộ Frontend pages cho Tác giả.
+- Cho phép tìm kiếm tác giả, xem hồ sơ học thuật, danh sách bài báo và phân tích độ "hot" (trend) của từng tác giả cụ thể.
