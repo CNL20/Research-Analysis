@@ -14,6 +14,8 @@ public class User : IdentityUser
     public ICollection<Bookmark> Bookmarks { get; set; } = [];
     public ICollection<FollowedTopic> FollowedTopics { get; set; } = [];
     public ICollection<FollowedJournal> FollowedJournals { get; set; } = [];
+    public ICollection<FollowedAuthor> FollowedAuthors { get; set; } = [];
+    public ICollection<FollowedPaper> FollowedPapers { get; set; } = [];
     public ICollection<Notification> Notifications { get; set; } = [];
     public ICollection<SearchHistory> SearchHistories { get; set; } = [];
     public NotificationSetting? NotificationSetting { get; set; }

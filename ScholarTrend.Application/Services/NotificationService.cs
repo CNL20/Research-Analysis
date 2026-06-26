@@ -1,5 +1,7 @@
+using Microsoft.AspNetCore.Identity;
 using ScholarTrend.Application.DTOs.Notifications;
 using ScholarTrend.Application.Interfaces;
+using ScholarTrend.Domain.Constants;
 using ScholarTrend.Domain.Entities;
 
 namespace ScholarTrend.Application.Services;
@@ -7,10 +9,12 @@ namespace ScholarTrend.Application.Services;
 public class NotificationService : INotificationService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly UserManager<User> _userManager;
 
-    public NotificationService(IUnitOfWork unitOfWork)
+    public NotificationService(IUnitOfWork unitOfWork, UserManager<User> userManager)
     {
         _unitOfWork = unitOfWork;
+        _userManager = userManager;
     }
 
     public async Task<IReadOnlyList<NotificationDto>> GetNotificationsAsync(string userId, bool? isRead, int limit = 20)
@@ -89,6 +93,36 @@ public class NotificationService : INotificationService
                     $"A new paper \"{paper.Title}\" was published in a journal you follow.",
                     $"/papers/{paper.Id}");
             }
+        }
+
+        foreach (var authorId in paper.PaperAuthors.Select(pa => pa.AuthorId))
+        {
+            var followers = await _unitOfWork.Follows.GetAuthorFollowerUserIdsAsync(authorId);
+            foreach (var userId in followers)
+            {
+                await TryNotifyUserAsync(userId, notifiedUsers, "New paper by followed author",
+                    $"A new paper \"{paper.Title}\" was published by an author you follow.",
+                    $"/papers/{paper.Id}");
+            }
+        }
+
+        await _unitOfWork.SaveChangesAsync();
+    }
+
+    public async Task NotifyAdminsPendingSyncAsync(int proposalId, int pendingCount)
+    {
+        var admins = await _userManager.GetUsersInRoleAsync(RoleConstants.Admin);
+
+        foreach (var admin in admins)
+        {
+            await _unitOfWork.Notifications.AddAsync(new Notification
+            {
+                UserId = admin.Id,
+                Title = "Papers pending sync approval",
+                Message = $"{pendingCount} new paper(s) are waiting for your approval before they are synced.",
+                TargetUrl = $"/admin/sync/pending/{proposalId}",
+                CreatedAt = DateTime.UtcNow
+            });
         }
 
         await _unitOfWork.SaveChangesAsync();

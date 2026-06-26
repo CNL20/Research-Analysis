@@ -42,6 +42,8 @@ public class ScholarTrendDbContext : IdentityDbContext<User>
     public DbSet<Bookmark> Bookmarks => Set<Bookmark>();
     public DbSet<FollowedTopic> FollowedTopics => Set<FollowedTopic>();
     public DbSet<FollowedJournal> FollowedJournals => Set<FollowedJournal>();
+    public DbSet<FollowedAuthor> FollowedAuthors => Set<FollowedAuthor>();
+    public DbSet<FollowedPaper> FollowedPapers => Set<FollowedPaper>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<SearchHistory> SearchHistories => Set<SearchHistory>();
     public DbSet<NotificationSetting> NotificationSettings => Set<NotificationSetting>();
@@ -53,6 +55,8 @@ public class ScholarTrendDbContext : IdentityDbContext<User>
 
     public DbSet<SyncLog> SyncLogs => Set<SyncLog>();
     public DbSet<ApiDataSource> ApiDataSources => Set<ApiDataSource>();
+    public DbSet<SyncProposal> SyncProposals => Set<SyncProposal>();
+    public DbSet<PendingPaper> PendingPapers => Set<PendingPaper>();
 
     #endregion
 

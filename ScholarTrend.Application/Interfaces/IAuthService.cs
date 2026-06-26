@@ -12,4 +12,11 @@ public interface IAuthService
     Task<AuthResponse> RefreshTokenAsync(RefreshTokenRequest request);
     Task<UserProfileDto> GetProfileAsync(string userId);
     Task<UserProfileDto> UpdateProfileAsync(string userId, UpdateProfileRequest request);
+    Task<bool> ChangePasswordAsync(string userId, ChangePasswordRequest request);
+    Task<bool> VerifyEmailAsync(VerifyEmailRequest request);
+    Task<bool> ResendVerificationEmailAsync(ResendVerifyEmailRequest request, string clientUrl);
+    Task<bool> ForgotPasswordAsync(ForgotPasswordRequest request, string clientUrl);
+    Task<bool> ResetPasswordAsync(ResetPasswordRequest request);
+    Task<AuthResponse> GoogleLoginAsync(GoogleLoginRequest request);
+
 }

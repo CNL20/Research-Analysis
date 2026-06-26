@@ -7,9 +7,11 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using ScholarTrend.Application.DTOs.Auth;
 using ScholarTrend.Application.Interfaces;
+using ScholarTrend.Application.Interfaces.External;
 using ScholarTrend.Application.Interfaces.Repositories;
 using ScholarTrend.Domain.Entities;
 using ScholarTrend.Domain.Enums;
+using Google.Apis.Auth;
 
 namespace ScholarTrend.Application.Services;
 
@@ -23,19 +25,22 @@ public class AuthService : IAuthService
     private readonly IRefreshTokenRepository _refreshTokenRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IConfiguration _configuration;
+    private readonly IEmailService _emailService;
 
     public AuthService(
         UserManager<User> userManager,
         RoleManager<IdentityRole> roleManager,
         IRefreshTokenRepository refreshTokenRepository,
         IUnitOfWork unitOfWork,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IEmailService emailService)
     {
         _userManager = userManager;
         _roleManager = roleManager;
         _refreshTokenRepository = refreshTokenRepository;
         _unitOfWork = unitOfWork;
         _configuration = configuration;
+        _emailService = emailService;
     }
 
     public async Task<AuthResponse> RegisterAsync(RegisterRequest request)
@@ -53,7 +58,7 @@ public class AuthService : IAuthService
             FullName = request.FullName,
             Institution = request.Institution,
             ResearchField = request.ResearchField,
-            EmailConfirmed = true,
+            EmailConfirmed = false, // Chờ verify
             IsActive = true,
             CreatedAt = DateTime.UtcNow
         };
@@ -68,6 +73,23 @@ public class AuthService : IAuthService
         await EnsureDefaultRoleExistsAsync();
         await _userManager.AddToRoleAsync(user, UserRole.LecturerStudent.ToString());
 
+        // Sinh Token xác thực
+        var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+    
+        // Đọc link Frontend từ appsettings.json
+        var clientUrl = _configuration["ClientSettings:ClientUrl"] ?? "http://localhost:5173";
+    
+        // Link trỏ đến trang verify của Frontend
+        var verificationLink = $"{clientUrl}/verify-email?email={System.Web.HttpUtility.UrlEncode(user.Email)}&token={System.Web.HttpUtility.UrlEncode(token)}";
+
+        // Gửi email thực tế thông qua dịch vụ đã tạo ở Phần 2
+        var emailBody = $"<h3>Chào mừng {user.FullName} đến với ScholarTrend!</h3>" +
+                        $"<p>Vui lòng click vào link bên dưới để xác thực tài khoản của bạn:</p>" +
+                        $"<a href='{verificationLink}' style='padding: 10px 20px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px;'>Xác thực ngay</a>";
+
+        await _emailService.SendEmailAsync(user.Email, "Xác thực tài khoản ScholarTrend", emailBody);
+
+        // Tạo thông báo chào mừng
         await _unitOfWork.Notifications.AddAsync(new Notification
         {
             UserId = user.Id,
@@ -80,6 +102,41 @@ public class AuthService : IAuthService
 
         return await BuildAuthResponseAsync(user);
     }
+    public async Task<bool> VerifyEmailAsync(VerifyEmailRequest request)
+    {
+        var user = await _userManager.FindByEmailAsync(request.Email);
+        if (user == null)
+        {
+            throw new InvalidOperationException("User not found.");
+        }
+        var result = await _userManager.ConfirmEmailAsync(user, request.Token);
+        if (!result.Succeeded)
+        {
+            var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+            throw new InvalidOperationException($"Verification failed: {errors}");
+        }
+        return true;
+    }
+    public async Task<bool> ResendVerificationEmailAsync(ResendVerifyEmailRequest request, string clientUrl)
+    {
+        var user = await _userManager.FindByEmailAsync(request.Email);
+        if (user == null)
+        {
+            throw new InvalidOperationException("User not found.");
+        }
+        if (user.EmailConfirmed)
+        {
+            throw new InvalidOperationException("Email is already confirmed.");
+        }
+        var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+        var verificationLink = $"{clientUrl}/verify-email?email={System.Web.HttpUtility.UrlEncode(user.Email)}&token={System.Web.HttpUtility.UrlEncode(token)}";
+        var emailBody = $"<h3>Yêu cầu gửi lại link xác thực ScholarTrend</h3>" +
+                        $"<p>Vui lòng click vào link bên dưới để hoàn tất xác thực:</p>" +
+                        $"<a href='{verificationLink}' style='padding: 10px 20px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px;'>Xác thực ngay</a>";
+        await _emailService.SendEmailAsync(user.Email, "Xác thực tài khoản ScholarTrend (Gửi lại)", emailBody);
+        return true;
+    }
+
 
     public async Task<AuthResponse> LoginAsync(LoginRequest request)
     {
@@ -94,6 +151,11 @@ public class AuthService : IAuthService
             throw new InvalidOperationException("Account has been deactivated. Please contact administrator.");
         }
 
+        if (!user.EmailConfirmed)
+        {
+            throw new InvalidOperationException("Please confirm your email before logging in.");
+        }
+
         var isPasswordValid = await _userManager.CheckPasswordAsync(user, request.Password);
         if (!isPasswordValid)
         {
@@ -102,6 +164,65 @@ public class AuthService : IAuthService
 
         user.LastLoginAt = DateTime.UtcNow;
         await _userManager.UpdateAsync(user);
+
+        return await BuildAuthResponseAsync(user);
+    }
+
+    public async Task<AuthResponse> GoogleLoginAsync(GoogleLoginRequest request)
+    {
+        var clientId = _configuration["GoogleAuth:ClientId"];
+        if (string.IsNullOrEmpty(clientId))
+        {
+            throw new InvalidOperationException("Google ClientId is not configured.");
+        }
+
+        GoogleJsonWebSignature.Payload payload;
+        try
+        {
+            var settings = new GoogleJsonWebSignature.ValidationSettings()
+            {
+                Audience = new List<string>() { clientId }
+            };
+            payload = await GoogleJsonWebSignature.ValidateAsync(request.IdToken, settings);
+        }
+        catch (InvalidJwtException)
+        {
+            throw new InvalidOperationException("Invalid Google token.");
+        }
+
+        var user = await _userManager.FindByEmailAsync(payload.Email);
+        if (user == null)
+        {
+            user = new User
+            {
+                UserName = payload.Email,
+                Email = payload.Email,
+                FullName = payload.Name,
+                EmailConfirmed = true,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            var result = await _userManager.CreateAsync(user);
+            if (!result.Succeeded)
+            {
+                var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+                throw new InvalidOperationException($"Failed to create user: {errors}");
+            }
+
+            await EnsureDefaultRoleExistsAsync();
+            await _userManager.AddToRoleAsync(user, UserRole.LecturerStudent.ToString());
+        }
+        else
+        {
+            if (!user.IsActive)
+            {
+                throw new InvalidOperationException("Account has been deactivated. Please contact administrator.");
+            }
+            
+            user.LastLoginAt = DateTime.UtcNow;
+            await _userManager.UpdateAsync(user);
+        }
 
         return await BuildAuthResponseAsync(user);
     }
@@ -280,5 +401,66 @@ public class AuthService : IAuthService
     {
         var days = _configuration["Authentication:Jwt:RefreshTokenExpirationDays"];
         return int.TryParse(days, out var result) ? result : 7;
+    }
+
+    public async Task<bool> ChangePasswordAsync(string userId, ChangePasswordRequest request)
+    {
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null)
+        {
+            throw new InvalidOperationException("User not found.");
+        }
+        var result = await _userManager.ChangePasswordAsync(user, request.CurrentPassword, request.NewPassword);
+        if (!result.Succeeded)
+        {
+            var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+            throw new InvalidOperationException($"Failed to change password: {errors}");
+        }
+        return true;
+    }
+
+    public async Task<bool> ForgotPasswordAsync(ForgotPasswordRequest request, string clientUrl)
+    {
+        var user = await _userManager.FindByEmailAsync(request.Email);
+        if (user == null)
+        {
+            // Trả về true vì lý do bảo mật (tránh lộ email tồn tại trong hệ thống)
+            return true;
+        }
+
+        var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+        var resetLink = $"{clientUrl}/reset-password?email={System.Web.HttpUtility.UrlEncode(user.Email)}&token={System.Web.HttpUtility.UrlEncode(token)}";
+
+        var emailBody = $"<h3>Yêu cầu đặt lại mật khẩu ScholarTrend</h3>" +
+                        $"<p>Vui lòng click vào link bên dưới để tiến hành đặt lại mật khẩu của bạn:</p>" +
+                        $"<a href='{resetLink}' style='padding: 10px 20px; background-color: #f44336; color: white; text-decoration: none; border-radius: 5px;'>Đặt lại mật khẩu</a>";
+
+        await _emailService.SendEmailAsync(user.Email!, "Đặt lại mật khẩu ScholarTrend", emailBody);
+        return true;
+    }
+
+    public async Task<bool> ResetPasswordAsync(ResetPasswordRequest request)
+    {
+        var user = await _userManager.FindByEmailAsync(request.Email);
+        if (user == null)
+        {
+            throw new InvalidOperationException("User not found.");
+        }
+
+        // Tự động giải mã token nếu token chứa ký tự đặc biệt dạng %XX
+        var decodedToken = request.Token;
+        if (request.Token.Contains("%"))
+        {
+            decodedToken = System.Web.HttpUtility.UrlDecode(request.Token);
+        }
+
+        var result = await _userManager.ResetPasswordAsync(user, decodedToken, request.NewPassword);
+        if (!result.Succeeded)
+        {
+            var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+            throw new InvalidOperationException($"Reset password failed: {errors}");
+        }
+
+        return true;
     }
 }

@@ -8,21 +8,40 @@ Hỗ trợ cung cấp đầy đủ chức năng từ xác thực người dùng,
 
 ---
 
-## 📚 Tài liệu dự án (Documentation)
+## 📚 Tài liệu Dự án (Documentation)
 
-Chào mừng bạn, toàn bộ cẩm nang thiết lập và nghiệp vụ của Backend ScholarTrend đã được chia nhỏ theo từng chuyên môn để dễ tra cứu tại thư mục `docs/`:
+Để dễ dàng theo dõi và bảo trì, toàn bộ tài liệu hướng dẫn và đặc tả API của hệ thống đã được phân tách thành các chuyên đề chi tiết trong thư mục `docs/`. Vui lòng nhấn vào các liên kết bên dưới để xem chi tiết:
 
-1. 🚀 [**1. Getting Started (Setup & Run)**](docs/1_getting_started.md)
-   *Cách thiết lập Database, Config JSON, các lệnh build dự án, tài khoản Test, và CURL sample.*
-   
-2. 🏛️ [**2. Architecture (Kiến trúc hệ thống)**](docs/2_architecture.md)
-   *Mô hình Clean Architecture 4 Layer, ý nghĩa cấu trúc thư mục, lý do chọn công nghệ kỹ thuật.*
-   
-3. 💼 [**3. Business Logic (Nghiệp vụ cốt lõi)**](docs/3_business_logic.md)
-   *Luồng chức năng User, Roles, Background Sync Semantic Scholar, Data Flow của Trend Engine.*
-   
-4. 🔌 [**4. API Reference (Tài liệu API)**](docs/4_api_reference.md)
-   *Định cấu trúc Response của System, thiết kế JWT. Danh sách Endpoint của phân hệ Auth, Trend, Sync, Analytics.*
+1. 🏛️ **[Tổng quan Kiến trúc & Công nghệ (Tech Stack & Architecture)](docs/01-architecture-tech.md)**
+   - Phân tầng Clean Architecture.
+   - Các công nghệ áp dụng (.NET 9, Hangfire, JWT...).
+   - Role người dùng trong hệ thống.
+
+2. 🚀 **[Hướng dẫn Cài đặt & Chạy Dự án (Setup Guide)](docs/02-setup-guide.md)**
+   - Cấu hình chuỗi kết nối Database và appsettings.
+   - Cơ chế tạo Dữ liệu mẫu (Seeder).
+   - Tài khoản Test mặc định.
+   - Hướng dẫn dùng Swagger.
+
+3. 🔐 **[Chức năng Xác thực & Người dùng (Auth Features)](docs/03-auth-features.md)**
+   - Cơ chế hoạt động của JWT Access Token & Refresh Token.
+   - Các API Đăng ký, Đăng nhập (Google Login).
+   - Xác thực Email qua Brevo, Quên/Đổi mật khẩu.
+   - Profile người dùng.
+
+4. 🔍 **[Chức năng Tìm kiếm & Cốt lõi (Core Features)](docs/04-core-features.md)**
+   - API Tìm kiếm, Danh sách Bài báo, Chủ đề (Topics), Tạp chí (Journals), Tác giả.
+   - Tính năng lưu trữ Bookmark bài báo.
+
+5. 📈 **[Động cơ Xu hướng & Cá nhân hóa (Trend & Personalization)](docs/05-trend-personalization.md)**
+   - API xuất biểu đồ Xu hướng (Line Charts, Dashboards).
+   - Chức năng theo dõi (Follows).
+   - Hệ thống Thông báo (Notifications).
+
+6. ⚙️ **[Quản trị viên, Xuất Báo cáo & Đồng bộ (Admin & Sync)](docs/06-admin-sync.md)**
+   - Quản trị viên (Phân quyền, bật/tắt User).
+   - Kích hoạt Đồng bộ dữ liệu (Data Sync) qua Hangfire từ Semantic Scholar, OpenAlex.
+   - Xuất (Export) báo cáo dữ liệu định dạng JSON, CSV.
 
 ---
 

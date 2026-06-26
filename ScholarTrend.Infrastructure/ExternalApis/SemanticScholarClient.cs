@@ -2,7 +2,9 @@ using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using ScholarTrend.Application.DTOs.Aggregation;
 using ScholarTrend.Application.Interfaces.External;
+using ScholarTrend.Application.Services.Aggregation;
 
 namespace ScholarTrend.Infrastructure.ExternalApis;
 
@@ -68,6 +70,51 @@ public class SemanticScholarClient : ISemanticScholarClient
         return [];
     }
 
+    public async Task<PaperSourceMetadataDto> GetByDoiAsync(string doi)
+    {
+        var normalizedDoi = MetadataMapper.NormalizeDoi(doi);
+        if (string.IsNullOrWhiteSpace(normalizedDoi))
+        {
+            return MetadataMapper.NotFound("semantic_scholar", "DOI is required.");
+        }
+
+        var url = $"paper/DOI:{Uri.EscapeDataString(normalizedDoi)}?fields=title,abstract,year,citationCount,url,externalIds,authors.name,journal";
+
+        try
+        {
+            var paper = await _httpClient.GetFromJsonAsync<SemanticScholarPaper>(url);
+            if (paper == null || string.IsNullOrWhiteSpace(paper.PaperId))
+            {
+                return MetadataMapper.NotFound("semantic_scholar", "No Semantic Scholar record found.");
+            }
+
+            var external = new ExternalPaperDto
+            {
+                ExternalId = paper.PaperId,
+                Source = "semantic_scholar",
+                Title = paper.Title ?? "Untitled",
+                Abstract = paper.Abstract,
+                Year = paper.Year,
+                CitationCount = paper.CitationCount,
+                Doi = paper.ExternalIds?.Doi ?? normalizedDoi,
+                Url = paper.Url,
+                Journal = paper.Journal?.Name,
+                AuthorNames = paper.Authors?.Select(a => a.Name ?? "Unknown").ToList() ?? [],
+            };
+
+            return MetadataMapper.FromExternal(external, "semantic_scholar");
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return MetadataMapper.NotFound("semantic_scholar", "No Semantic Scholar record found.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Semantic Scholar DOI lookup failed for {Doi}", normalizedDoi);
+            return MetadataMapper.NotFound("semantic_scholar", "Failed to fetch metadata from Semantic Scholar.");
+        }
+    }
+
     private sealed class SemanticScholarSearchResponse
     {
         [JsonPropertyName("data")]
@@ -99,6 +146,15 @@ public class SemanticScholarClient : ISemanticScholarClient
 
         [JsonPropertyName("authors")]
         public List<SemanticScholarAuthor>? Authors { get; set; }
+
+        [JsonPropertyName("journal")]
+        public SemanticScholarJournal? Journal { get; set; }
+    }
+
+    private sealed class SemanticScholarJournal
+    {
+        [JsonPropertyName("name")]
+        public string? Name { get; set; }
     }
 
     private sealed class SemanticScholarAuthor

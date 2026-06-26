@@ -35,7 +35,9 @@ public class StatisticsRepository : IStatisticsRepository
     {
         var topicFollows = await _context.FollowedTopics.CountAsync();
         var journalFollows = await _context.FollowedJournals.CountAsync();
-        return topicFollows + journalFollows;
+        var authorFollows = await _context.FollowedAuthors.CountAsync();
+        var paperFollows = await _context.FollowedPapers.CountAsync();
+        return topicFollows + journalFollows + authorFollows + paperFollows;
     }
 
     public Task<int> CountActiveUsersAsync()

@@ -19,6 +19,7 @@ using ScholarTrend.Infrastructure.ExternalApis;
 using ScholarTrend.Infrastructure.Jobs;
 using ScholarTrend.Infrastructure.Repositories;
 using ScholarTrend.Application.Interfaces.External;
+using ScholarTrend.Application.DTOs.Common;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -97,6 +98,7 @@ builder.Services.AddScoped<IPaperService, PaperService>();
 builder.Services.AddScoped<IBookmarkService, BookmarkService>();
 builder.Services.AddScoped<ITopicService, TopicService>();
 builder.Services.AddScoped<IJournalService, JournalService>();
+builder.Services.AddScoped<IAuthorService, AuthorService>();
 builder.Services.AddScoped<ITrendRepository, TrendRepository>();
 builder.Services.AddScoped<IStatisticsRepository, StatisticsRepository>();
 builder.Services.AddScoped<ITrendService, TrendService>();
@@ -108,9 +110,20 @@ builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<ISyncService, SyncService>();
 builder.Services.AddScoped<IPaperImportRepository, PaperImportRepository>();
 builder.Services.AddScoped<SyncJob>();
+// Bind cấu hình EmailSettings từ appsettings
+builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
+
+// Đăng ký Email Service vào DI Container
+builder.Services.AddHttpClient<IEmailService, EmailService>();
+builder.Services.AddScoped<IPaperAggregationService, PaperAggregationService>();
 
 builder.Services.AddHttpClient<ISemanticScholarClient, SemanticScholarClient>();
 builder.Services.AddHttpClient<IOpenAlexClient, OpenAlexClient>();
+builder.Services.AddHttpClient<ICrossrefClient, CrossrefClient>();
+builder.Services.AddHttpClient<IArXivClient, ArXivClient>();
+
+builder.Services.AddScoped<ISyncSchedulerService, SyncSchedulerService>();
+builder.Services.AddScoped<ISyncJob, SyncJob>();
 
 builder.Services.AddMemoryCache();
 
@@ -130,7 +143,7 @@ builder.Services.AddHangfire(config =>
           {
               CommandBatchMaxTimeout = TimeSpan.FromMinutes(5),
               SlidingInvisibilityTimeout = TimeSpan.FromMinutes(5),
-              QueuePollInterval = TimeSpan.Zero,
+              QueuePollInterval = TimeSpan.FromSeconds(15),
               UseRecommendedIsolationLevel = true,
               DisableGlobalLocks = true
           }));
@@ -188,7 +201,10 @@ if (app.Environment.IsDevelopment())
     // Các cấu hình chỉ dành riêng cho Dev (nếu có)
 }
 
-app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -196,7 +212,15 @@ app.UseAuthorization();
 // Hangfire Dashboard (dev only)
 app.UseHangfireDashboard("/hangfire");
 
-RecurringJob.AddOrUpdate<SyncJob>("daily-paper-sync", job => job.RunAsync(), Cron.Daily);
+// ============ HANGFIRE RECURRING JOB ============
+// Configure sync schedule from appsettings.json
+var syncEnabled = builder.Configuration.GetValue("SyncSchedule:Enabled", true);
+var syncCron = builder.Configuration["SyncSchedule:CronExpression"] ?? "0 2 * * *";
+
+if (syncEnabled)
+{
+    RecurringJob.AddOrUpdate<ISyncJob>("daily-paper-sync", job => job.RunAsync(), syncCron);
+}
 
 app.MapControllers();
 

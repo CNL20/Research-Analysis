@@ -59,6 +59,21 @@ public class ResearchPaperRepository : GenericRepository<ResearchPaper>, IResear
         return await query.ToListAsync();
     }
 
+    public async Task<IEnumerable<ResearchPaper>> GetPapersByAuthorAsync(int authorId, int limit = 0)
+    {
+        var query = _dbSet
+            .Where(p => p.Status == PaperStatus.Available && p.PaperAuthors.Any(pa => pa.AuthorId == authorId))
+            .Include(p => p.Journal)
+            .Include(p => p.PaperAuthors).ThenInclude(pa => pa.Author)
+            .Include(p => p.PaperKeywords).ThenInclude(pk => pk.Keyword)
+            .OrderByDescending(p => p.CitationCount)
+            .ThenByDescending(p => p.PublicationYear);
+
+        return limit > 0
+            ? await query.Take(limit).ToListAsync()
+            : await query.ToListAsync();
+    }
+
     public async Task<ResearchPaper?> GetPaperWithDetailsAsync(int id)
     {
         return await _dbSet
@@ -80,9 +95,25 @@ public class ResearchPaperRepository : GenericRepository<ResearchPaper>, IResear
         return _dbSet.CountAsync(p => p.JournalId == journalId && p.Status == PaperStatus.Available);
     }
 
+    public Task<int> CountByAuthorAsync(int authorId)
+    {
+        return _context.PaperAuthors
+            .CountAsync(pa => pa.AuthorId == authorId && pa.Paper.Status == PaperStatus.Available);
+    }
+
     public Task<ResearchPaper?> GetByExternalIdAsync(string externalId, string source)
     {
         return _dbSet.FirstOrDefaultAsync(p => p.ExternalId == externalId && p.ExternalSource == source);
+    }
+
+    public async Task<ResearchPaper?> GetByDoiAsync(string doi)
+    {
+        var normalizedDoi = doi.Trim().ToLowerInvariant();
+        return await _dbSet
+            .Include(p => p.Journal)
+            .Include(p => p.PaperAuthors).ThenInclude(pa => pa.Author)
+            .Include(p => p.PaperKeywords).ThenInclude(pk => pk.Keyword)
+            .FirstOrDefaultAsync(p => p.Doi != null && p.Doi.ToLower() == normalizedDoi);
     }
 
     private IQueryable<ResearchPaper> BuildSearchQuery(PaperSearchCriteria criteria)

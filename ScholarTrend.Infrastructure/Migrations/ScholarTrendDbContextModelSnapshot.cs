@@ -241,6 +241,36 @@ namespace ScholarTrend.Infrastructure.Migrations
                     b.ToTable("Bookmarks");
                 });
 
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.FollowedAuthor", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AuthorId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("FollowedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("UserId", "AuthorId")
+                        .IsUnique();
+
+                    b.ToTable("FollowedAuthors");
+                });
+
             modelBuilder.Entity("ScholarTrend.Domain.Entities.FollowedJournal", b =>
                 {
                     b.Property<int>("Id")
@@ -266,6 +296,36 @@ namespace ScholarTrend.Infrastructure.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("FollowedJournals");
+                });
+
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.FollowedPaper", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("FollowedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("PaperId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PaperId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("UserId", "PaperId")
+                        .IsUnique();
+
+                    b.ToTable("FollowedPapers");
                 });
 
             modelBuilder.Entity("ScholarTrend.Domain.Entities.FollowedTopic", b =>
@@ -551,6 +611,74 @@ namespace ScholarTrend.Infrastructure.Migrations
                     b.ToTable("PaperTopics");
                 });
 
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.PendingPaper", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Abstract")
+                        .HasMaxLength(5000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("AuthorNamesJson")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int?>("CitationCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Doi")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ExternalId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ExternalSource")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("ImportedPaperId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("SyncProposalId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Url")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int?>("Year")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("SyncProposalId");
+
+                    b.HasIndex("ExternalId", "ExternalSource");
+
+                    b.ToTable("PendingPapers");
+                });
+
             modelBuilder.Entity("ScholarTrend.Domain.Entities.RefreshToken", b =>
                 {
                     b.Property<int>("Id")
@@ -771,6 +899,44 @@ namespace ScholarTrend.Infrastructure.Migrations
                     b.ToTable("SyncLogs");
                 });
 
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.SyncProposal", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ReviewedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("TotalApproved")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TotalFetched")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("SyncProposals");
+                });
+
             modelBuilder.Entity("ScholarTrend.Domain.Entities.TopicTrend", b =>
                 {
                     b.Property<int>("Id")
@@ -961,6 +1127,25 @@ namespace ScholarTrend.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.FollowedAuthor", b =>
+                {
+                    b.HasOne("ScholarTrend.Domain.Entities.Author", "Author")
+                        .WithMany("FollowedAuthors")
+                        .HasForeignKey("AuthorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ScholarTrend.Domain.Entities.User", "User")
+                        .WithMany("FollowedAuthors")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Author");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("ScholarTrend.Domain.Entities.FollowedJournal", b =>
                 {
                     b.HasOne("ScholarTrend.Domain.Entities.Journal", "Journal")
@@ -976,6 +1161,25 @@ namespace ScholarTrend.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Journal");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.FollowedPaper", b =>
+                {
+                    b.HasOne("ScholarTrend.Domain.Entities.ResearchPaper", "Paper")
+                        .WithMany("FollowedPapers")
+                        .HasForeignKey("PaperId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ScholarTrend.Domain.Entities.User", "User")
+                        .WithMany("FollowedPapers")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Paper");
 
                     b.Navigation("User");
                 });
@@ -1100,6 +1304,17 @@ namespace ScholarTrend.Infrastructure.Migrations
                     b.Navigation("Topic");
                 });
 
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.PendingPaper", b =>
+                {
+                    b.HasOne("ScholarTrend.Domain.Entities.SyncProposal", "SyncProposal")
+                        .WithMany("PendingPapers")
+                        .HasForeignKey("SyncProposalId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("SyncProposal");
+                });
+
             modelBuilder.Entity("ScholarTrend.Domain.Entities.RefreshToken", b =>
                 {
                     b.HasOne("ScholarTrend.Domain.Entities.User", "User")
@@ -1145,6 +1360,8 @@ namespace ScholarTrend.Infrastructure.Migrations
 
             modelBuilder.Entity("ScholarTrend.Domain.Entities.Author", b =>
                 {
+                    b.Navigation("FollowedAuthors");
+
                     b.Navigation("PaperAuthors");
                 });
 
@@ -1168,6 +1385,8 @@ namespace ScholarTrend.Infrastructure.Migrations
                 {
                     b.Navigation("Bookmarks");
 
+                    b.Navigation("FollowedPapers");
+
                     b.Navigation("PaperAuthors");
 
                     b.Navigation("PaperKeywords");
@@ -1184,11 +1403,20 @@ namespace ScholarTrend.Infrastructure.Migrations
                     b.Navigation("TopicTrends");
                 });
 
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.SyncProposal", b =>
+                {
+                    b.Navigation("PendingPapers");
+                });
+
             modelBuilder.Entity("ScholarTrend.Domain.Entities.User", b =>
                 {
                     b.Navigation("Bookmarks");
 
+                    b.Navigation("FollowedAuthors");
+
                     b.Navigation("FollowedJournals");
+
+                    b.Navigation("FollowedPapers");
 
                     b.Navigation("FollowedTopics");
 

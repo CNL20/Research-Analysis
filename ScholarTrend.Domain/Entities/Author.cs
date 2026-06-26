@@ -11,4 +11,5 @@ public class Author
     public int? TotalCitations { get; set; }
 
     public ICollection<PaperAuthor> PaperAuthors { get; set; } = [];
+    public ICollection<FollowedAuthor> FollowedAuthors { get; set; } = [];
 }

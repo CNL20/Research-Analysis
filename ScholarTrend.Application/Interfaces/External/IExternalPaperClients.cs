@@ -1,3 +1,5 @@
+using ScholarTrend.Application.DTOs.Aggregation;
+
 namespace ScholarTrend.Application.Interfaces.External;
 
 public class ExternalPaperDto
@@ -10,15 +12,31 @@ public class ExternalPaperDto
     public int? CitationCount { get; set; }
     public string? Doi { get; set; }
     public string? Url { get; set; }
+    public string? Journal { get; set; }
     public List<string> AuthorNames { get; set; } = [];
+    public List<string> Keywords { get; set; } = [];
+    public string? PdfUrl { get; set; }
 }
 
 public interface ISemanticScholarClient
 {
     Task<IReadOnlyList<ExternalPaperDto>> SearchPapersAsync(string query, int limit = 20);
+    Task<PaperSourceMetadataDto> GetByDoiAsync(string doi);
 }
 
 public interface IOpenAlexClient
 {
     Task<IReadOnlyList<ExternalPaperDto>> SearchPapersAsync(string query, int limit = 20);
+    Task<PaperSourceMetadataDto> GetByDoiAsync(string doi);
+}
+
+public interface ICrossrefClient
+{
+    Task<PaperSourceMetadataDto> GetByDoiAsync(string doi);
+}
+
+public interface IArXivClient
+{
+    Task<IReadOnlyList<ExternalPaperDto>> SearchPapersAsync(string query, int limit = 20);
+    Task<PaperSourceMetadataDto> GetByDoiAsync(string doi);
 }

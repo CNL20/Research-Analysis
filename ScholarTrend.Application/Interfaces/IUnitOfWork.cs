@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using ScholarTrend.Application.Interfaces.Repositories;
 
 namespace ScholarTrend.Application.Interfaces;
@@ -7,14 +8,22 @@ namespace ScholarTrend.Application.Interfaces;
 /// </summary>
 public interface IUnitOfWork : IDisposable
 {
+    DbContext Context { get; }
     IResearchPaperRepository ResearchPapers { get; }
     IBookmarkRepository Bookmarks { get; }
     IResearchTopicRepository Topics { get; }
     IJournalRepository Journals { get; }
+    IAuthorRepository Authors { get; }
     ISearchHistoryRepository SearchHistories { get; }
     IFollowRepository Follows { get; }
     INotificationRepository Notifications { get; }
     IApiDataSourceRepository ApiDataSources { get; }
     ISyncLogRepository SyncLogs { get; }
+    ISyncProposalRepository SyncProposals { get; }
+    IPendingPaperRepository PendingPapers { get; }
     Task<int> SaveChangesAsync();
+
+    Task<bool> BeginTransactionAsync();
+    Task CommitTransactionAsync();
+    Task RollbackTransactionAsync();
 }

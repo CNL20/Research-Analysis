@@ -25,4 +25,5 @@ public class ResearchPaper
     public ICollection<PaperKeyword> PaperKeywords { get; set; } = [];
     public ICollection<PaperTopic> PaperTopics { get; set; } = [];
     public ICollection<Bookmark> Bookmarks { get; set; } = [];
+    public ICollection<FollowedPaper> FollowedPapers { get; set; } = [];
 }

@@ -92,7 +92,9 @@ public class PaperImportRepository : IPaperImportRepository
     private async Task LinkKeywordsAndTopicAsync(int paperId, ExternalPaperDto external)
     {
         var keywords = await _context.Keywords.ToListAsync();
-        var text = $"{external.Title} {external.Abstract}".ToLowerInvariant();
+        var titleLower = external.Title?.ToLowerInvariant() ?? "";
+        var abstractLower = external.Abstract?.ToLowerInvariant() ?? "";
+        var text = $"{titleLower} {abstractLower}";
         var matched = keywords.Where(k => text.Contains(k.Name.ToLowerInvariant())).Take(3).ToList();
 
         foreach (var keyword in matched)
@@ -104,10 +106,20 @@ public class PaperImportRepository : IPaperImportRepository
             }
         }
 
+        // Match topic based on keywords in title/abstract
+        // Check if any keyword matches a topic name
         var topic = matched.Count > 0
             ? await _context.ResearchTopics.FirstOrDefaultAsync(t =>
-                matched.Any(k => t.TopicName.Contains(k.Name, StringComparison.OrdinalIgnoreCase)))
-            : await _context.ResearchTopics.FirstOrDefaultAsync();
+                matched.Any(k => t.TopicName.Contains(k.Name, StringComparison.OrdinalIgnoreCase) ||
+                               k.Name.Contains(t.TopicName, StringComparison.OrdinalIgnoreCase)))
+            : null;
+
+        // If no topic matched via keywords, use ML/AI keywords to determine topic
+        if (topic == null)
+        {
+            // Use word boundary matching to avoid false positives
+            topic = await MatchTopicByKeywordsAsync(text);
+        }
 
         topic ??= await _context.ResearchTopics.FirstOrDefaultAsync();
 
@@ -121,5 +133,68 @@ public class PaperImportRepository : IPaperImportRepository
         }
 
         await _context.SaveChangesAsync();
+    }
+
+    private async Task<ResearchTopic?> MatchTopicByKeywordsAsync(string text)
+    {
+        // Machine Learning keywords - use word boundaries where possible
+        var mlPatterns = new[] { "machine learning", "deep learning", "neural network", "artificial intelligence",
+            "transformer", "bert", "gpt", "lstm", "reinforcement learning", "supervised learning", "unsupervised learning" };
+        var mlSingleKeywords = new[] { "cnn", "rnn", "gan", "vae", "mlp" };
+
+        // Computer Vision keywords
+        var cvPatterns = new[] { "computer vision", "image recognition", "object detection", "image segmentation" };
+        var cvSingleKeywords = new[] { "yolo", "resnet", "faster r-cnn" };
+
+        // NLP keywords
+        var nlpPatterns = new[] { "natural language", "sentiment analysis", "machine translation", "language model", "text classification" };
+        var nlpSingleKeywords = new[] { "nlp", "llm" };
+
+        // Robotics keywords
+        var roboticsPatterns = new[] { "robotics", "autonomous", "motion planning", "robot control" };
+        var roboticsSingleKeywords = new[] { "kinematics", "manipulator" };
+
+        // Check patterns (multi-word) first
+        if (mlPatterns.Any(p => text.Contains(p)))
+            return await GetTopicByNameAsync("Machine Learning");
+        if (cvPatterns.Any(p => text.Contains(p)))
+            return await GetTopicByNameAsync("Computer Vision");
+        if (nlpPatterns.Any(p => text.Contains(p)))
+            return await GetTopicByNameAsync("NLP");
+        if (roboticsPatterns.Any(p => text.Contains(p)))
+            return await GetTopicByNameAsync("Robotics");
+
+        // Check single keywords (with word boundary check to avoid false positives)
+        if (mlSingleKeywords.Any(k => HasWordBoundary(text, k)))
+            return await GetTopicByNameAsync("Machine Learning");
+        if (cvSingleKeywords.Any(k => HasWordBoundary(text, k)))
+            return await GetTopicByNameAsync("Computer Vision");
+        if (nlpSingleKeywords.Any(k => HasWordBoundary(text, k)))
+            return await GetTopicByNameAsync("NLP");
+        if (roboticsSingleKeywords.Any(k => HasWordBoundary(text, k)))
+            return await GetTopicByNameAsync("Robotics");
+
+        return null;
+    }
+
+    private async Task<ResearchTopic?> GetTopicByNameAsync(string topicName)
+    {
+        return await _context.ResearchTopics
+            .FirstOrDefaultAsync(t => t.TopicName.Contains(topicName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool HasWordBoundary(string text, string keyword)
+    {
+        return text.Contains($" {keyword} ") ||
+               text.Contains($" {keyword},") ||
+               text.Contains($" {keyword}.") ||
+               text.Contains($" {keyword}?") ||
+               text.Contains($" {keyword}!") ||
+               text.Contains($" {keyword};") ||
+               text.Contains($" {keyword}:") ||
+               text.Contains($" {keyword}-") ||
+               text.Contains($"({keyword} ") ||
+               text.StartsWith($"{keyword} ") ||
+               text.EndsWith($" {keyword}");
     }
 }
