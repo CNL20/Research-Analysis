@@ -1,8 +1,10 @@
-# ScholarTrend
+# 🎓 ScholarTrend Project
 
 **Hệ thống theo dõi xu hướng công bố báo chí khoa học** (Scientific Journal Publication Trend Tracking System).
 
-Dự án SWP — nhóm SU26SWP06. Backend REST API xây dựng trên **.NET 9**, kiến trúc **Clean Architecture**, cung cấp đầy đủ chức năng từ xác thực người dùng, tìm kiếm bài báo, phân tích xu hướng, cá nhân hóa, đồng bộ dữ liệu ngoài, đến dashboard và báo cáo.
+Dự án SWP — nhóm SU26SWP06. Backend REST API xây dựng trên **.NET 9**, kế trúc **Clean Architecture**.
+
+Hỗ trợ cung cấp đầy đủ chức năng từ xác thực người dùng, tìm kiếm bài báo, phân tích luồng dữ liệu Trend, gợi ý cá nhân hóa, đồng bộ data Job Background (Hangfire), đến dashboard và báo cáo.
 
 ---
 
@@ -43,4 +45,15 @@ Dự án SWP — nhóm SU26SWP06. Backend REST API xây dựng trên **.NET 9**,
 
 ---
 
-*ScholarTrend — SU26SWP06 · .NET 9 · Clean Architecture*
+## 🛠️ Công nghệ tóm tắt
+
+- **Framework:** .NET 9 ASP.NET Core Web API (RESTful)
+- **Database:** Entity Framework Core 9 + SQL Server
+- **Authentication:** ASP.NET Identity + JWT Bearer
+- **Job Background:** Hangfire (SQL Server storage)
+- **Unit Test:** xUnit + Moq + FluentAssertions
+- **Data Source:** Semantic Scholar, OpenAlex
+
+---
+
+> 💡 **Mẹo:** Project này cung cấp sẵn Data mẫu (Fake Seeding Database) cho lần chạy đầu tiên. Hãy xem file `docs/1_getting_started.md` để dùng thử nhé!

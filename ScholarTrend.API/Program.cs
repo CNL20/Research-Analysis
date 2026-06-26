@@ -51,7 +51,7 @@ if (string.IsNullOrWhiteSpace(secretKey))
     throw new InvalidOperationException("JWT SecretKey is missing. Set Authentication:Jwt:SecretKey or JWT_SECRET_KEY.");
 }
 
-var key = Encoding.ASCII.GetBytes(secretKey);
+var key = Encoding.UTF8.GetBytes(secretKey);
 
 builder.Services.AddAuthentication(options =>
 {
@@ -67,7 +67,8 @@ builder.Services.AddAuthentication(options =>
             ValidateIssuer = false,
             ValidateAudience = false,
             ValidateLifetime = true,
-            ClockSkew = TimeSpan.Zero
+            ClockSkew = TimeSpan.Zero,
+            RequireSignedTokens = true
         };
     });
 
