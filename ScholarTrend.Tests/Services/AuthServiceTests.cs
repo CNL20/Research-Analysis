@@ -5,6 +5,7 @@ using Moq;
 using ScholarTrend.Application.DTOs.Auth;
 using ScholarTrend.Application.Interfaces;
 using ScholarTrend.Application.Interfaces.Repositories;
+using ScholarTrend.Application.Interfaces.External;
 using ScholarTrend.Application.Services;
 using ScholarTrend.Domain.Entities;
 using ScholarTrend.Domain.Enums;
@@ -18,6 +19,7 @@ public class AuthServiceTests
     private readonly Mock<IRefreshTokenRepository> _mockRefreshTokenRepo;
     private readonly Mock<IUnitOfWork> _mockUnitOfWork;
     private readonly Mock<IConfiguration> _mockConfig;
+    private readonly Mock<IEmailService> _mockEmailService;
     private readonly AuthService _authService;
 
     public AuthServiceTests()
@@ -28,6 +30,7 @@ public class AuthServiceTests
         _mockRefreshTokenRepo = new Mock<IRefreshTokenRepository>();
         _mockUnitOfWork = new Mock<IUnitOfWork>();
         _mockConfig = new Mock<IConfiguration>();
+        _mockEmailService = new Mock<IEmailService>();
 
         // Setup common config
         _mockConfig.Setup(c => c["Authentication:Jwt:SecretKey"]).Returns("SuperSecretKeyAtLeast32CharactersLong!");
@@ -39,7 +42,8 @@ public class AuthServiceTests
             _mockRoleManager.Object,
             _mockRefreshTokenRepo.Object,
             _mockUnitOfWork.Object,
-            _mockConfig.Object
+            _mockConfig.Object,
+            _mockEmailService.Object
         );
     }
 
