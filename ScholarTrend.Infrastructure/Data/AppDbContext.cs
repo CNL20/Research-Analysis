@@ -37,6 +37,15 @@ public class ScholarTrendDbContext : IdentityDbContext<User>
 
     #endregion
 
+    #region Topic Insights
+
+    public DbSet<PaperTopicExtraction> PaperTopicExtractions => Set<PaperTopicExtraction>();
+    public DbSet<TopicInsight> TopicInsights => Set<TopicInsight>();
+    public DbSet<TopicInsightEvidence> TopicInsightEvidences => Set<TopicInsightEvidence>();
+    public DbSet<TopicInsightJob> TopicInsightJobs => Set<TopicInsightJob>();
+
+    #endregion
+
     #region User Interaction
 
     public DbSet<Bookmark> Bookmarks => Set<Bookmark>();
