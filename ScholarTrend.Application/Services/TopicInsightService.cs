@@ -1,68 +1,92 @@
+using Microsoft.EntityFrameworkCore;
 using ScholarTrend.Application.DTOs.TopicInsights;
 using ScholarTrend.Application.Interfaces;
+using ScholarTrend.Domain.Entities;
+using System.Text.Json;
 
 namespace ScholarTrend.Application.Services;
 
 public class TopicInsightService : ITopicInsightService
 {
-    public Task<TopicInsightDashboardDto> GetTopicInsightDashboardAsync(int topicId)
+    private readonly IUnitOfWork _unitOfWork;
+
+    public TopicInsightService(IUnitOfWork unitOfWork)
     {
-        // MOCK DATA for Phase 1.5
-        var mockData = new TopicInsightDashboardDto
+        _unitOfWork = unitOfWork;
+    }
+
+    public async Task<TopicInsightDashboardDto> GetTopicInsightDashboardAsync(int topicId)
+    {
+        var topic = await _unitOfWork.Topics.GetByIdAsync(topicId);
+        if (topic == null)
+            throw new InvalidOperationException("Topic not found.");
+
+        // We fetch the latest insight for this topic
+        var latestInsight = await _unitOfWork.Context.Set<TopicInsight>()
+            .Include(t => t.Evidences)
+            .Where(t => t.TopicId == topicId)
+            .OrderByDescending(t => t.Year)
+            .FirstOrDefaultAsync();
+
+        if (latestInsight == null)
+        {
+            // Return empty dashboard if AI hasn't analyzed yet
+            return new TopicInsightDashboardDto
+            {
+                TopicId = topicId,
+                TopicName = topic.TopicName,
+                LastAnalyzedAt = DateTime.UtcNow
+            };
+        }
+
+        var topMethods = string.IsNullOrWhiteSpace(latestInsight.TopMethodsJson) 
+            ? new List<string>() 
+            : JsonSerializer.Deserialize<List<string>>(latestInsight.TopMethodsJson) ?? new List<string>();
+            
+        var topDatasets = string.IsNullOrWhiteSpace(latestInsight.TopDatasetsJson) 
+            ? new List<string>() 
+            : JsonSerializer.Deserialize<List<string>>(latestInsight.TopDatasetsJson) ?? new List<string>();
+
+        var rawOpportunities = string.IsNullOrWhiteSpace(latestInsight.FutureDirectionsJson)
+            ? new List<AiOpportunityDto>()
+            : JsonSerializer.Deserialize<List<AiOpportunityDto>>(latestInsight.FutureDirectionsJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<AiOpportunityDto>();
+
+        // Map opportunities to DTO
+        var opportunities = rawOpportunities.Select(ro => new ResearchOpportunityDto
+        {
+            Title = ro.Title,
+            Description = ro.Description,
+            // Find evidences linked to this insight
+            Evidences = latestInsight.Evidences.Select(e => new EvidenceDto
+            {
+                PaperId = e.PaperId,
+                Excerpt = e.Excerpt
+            }).ToList()
+        }).ToList();
+
+        // Get historical insights for timeline
+        var historicalInsights = await _unitOfWork.Context.Set<TopicInsight>()
+            .Where(t => t.TopicId == topicId)
+            .OrderBy(t => t.Year)
+            .ToListAsync();
+
+        var timeline = historicalInsights.Select(hi => new TimelineDto
+        {
+            Year = hi.Year,
+            Achievement = hi.Achievement,
+            Summary = hi.Summary,
+            PaperCount = hi.PaperCountAtGeneration
+        }).ToList();
+
+        return new TopicInsightDashboardDto
         {
             TopicId = topicId,
-            TopicName = "Artificial Intelligence",
-            LastAnalyzedAt = DateTime.UtcNow,
-            TopMethods = new List<string> { "Convolutional Neural Networks", "Transformers", "Random Forest" },
-            TopDatasets = new List<string> { "ImageNet", "Kaggle COVID-19", "MIMIC-CXR" },
-            Timeline = new List<TimelineDto>
-            {
-                new TimelineDto
-                {
-                    Year = 2021,
-                    Achievement = "Vision Transformers bắt đầu vượt qua CNN trong phân tích ảnh y tế.",
-                    Summary = "Sự trỗi dậy của Transformer trong Computer Vision.",
-                    PaperCount = 45
-                },
-                new TimelineDto
-                {
-                    Year = 2022,
-                    Achievement = "Các mô hình Foundation được áp dụng rộng rãi vào chẩn đoán lâm sàng.",
-                    Summary = "Tích hợp AI vào Workflow thực tế.",
-                    PaperCount = 120
-                },
-                new TimelineDto
-                {
-                    Year = 2023,
-                    Achievement = "Multimodal AI (kết hợp hình ảnh và văn bản) đạt độ chính xác đột phá.",
-                    Summary = "AI đa phương thức lên ngôi.",
-                    PaperCount = 230
-                }
-            },
-            Opportunities = new List<ResearchOpportunityDto>
-            {
-                new ResearchOpportunityDto
-                {
-                    Title = "Phân tích đa phương thức (Multimodal diagnosis) còn chưa được khai thác sâu",
-                    Description = "Hầu hết các nghiên cứu chỉ tập trung vào hình ảnh hoặc văn bản riêng lẻ. Việc kết hợp dữ liệu X-quang và hồ sơ bệnh án điện tử (EHR) đồng thời vẫn là một khoảng trống lớn cần giải quyết.",
-                    Evidences = new List<EvidenceDto>
-                    {
-                        new EvidenceDto { PaperId = 101, Excerpt = "Current methods lack the ability to effectively fuse visual features from X-rays with sequential text data from EHRs." },
-                        new EvidenceDto { PaperId = 105, Excerpt = "Future work should focus on unified multimodal architectures to reduce false positive rates." }
-                    }
-                },
-                new ResearchOpportunityDto
-                {
-                    Title = "Vấn đề thiên lệch dữ liệu (Data Bias) ở các nhóm thiểu số",
-                    Description = "Các mô hình hiện tại được huấn luyện chủ yếu trên dữ liệu của người da trắng. Hiệu suất của AI giảm rõ rệt khi áp dụng cho các nhóm dân tộc thiểu số.",
-                    Evidences = new List<EvidenceDto>
-                    {
-                        new EvidenceDto { PaperId = 203, Excerpt = "We observed a 15% drop in accuracy when evaluating the model on diverse demographic cohorts not represented in the training set." }
-                    }
-                }
-            }
+            TopicName = topic.TopicName,
+            LastAnalyzedAt = latestInsight.CreatedAt,
+            TopMethods = topMethods,
+            TopDatasets = topDatasets,
+            Timeline = timeline,
+            Opportunities = opportunities
         };
-
-        return Task.FromResult(mockData);
     }
 }

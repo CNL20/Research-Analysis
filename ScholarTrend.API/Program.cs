@@ -117,6 +117,7 @@ builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Emai
 // Đăng ký Email Service vào DI Container
 builder.Services.AddHttpClient<IEmailService, EmailService>();
 builder.Services.AddScoped<IPaperAggregationService, PaperAggregationService>();
+builder.Services.AddHttpClient<IAiExtractionService, GeminiExtractionService>();
 
 builder.Services.AddHttpClient<ISemanticScholarClient, SemanticScholarClient>();
 builder.Services.AddHttpClient<IOpenAlexClient, OpenAlexClient>();
@@ -125,6 +126,8 @@ builder.Services.AddHttpClient<IArXivClient, ArXivClient>();
 
 builder.Services.AddScoped<ISyncSchedulerService, SyncSchedulerService>();
 builder.Services.AddScoped<ISyncJob, SyncJob>();
+builder.Services.AddScoped<TopicInsightExtractionJob>();
+builder.Services.AddScoped<TopicInsightAggregationJob>();
 
 builder.Services.AddMemoryCache();
 
@@ -221,6 +224,8 @@ var syncCron = builder.Configuration["SyncSchedule:CronExpression"] ?? "0 2 * * 
 if (syncEnabled)
 {
     RecurringJob.AddOrUpdate<ISyncJob>("daily-paper-sync", job => job.RunAsync(), syncCron);
+    RecurringJob.AddOrUpdate<TopicInsightExtractionJob>("topic-insight-extraction", job => job.RunExtractionAsync(CancellationToken.None), "*/10 * * * *"); // Run every 10 mins
+    RecurringJob.AddOrUpdate<TopicInsightAggregationJob>("topic-insight-aggregation", job => job.RunAggregationAsync(CancellationToken.None), "0 2 * * *"); // Run daily at 2 AM
 }
 
 app.MapControllers();

@@ -51,11 +51,18 @@ public class TopicsController : ControllerBase
     /// <summary>
     /// Get topic insights dashboard (mock data for now).
     /// </summary>
-    [AllowAnonymous]
+
     [HttpGet("{id:int}/insights/dashboard")]
     public async Task<ActionResult<ApiResponse<TopicInsightDashboardDto>>> GetInsightsDashboard(int id)
     {
-        var result = await _topicInsightService.GetTopicInsightDashboardAsync(id);
-        return Ok(ApiResponse<TopicInsightDashboardDto>.SuccessResponse(result));
+        try
+        {
+            var result = await _topicInsightService.GetTopicInsightDashboardAsync(id);
+            return Ok(ApiResponse<TopicInsightDashboardDto>.SuccessResponse(result));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ApiResponse<TopicInsightDashboardDto>.FailResponse(ex.Message));
+        }
     }
 }
