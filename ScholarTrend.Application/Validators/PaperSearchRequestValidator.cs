@@ -5,7 +5,8 @@ namespace ScholarTrend.Application.Validators;
 
 public class PaperSearchRequestValidator : AbstractValidator<PaperSearchRequest>
 {
-    private static readonly string[] ValidSearchTypes = ["keyword", "author", "journal", "all"];
+    private static readonly string[] ValidSearchTypes =
+        ["keyword", "author", "journal", "title", "publish", "all"];
 
     public PaperSearchRequestValidator()
     {

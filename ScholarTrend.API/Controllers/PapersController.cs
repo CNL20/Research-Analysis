@@ -57,7 +57,7 @@ public class PapersController : ControllerBase
     }
 
     /// <summary>
-    /// Search research papers by keyword, author, or journal with optional filters.
+    /// Search research papers by keyword, title, author, journal, publish year, or all fields with optional filters.
     /// </summary>
     [HttpGet("search")]
     public async Task<ActionResult<ApiResponse<PagedResult<PaperListItemDto>>>> Search([FromQuery] PaperSearchRequest request)

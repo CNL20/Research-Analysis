@@ -43,6 +43,10 @@ Hỗ trợ cung cấp đầy đủ chức năng từ xác thực người dùng,
    - Kích hoạt Đồng bộ dữ liệu (Data Sync) qua Hangfire từ Semantic Scholar, OpenAlex.
    - Xuất (Export) báo cáo dữ liệu định dạng JSON, CSV.
 
+7. 🧠 **[Master Plan: Automated Literature Review (Topic Review)](docs/08-topic-review-master-plan.md)**
+   - Kế hoạch tổng hợp full vision: AI Survey Paper Generator.
+   - Pipeline 7 phase, database schema, API design, timeline & rủi ro.
+
 ---
 
 ## 🛠️ Công nghệ tóm tắt
