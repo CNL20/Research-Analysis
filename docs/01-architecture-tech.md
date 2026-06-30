@@ -19,7 +19,7 @@ Hệ thống được chia làm 4 layer chính, giao tiếp theo nguyên tắc D
 3. **ScholarTrend.Infrastructure (Tầng Hạ tầng)**
    - Triển khai các Interface của tầng Application.
    - Chứa `DbContext` (EF Core), cấu hình Database, Migrations, Seeders.
-   - Các `Repository` tương tác trực tiếp với SQL Server.
+   - Các `Repository` tương tác trực tiếp với PostgreSQL.
    - Các dịch vụ bên ngoài (External APIs, Email Service bằng Brevo, Hangfire Jobs).
    - Phụ thuộc vào `ScholarTrend.Application`.
 
@@ -35,10 +35,10 @@ Hệ thống được chia làm 4 layer chính, giao tiếp theo nguyên tắc D
 | Thành phần | Công nghệ / Thư viện |
 |---|---|
 | **Runtime & Framework** | .NET 9, ASP.NET Core Web API |
-| **Database & ORM** | SQL Server, Entity Framework Core 9 |
+| **Database & ORM** | PostgreSQL, Entity Framework Core 9 (Npgsql) |
 | **Authentication** | ASP.NET Identity, JWT Bearer Token |
 | **Validation** | FluentValidation |
-| **Background Jobs** | Hangfire (lưu state vào SQL Server) |
+| **Background Jobs** | Hangfire (lưu state vào PostgreSQL) |
 | **Caching** | IMemoryCache (cho Dashboard trend, TTL 1 giờ) |
 | **Email Service** | Brevo REST API (thay thế SMTP) |
 | **API Documentation** | Swagger / OpenAPI |

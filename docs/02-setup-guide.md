@@ -4,17 +4,23 @@ Tài liệu này hướng dẫn cách cấu hình môi trường, chạy ứng d
 
 ## 1. Yêu cầu hệ thống
 - **.NET 9 SDK** cài đặt sẵn trên máy.
-- Hệ quản trị CSDL **SQL Server** (LocalDB, Express, hoặc Developer).
+- **PostgreSQL** 14+ (local Docker, Supabase, Neon, hoặc Railway).
 - (Khuyên dùng) Trình soạn thảo Visual Studio 2022 hoặc VS Code.
+
+### Chạy PostgreSQL local bằng Docker (khuyên dùng)
+
+```bash
+docker compose up -d
+```
 
 ## 2. Cấu hình Môi trường
 
-Tạo file `appsettings.Development.json` bên trong thư mục `ScholarTrend.API` nếu chưa có. Cấu hình các mục quan trọng sau:
+Copy `ScholarTrend.API/appsettings.example.json` thành `appsettings.Development.json` (file này không commit lên git). Cấu hình các mục quan trọng sau:
 
 ```json
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Server=.\\SQLEXPRESS;Database=ScholarTrendDb;Trusted_Connection=true;TrustServerCertificate=true;"
+    "DefaultConnection": "Host=localhost;Port=5432;Database=ScholarTrendDb;Username=postgres;Password=postgres"
   },
   "Authentication": {
     "Jwt": {

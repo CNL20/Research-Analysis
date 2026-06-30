@@ -1,7 +1,7 @@
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Hangfire;
-using Hangfire.SqlServer;
+using Hangfire.PostgreSql;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -22,6 +22,9 @@ using ScholarTrend.Application.Interfaces.External;
 using ScholarTrend.Application.DTOs.Common;
 using System.Text;
 
+// PostgreSQL requires UTC for timestamptz; allow legacy DateTime from seed/import code paths.
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
 var builder = WebApplication.CreateBuilder(args);
 
 // ============ SERVICES ============
@@ -29,7 +32,7 @@ var builder = WebApplication.CreateBuilder(args);
 // 1. Database
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<ScholarTrendDbContext>(options =>
-    options.UseSqlServer(connectionString));
+    options.UseNpgsql(connectionString));
 
 // 2. Identity
 builder.Services.AddIdentity<User, IdentityRole>(options =>
@@ -143,14 +146,7 @@ builder.Services.AddHangfire(config =>
     config.SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
           .UseSimpleAssemblyNameTypeSerializer()
           .UseRecommendedSerializerSettings()
-          .UseSqlServerStorage(connectionString, new SqlServerStorageOptions
-          {
-              CommandBatchMaxTimeout = TimeSpan.FromMinutes(5),
-              SlidingInvisibilityTimeout = TimeSpan.FromMinutes(5),
-              QueuePollInterval = TimeSpan.FromSeconds(15),
-              UseRecommendedIsolationLevel = true,
-              DisableGlobalLocks = true
-          }));
+          .UsePostgreSqlStorage(options => options.UseNpgsqlConnection(connectionString)));
 builder.Services.AddHangfireServer();
 
 // 8. Swagger with JWT support

@@ -52,9 +52,9 @@ Hỗ trợ cung cấp đầy đủ chức năng từ xác thực người dùng,
 ## 🛠️ Công nghệ tóm tắt
 
 - **Framework:** .NET 9 ASP.NET Core Web API (RESTful)
-- **Database:** Entity Framework Core 9 + SQL Server
+- **Database:** Entity Framework Core 9 + PostgreSQL (Supabase / Neon / Docker)
 - **Authentication:** ASP.NET Identity + JWT Bearer
-- **Job Background:** Hangfire (SQL Server storage)
+- **Job Background:** Hangfire (PostgreSQL storage)
 - **Unit Test:** xUnit + Moq + FluentAssertions
 - **Data Source:** Semantic Scholar, OpenAlex
 
