@@ -35,6 +35,9 @@ dist/
 # Coverage
 coverage/
 
+# Uploaded files
+ScholarTrend.API/uploads/
+
 # OS
 .DS_Store
 Thumbs.db
