@@ -8,6 +8,14 @@ public interface ISyncSchedulerService
     Task<SyncScheduleDto> UpdateScheduleConfigAsync(SyncScheduleConfigRequest request);
     Task<ManualSyncResultDto> TriggerManualSyncAsync(string adminUserId, ManualSyncRequest? request = null);
     Task<List<SyncJobInfoDto>> GetJobHistoryAsync(int limit = 50);
+
+    /// <summary>
+    /// Returns the list of search queries the scheduler currently considers active
+    /// (persisted via UpdateScheduleConfigAsync, or falling back to appsettings.json).
+    /// Used by Hangfire jobs so each scheduled run covers all configured topics instead
+    /// of the single hard-coded default.
+    /// </summary>
+    Task<List<string>> GetActiveSearchQueriesAsync();
 }
 
 public class SyncJobInfoDto

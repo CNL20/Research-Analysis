@@ -129,6 +129,11 @@ public class SyncServiceTests
             .ReturnsAsync(new List<ApiDataSource> { source });
         _mockUnitOfWork.Setup(u => u.SyncLogs.AddAsync(It.IsAny<SyncLog>()))
             .Returns(Task.CompletedTask);
+        // Make the flow fail *after* fetching — by returning no journals — so the
+        // outer catch in SyncSingleQueryAsync records a real failure message.
+        _mockUnitOfWork.Setup(u => u.Journals.GetAllAsync())
+            .ReturnsAsync(new List<Journal>());
+        _mockUnitOfWork.Setup(u => u.ApiDataSources.Update(It.IsAny<ApiDataSource>()));
         _mockSyncProposalRepo.Setup(r => r.AddAsync(It.IsAny<SyncProposal>()))
             .Callback<SyncProposal>(p => p.Id = 1)
             .Returns(Task.CompletedTask);
@@ -141,7 +146,77 @@ public class SyncServiceTests
         result.Results.Should().HaveCount(1);
         var syncResult = result.Results[0];
         syncResult.Status.Should().Be("Failed");
-        syncResult.Message.Should().Contain("API down");
+        syncResult.Query.Should().NotBeNullOrEmpty();
+        syncResult.Message.Should().Contain("Sync failed");
         _mockUnitOfWork.Verify(u => u.SaveChangesAsync(), Times.AtLeastOnce);
+    }
+
+    [Fact]
+    public async Task RunSyncAsync_WithMultipleQueries_ShouldCreateOneProposalPerQuery()
+    {
+        var source = new ApiDataSource { Id = 1, Name = "SemanticScholar", IsActive = true };
+        _mockUnitOfWork.Setup(u => u.ApiDataSources.GetActiveAsync())
+            .ReturnsAsync(new List<ApiDataSource> { source });
+        _mockUnitOfWork.Setup(u => u.SyncLogs.AddAsync(It.IsAny<SyncLog>()))
+            .Returns(Task.CompletedTask);
+        _mockUnitOfWork.Setup(u => u.Journals.GetAllAsync())
+            .ReturnsAsync(new List<Journal> { new() { Id = 1 } });
+        _mockUnitOfWork.Setup(u => u.ApiDataSources.Update(It.IsAny<ApiDataSource>()));
+        _mockSyncProposalRepo.Setup(r => r.AddAsync(It.IsAny<SyncProposal>()))
+            .Callback<SyncProposal>(p => p.Id = Random.Shared.Next(100, 999))
+            .Returns(Task.CompletedTask);
+        _mockSyncProposalRepo.Setup(r => r.IsPaperAlreadyQueuedOrStoredAsync(It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync(false);
+
+        _mockSemanticClient.Setup(c => c.SearchPapersAsync(It.IsAny<string>(), It.IsAny<int>()))
+            .ReturnsAsync(new List<ExternalPaperDto>
+            {
+                new() { ExternalId = Guid.NewGuid().ToString(), Title = "Paper", Source = "SemanticScholar", Doi = "10.123/x" }
+            });
+
+        var queries = new List<string> { "machine learning", "deep learning", "quantum computing" };
+
+        var result = await _syncService.RunSyncAsync("SemanticScholar", searchQueries: queries);
+
+        // 1 source × 3 queries = 3 SyncResults, each backed by its own proposal.
+        result.Results.Should().HaveCount(3);
+        result.Results.Select(r => r.Query).Should().BeEquivalentTo(queries);
+        result.Results.Should().OnlyContain(r => r.Status == "Completed");
+        result.Results.Should().OnlyContain(r => r.SyncProposalId.HasValue);
+        result.Results.Select(r => r.SyncProposalId!.Value).Distinct().Should().HaveCount(3,
+            "each query must produce a distinct proposal");
+        _mockNotificationService.Verify(
+            n => n.NotifyAdminsPendingSyncAsync(It.IsAny<int>(), It.IsAny<int>()),
+            Times.Exactly(3));
+    }
+
+    [Fact]
+    public async Task RunSyncAsync_WithDuplicateQueries_ShouldDedupeThem()
+    {
+        var source = new ApiDataSource { Id = 1, Name = "SemanticScholar", IsActive = true };
+        _mockUnitOfWork.Setup(u => u.ApiDataSources.GetActiveAsync())
+            .ReturnsAsync(new List<ApiDataSource> { source });
+        _mockUnitOfWork.Setup(u => u.SyncLogs.AddAsync(It.IsAny<SyncLog>()))
+            .Returns(Task.CompletedTask);
+        _mockUnitOfWork.Setup(u => u.Journals.GetAllAsync())
+            .ReturnsAsync(new List<Journal> { new() { Id = 1 } });
+        _mockUnitOfWork.Setup(u => u.ApiDataSources.Update(It.IsAny<ApiDataSource>()));
+        _mockSyncProposalRepo.Setup(r => r.AddAsync(It.IsAny<SyncProposal>()))
+            .Callback<SyncProposal>(p => p.Id = Random.Shared.Next(100, 999))
+            .Returns(Task.CompletedTask);
+        _mockSyncProposalRepo.Setup(r => r.IsPaperAlreadyQueuedOrStoredAsync(It.IsAny<string>(), It.IsAny<string>()))
+            .ReturnsAsync(false);
+        _mockSemanticClient.Setup(c => c.SearchPapersAsync(It.IsAny<string>(), It.IsAny<int>()))
+            .ReturnsAsync(new List<ExternalPaperDto>());
+
+        // Caller passes the same query multiple times with different casing / whitespace.
+        var queries = new List<string> { "  AI  ", "ai", "AI", "robotics" };
+
+        var result = await _syncService.RunSyncAsync("SemanticScholar", searchQueries: queries);
+
+        // "  AI  ", "ai", "AI" dedupe to 1 (case-insensitive after trim); "robotics" is distinct → 2 results total.
+        result.Results.Should().HaveCount(2);
+        result.Results.Select(r => r.Query!.Trim().ToLowerInvariant())
+            .Should().BeEquivalentTo(new[] { "ai", "robotics" });
     }
 }

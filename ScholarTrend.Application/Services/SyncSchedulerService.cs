@@ -30,6 +30,11 @@ public class SyncSchedulerService : ISyncSchedulerService
         _logger = logger;
     }
 
+    public Task<List<string>> GetActiveSearchQueriesAsync()
+    {
+        return Task.FromResult(GetSearchQueries());
+    }
+
     public Task<SyncScheduleDto> GetScheduleConfigAsync()
     {
         if (_cache.TryGetValue(CacheKey, out SyncScheduleDto? cached) && cached != null)
@@ -89,9 +94,24 @@ public class SyncSchedulerService : ISyncSchedulerService
 
         try
         {
-            var multiResult = await _syncService.RunSyncAsync(request?.SourceName, syncType, adminUserId);
+            var searchQuery = request?.SearchQuery;
+            int? paperLimit = request?.PaperLimit;
 
-            result.Success = multiResult.Results.All(r => r.Status != "Failed") && multiResult.Results.All(r => r.Status != "Skipped");
+            _logger.LogInformation("Manual sync triggered by {UserId} for source: {Source}, query: '{Query}', limit: {Limit}",
+                adminUserId, request?.SourceName ?? "all", searchQuery ?? "default", paperLimit?.ToString() ?? "default");
+
+            var multiResult = await _syncService.RunSyncAsync(
+                sourceName: request?.SourceName,
+                syncType: syncType,
+                triggeredBy: adminUserId,
+                searchQueries: !string.IsNullOrWhiteSpace(searchQuery) ? new List<string> { searchQuery } : null,
+                paperLimit: paperLimit);
+
+            // "Success" means at least one result completed AND nothing failed.
+            // Skipped results (lock held by concurrent run) are not considered failures.
+            var hasAnyCompleted = multiResult.Results.Any(r => r.Status == "Completed");
+            var hasAnyFailed = multiResult.Results.Any(r => r.Status == "Failed");
+            result.Success = hasAnyCompleted && !hasAnyFailed;
             result.PapersFetched = multiResult.TotalFetched;
             result.PapersQueued = multiResult.TotalQueued;
 
@@ -182,14 +202,36 @@ public class SyncSchedulerService : ISyncSchedulerService
 
     private List<string> GetSearchQueries()
     {
-        var queries = _configuration["SyncSchedule:SearchQueries"];
-        if (string.IsNullOrEmpty(queries))
+        // 1. Try the strongly-typed "SyncSchedule:SearchQueries" array (e.g. from appsettings.json).
+        //    Manual children iteration avoids the Get<T>() ambiguity with IMemoryCache.
+        var section = _configuration.GetSection("SyncSchedule:SearchQueries");
+        var fromSection = section.Exists()
+            ? section.GetChildren()
+                .Select(c => c.Value)
+                .Where(v => !string.IsNullOrWhiteSpace(v))
+                .Select(v => v!.Trim())
+                .ToList()
+            : new List<string>();
+
+        if (fromSection.Count > 0)
         {
-            return ["artificial intelligence", "machine learning"];
+            return fromSection;
         }
-        return queries.Split(',', StringSplitOptions.RemoveEmptyEntries)
-            .Select(q => q.Trim())
-            .ToList();
+
+        // 2. Try the flat "SyncSchedule:SearchQueries" CSV value (set by UpdateScheduleConfigAsync).
+        var flat = _configuration["SyncSchedule:SearchQueries"];
+        if (!string.IsNullOrEmpty(flat))
+        {
+            return flat
+                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(q => q.Trim())
+                .Where(q => !string.IsNullOrEmpty(q))
+                .ToList();
+        }
+
+        // 3. Final fallback — keep callers alive even when nothing is configured.
+        _logger.LogWarning("No SyncSchedule:SearchQueries configured; falling back to default single query.");
+        return ["artificial intelligence"];
     }
 
     private DateTime? GetLastSyncTime()

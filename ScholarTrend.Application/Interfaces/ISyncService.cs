@@ -10,7 +10,20 @@ public interface ISyncService
     /// <param name="sourceName">Specific source to sync, or null for all active sources</param>
     /// <param name="syncType">Type of sync: "Manual" or "Automatic"</param>
     /// <param name="triggeredBy">User ID or system identifier for who/what triggered the sync</param>
-    Task<MultiSyncResultDto> RunSyncAsync(string? sourceName = null, string syncType = "Manual", string? triggeredBy = null);
+    /// <param name="searchQueries">
+    /// List of search queries to iterate. When multiple are supplied, each query produces
+    /// its own SyncProposal so admins can review per topic. If null/empty, falls back to the
+    /// source's default search query from configuration.
+    /// </param>
+    /// <param name="paperLimit">
+    /// Per-query fetch limit. If null, falls back to the source's configured PageSize (or 10).
+    /// </param>
+    Task<MultiSyncResultDto> RunSyncAsync(
+        string? sourceName = null,
+        string syncType = "Manual",
+        string? triggeredBy = null,
+        List<string>? searchQueries = null,
+        int? paperLimit = null);
 
     Task<IReadOnlyList<SyncProposalListItemDto>> GetPendingProposalsAsync(int limit = 50);
     Task<SyncProposalDto> GetPendingProposalByIdAsync(int id);
