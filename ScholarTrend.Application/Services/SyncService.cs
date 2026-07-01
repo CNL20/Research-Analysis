@@ -15,6 +15,8 @@ public class SyncService : ISyncService
 {
     private const string SemanticScholarName = "SemanticScholar";
     private const string OpenAlexName = "OpenAlex";
+    private const string CrossrefName = "Crossref";
+    private const string ArXivName = "ArXiv";
     private const string SyncTypeManual = "Manual";
     private const string SyncTypeAutomatic = "Automatic";
 
@@ -22,6 +24,8 @@ public class SyncService : ISyncService
     private readonly IPaperImportRepository _paperImportRepository;
     private readonly ISemanticScholarClient _semanticScholarClient;
     private readonly IOpenAlexClient _openAlexClient;
+    private readonly ICrossrefClient _crossrefClient;
+    private readonly IArXivClient _arXivClient;
     private readonly INotificationService _notificationService;
     private readonly ILogger<SyncService> _logger;
     private readonly string _defaultSearchQuery;
@@ -33,6 +37,8 @@ public class SyncService : ISyncService
         IPaperImportRepository paperImportRepository,
         ISemanticScholarClient semanticScholarClient,
         IOpenAlexClient openAlexClient,
+        ICrossrefClient crossrefClient,
+        IArXivClient arXivClient,
         INotificationService notificationService,
         IConfiguration configuration,
         ILogger<SyncService> logger)
@@ -41,6 +47,8 @@ public class SyncService : ISyncService
         _paperImportRepository = paperImportRepository;
         _semanticScholarClient = semanticScholarClient;
         _openAlexClient = openAlexClient;
+        _crossrefClient = crossrefClient;
+        _arXivClient = arXivClient;
         _notificationService = notificationService;
         _logger = logger;
         _defaultSearchQuery = configuration["ExternalApis:SemanticScholar:SearchQuery"] ?? "artificial intelligence";
@@ -208,8 +216,10 @@ public class SyncService : ISyncService
             {
                 externalPapers = source.Name switch
                 {
-                    SemanticScholarName => await _semanticScholarClient.SearchPapersAsync(searchQuery, limit),
-                    OpenAlexName => await _openAlexClient.SearchPapersAsync(searchQuery, limit),
+                    SemanticScholarName => await _semanticScholarClient.SearchPapersAsync(_defaultSearchQuery, 10),
+                    OpenAlexName => await _openAlexClient.SearchPapersAsync(_defaultSearchQuery, 10),
+                    CrossrefName => await _crossrefClient.SearchPapersAsync(_defaultSearchQuery, 10),
+                    ArXivName => await _arXivClient.SearchPapersAsync(_defaultSearchQuery, 10),
                     _ => throw new InvalidOperationException($"Unsupported data source: {source.Name}")
                 };
             }

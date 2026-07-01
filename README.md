@@ -56,7 +56,7 @@ Hỗ trợ cung cấp đầy đủ chức năng từ xác thực người dùng,
 - **Authentication:** ASP.NET Identity + JWT Bearer
 - **Job Background:** Hangfire (PostgreSQL storage)
 - **Unit Test:** xUnit + Moq + FluentAssertions
-- **Data Source:** Semantic Scholar, OpenAlex
+- **Data Source:** Semantic Scholar, OpenAlex, Crossref, ArXiv
 
 ---
 

@@ -39,7 +39,7 @@ public class ResearchPaperRepository : GenericRepository<ResearchPaper>, IResear
     public async Task<IEnumerable<ResearchPaper>> GetPapersByTopicAsync(int topicId, int limit = 0)
     {
         var query = _dbSet
-            .Where(p => p.Status == PaperStatus.Available && p.PaperTopics.Any(pt => pt.TopicId == topicId))
+            .Where(p => PaperStatusRules.Browsable.Contains(p.Status) && p.PaperTopics.Any(pt => pt.TopicId == topicId))
             .Include(p => p.Journal)
             .Include(p => p.PaperAuthors).ThenInclude(pa => pa.Author)
             .Include(p => p.PaperKeywords).ThenInclude(pk => pk.Keyword)
@@ -53,7 +53,7 @@ public class ResearchPaperRepository : GenericRepository<ResearchPaper>, IResear
     public async Task<IEnumerable<ResearchPaper>> GetPapersByJournalAsync(int journalId, int limit = 0)
     {
         var query = _dbSet
-            .Where(p => p.JournalId == journalId && p.Status == PaperStatus.Available)
+            .Where(p => p.JournalId == journalId && PaperStatusRules.Browsable.Contains(p.Status))
             .Include(p => p.Journal)
             .Include(p => p.PaperAuthors).ThenInclude(pa => pa.Author)
             .Include(p => p.PaperKeywords).ThenInclude(pk => pk.Keyword)
@@ -70,7 +70,7 @@ public class ResearchPaperRepository : GenericRepository<ResearchPaper>, IResear
     public async Task<IEnumerable<ResearchPaper>> GetPapersByAuthorAsync(int authorId, int limit = 0)
     {
         var query = _dbSet
-            .Where(p => p.Status == PaperStatus.Available && p.PaperAuthors.Any(pa => pa.AuthorId == authorId))
+            .Where(p => PaperStatusRules.Browsable.Contains(p.Status) && p.PaperAuthors.Any(pa => pa.AuthorId == authorId))
             .Include(p => p.Journal)
             .Include(p => p.PaperAuthors).ThenInclude(pa => pa.Author)
             .Include(p => p.PaperKeywords).ThenInclude(pk => pk.Keyword)
@@ -89,24 +89,24 @@ public class ResearchPaperRepository : GenericRepository<ResearchPaper>, IResear
             .Include(p => p.PaperAuthors).ThenInclude(pa => pa.Author)
             .Include(p => p.PaperKeywords).ThenInclude(pk => pk.Keyword)
             .Include(p => p.PaperTopics).ThenInclude(pt => pt.Topic)
-            .FirstOrDefaultAsync(p => p.Id == id && p.Status == PaperStatus.Available);
+            .FirstOrDefaultAsync(p => p.Id == id && PaperStatusRules.Browsable.Contains(p.Status));
     }
 
     public Task<int> CountByTopicAsync(int topicId)
     {
         return _context.PaperTopics
-            .CountAsync(pt => pt.TopicId == topicId && pt.Paper.Status == PaperStatus.Available);
+            .CountAsync(pt => pt.TopicId == topicId && PaperStatusRules.Browsable.Contains(pt.Paper.Status));
     }
 
     public Task<int> CountByJournalAsync(int journalId)
     {
-        return _dbSet.CountAsync(p => p.JournalId == journalId && p.Status == PaperStatus.Available);
+        return _dbSet.CountAsync(p => p.JournalId == journalId && PaperStatusRules.Browsable.Contains(p.Status));
     }
 
     public Task<int> CountByAuthorAsync(int authorId)
     {
         return _context.PaperAuthors
-            .CountAsync(pa => pa.AuthorId == authorId && pa.Paper.Status == PaperStatus.Available);
+            .CountAsync(pa => pa.AuthorId == authorId && PaperStatusRules.Browsable.Contains(pa.Paper.Status));
     }
 
     public Task<ResearchPaper?> GetByExternalIdAsync(string externalId, string source)
@@ -130,7 +130,7 @@ public class ResearchPaperRepository : GenericRepository<ResearchPaper>, IResear
             .Include(p => p.Journal)
             .Include(p => p.PaperAuthors).ThenInclude(pa => pa.Author)
             .Include(p => p.PaperKeywords).ThenInclude(pk => pk.Keyword)
-            .Where(p => p.Status == PaperStatus.Available);
+            .Where(p => PaperStatusRules.Browsable.Contains(p.Status));
 
         if (criteria.JournalId.HasValue)
         {

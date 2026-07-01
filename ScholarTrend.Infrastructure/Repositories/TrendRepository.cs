@@ -76,7 +76,7 @@ public class TrendRepository : ITrendRepository
     public async Task<IReadOnlyList<TrendDataPointDto>> GetPublicationTrendAsync(TrendFilterCriteria criteria)
     {
         var query = _context.ResearchPapers
-            .Where(p => p.Status == PaperStatus.Available && p.PublicationDate.HasValue);
+            .Where(p => PaperStatusRules.Browsable.Contains(p.Status) && p.PublicationDate.HasValue);
 
         if (criteria.YearFrom.HasValue)
         {

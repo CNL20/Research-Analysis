@@ -57,6 +57,7 @@ public class ScholarTrendDbContext : IdentityDbContext<User>
     public DbSet<SearchHistory> SearchHistories => Set<SearchHistory>();
     public DbSet<NotificationSetting> NotificationSettings => Set<NotificationSetting>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<UserFile> UserFiles => Set<UserFile>();
 
     #endregion
 

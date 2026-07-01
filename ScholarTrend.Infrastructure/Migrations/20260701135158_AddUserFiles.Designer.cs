@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ScholarTrend.Infrastructure.Data;
@@ -11,9 +12,11 @@ using ScholarTrend.Infrastructure.Data;
 namespace ScholarTrend.Infrastructure.Migrations
 {
     [DbContext(typeof(ScholarTrendDbContext))]
-    partial class ScholarTrendDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260701135158_AddUserFiles")]
+    partial class AddUserFiles
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -354,53 +357,6 @@ namespace ScholarTrend.Infrastructure.Migrations
                     b.ToTable("FollowedTopics");
                 });
 
-            modelBuilder.Entity("ScholarTrend.Domain.Entities.Invoice", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Currency")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("InvoiceNumber")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("IssuedAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("PdfUrl")
-                        .HasColumnType("text");
-
-                    b.Property<decimal>("Subtotal")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal>("Tax")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal>("Total")
-                        .HasColumnType("numeric");
-
-                    b.Property<int>("TransactionId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TransactionId");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("Invoices");
-                });
-
             modelBuilder.Entity("ScholarTrend.Domain.Entities.Journal", b =>
                 {
                     b.Property<int>("Id")
@@ -698,105 +654,6 @@ namespace ScholarTrend.Infrastructure.Migrations
                     b.ToTable("PaperTopicExtractions");
                 });
 
-            modelBuilder.Entity("ScholarTrend.Domain.Entities.PaymentTransaction", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("Amount")
-                        .HasColumnType("numeric");
-
-                    b.Property<DateTime?>("CompletedAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("Currency")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("IdempotencyKey")
-                        .HasColumnType("text");
-
-                    b.Property<int>("PlanId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Provider")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("ProviderResponse")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ProviderTransactionId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int?>("SubscriptionId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PlanId");
-
-                    b.HasIndex("SubscriptionId");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("PaymentTransactions");
-                });
-
-            modelBuilder.Entity("ScholarTrend.Domain.Entities.PaymentWebhookLog", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("ErrorMessage")
-                        .HasColumnType("text");
-
-                    b.Property<bool>("Processed")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime?>("ProcessedAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("Provider")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("RawPayload")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("ReceivedAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("Signature")
-                        .HasColumnType("text");
-
-                    b.Property<bool>("SignatureValid")
-                        .HasColumnType("boolean");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("PaymentWebhookLogs");
-                });
-
             modelBuilder.Entity("ScholarTrend.Domain.Entities.PendingPaper", b =>
                 {
                     b.Property<int>("Id")
@@ -1043,98 +900,6 @@ namespace ScholarTrend.Infrastructure.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("SearchHistories");
-                });
-
-            modelBuilder.Entity("ScholarTrend.Domain.Entities.Subscription", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<bool>("AutoRenew")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<DateTime>("EndDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<int>("PlanId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("StartDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("TrialEndDate")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PlanId");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("Subscriptions");
-                });
-
-            modelBuilder.Entity("ScholarTrend.Domain.Entities.SubscriptionPlan", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("text");
-
-                    b.Property<int>("DurationDays")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<decimal>("PriceUSD")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal>("PriceVND")
-                        .HasColumnType("numeric");
-
-                    b.Property<string>("TargetRole")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("TrialDays")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("SubscriptionPlans");
                 });
 
             modelBuilder.Entity("ScholarTrend.Domain.Entities.SyncLog", b =>
@@ -1657,25 +1422,6 @@ namespace ScholarTrend.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("ScholarTrend.Domain.Entities.Invoice", b =>
-                {
-                    b.HasOne("ScholarTrend.Domain.Entities.PaymentTransaction", "Transaction")
-                        .WithMany()
-                        .HasForeignKey("TransactionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("ScholarTrend.Domain.Entities.User", "User")
-                        .WithMany("Invoices")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Transaction");
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("ScholarTrend.Domain.Entities.JournalTrend", b =>
                 {
                     b.HasOne("ScholarTrend.Domain.Entities.Journal", "Journal")
@@ -1796,31 +1542,6 @@ namespace ScholarTrend.Infrastructure.Migrations
                     b.Navigation("Topic");
                 });
 
-            modelBuilder.Entity("ScholarTrend.Domain.Entities.PaymentTransaction", b =>
-                {
-                    b.HasOne("ScholarTrend.Domain.Entities.SubscriptionPlan", "Plan")
-                        .WithMany()
-                        .HasForeignKey("PlanId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("ScholarTrend.Domain.Entities.Subscription", "Subscription")
-                        .WithMany("Transactions")
-                        .HasForeignKey("SubscriptionId");
-
-                    b.HasOne("ScholarTrend.Domain.Entities.User", "User")
-                        .WithMany("PaymentTransactions")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Plan");
-
-                    b.Navigation("Subscription");
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("ScholarTrend.Domain.Entities.PendingPaper", b =>
                 {
                     b.HasOne("ScholarTrend.Domain.Entities.SyncProposal", "SyncProposal")
@@ -1860,25 +1581,6 @@ namespace ScholarTrend.Infrastructure.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("ScholarTrend.Domain.Entities.Subscription", b =>
-                {
-                    b.HasOne("ScholarTrend.Domain.Entities.SubscriptionPlan", "Plan")
-                        .WithMany("Subscriptions")
-                        .HasForeignKey("PlanId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("ScholarTrend.Domain.Entities.User", "User")
-                        .WithMany("Subscriptions")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Plan");
 
                     b.Navigation("User");
                 });
@@ -1998,16 +1700,6 @@ namespace ScholarTrend.Infrastructure.Migrations
                     b.Navigation("TopicTrends");
                 });
 
-            modelBuilder.Entity("ScholarTrend.Domain.Entities.Subscription", b =>
-                {
-                    b.Navigation("Transactions");
-                });
-
-            modelBuilder.Entity("ScholarTrend.Domain.Entities.SubscriptionPlan", b =>
-                {
-                    b.Navigation("Subscriptions");
-                });
-
             modelBuilder.Entity("ScholarTrend.Domain.Entities.SyncProposal", b =>
                 {
                     b.Navigation("PendingPapers");
@@ -2030,19 +1722,13 @@ namespace ScholarTrend.Infrastructure.Migrations
 
                     b.Navigation("FollowedTopics");
 
-                    b.Navigation("Invoices");
-
                     b.Navigation("NotificationSetting");
 
                     b.Navigation("Notifications");
 
-                    b.Navigation("PaymentTransactions");
-
                     b.Navigation("RefreshTokens");
 
                     b.Navigation("SearchHistories");
-
-                    b.Navigation("Subscriptions");
                 });
 #pragma warning restore 612, 618
         }
