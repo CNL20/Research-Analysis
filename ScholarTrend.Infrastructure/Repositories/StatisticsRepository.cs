@@ -17,7 +17,7 @@ public class StatisticsRepository : IStatisticsRepository
 
     public Task<int> CountPapersAsync(int? yearFrom = null, int? yearTo = null)
     {
-        return ApplyYearFilter(_context.ResearchPapers.Where(p => p.Status == PaperStatus.Available), yearFrom, yearTo)
+        return ApplyYearFilter(_context.ResearchPapers.Where(p => PaperStatusRules.Browsable.Contains(p.Status)), yearFrom, yearTo)
             .CountAsync();
     }
 
@@ -48,7 +48,7 @@ public class StatisticsRepository : IStatisticsRepository
     public async Task<IReadOnlyList<ReportGroupItemDto>> GetReportByYearAsync(int? yearFrom, int? yearTo)
     {
         var query = ApplyYearFilter(
-            _context.ResearchPapers.Where(p => p.Status == PaperStatus.Available && p.PublicationYear.HasValue),
+            _context.ResearchPapers.Where(p => PaperStatusRules.Browsable.Contains(p.Status) && p.PublicationYear.HasValue),
             yearFrom, yearTo);
 
         return await query
@@ -68,7 +68,7 @@ public class StatisticsRepository : IStatisticsRepository
         var query = from pk in _context.PaperKeywords
                     join p in _context.ResearchPapers on pk.PaperId equals p.Id
                     join k in _context.Keywords on pk.KeywordId equals k.Id
-                    where p.Status == PaperStatus.Available
+                    where PaperStatusRules.Browsable.Contains(p.Status)
                     select new { p, k.Name };
 
         if (yearFrom.HasValue)
@@ -98,7 +98,7 @@ public class StatisticsRepository : IStatisticsRepository
         var query = from pt in _context.PaperTopics
                     join p in _context.ResearchPapers on pt.PaperId equals p.Id
                     join t in _context.ResearchTopics on pt.TopicId equals t.Id
-                    where p.Status == PaperStatus.Available
+                    where PaperStatusRules.Browsable.Contains(p.Status)
                     select new { p, t.TopicName };
 
         if (yearFrom.HasValue)

@@ -19,6 +19,8 @@ public class SyncServiceTests
     private readonly Mock<IPaperImportRepository> _mockPaperImportRepo;
     private readonly Mock<ISemanticScholarClient> _mockSemanticClient;
     private readonly Mock<IOpenAlexClient> _mockOpenAlexClient;
+    private readonly Mock<ICrossrefClient> _mockCrossrefClient;
+    private readonly Mock<IArXivClient> _mockArXivClient;
     private readonly Mock<INotificationService> _mockNotificationService;
     private readonly Mock<IConfiguration> _mockConfig;
     private readonly Mock<ILogger<SyncService>> _mockLogger;
@@ -31,6 +33,8 @@ public class SyncServiceTests
         _mockPaperImportRepo = new Mock<IPaperImportRepository>();
         _mockSemanticClient = new Mock<ISemanticScholarClient>();
         _mockOpenAlexClient = new Mock<IOpenAlexClient>();
+        _mockCrossrefClient = new Mock<ICrossrefClient>();
+        _mockArXivClient = new Mock<IArXivClient>();
         _mockNotificationService = new Mock<INotificationService>();
         _mockConfig = new Mock<IConfiguration>();
         _mockLogger = new Mock<ILogger<SyncService>>();
@@ -44,6 +48,8 @@ public class SyncServiceTests
             _mockPaperImportRepo.Object,
             _mockSemanticClient.Object,
             _mockOpenAlexClient.Object,
+            _mockCrossrefClient.Object,
+            _mockArXivClient.Object,
             _mockNotificationService.Object,
             _mockConfig.Object,
             _mockLogger.Object
