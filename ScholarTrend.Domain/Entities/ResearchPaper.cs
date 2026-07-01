@@ -1,4 +1,4 @@
-﻿using ScholarTrend.Domain.Enums;
+using ScholarTrend.Domain.Enums;
 
 namespace ScholarTrend.Domain.Entities;
 
@@ -15,6 +15,7 @@ public class ResearchPaper
     public string? ExternalId { get; set; }
     public string? ExternalSource { get; set; }
     public int? CitationCount { get; set; }
+    public int ViewCount { get; set; } = 0;
     public PaperStatus Status { get; set; } = PaperStatus.Fetched;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }

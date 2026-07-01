@@ -8,6 +8,7 @@ public class PaperDetailDto
     public int? PublicationYear { get; set; }
     public DateTime? PublicationDate { get; set; }
     public int? CitationCount { get; set; }
+    public int ViewCount { get; set; }
     public string? Doi { get; set; }
     public string? Url { get; set; }
     public string? PdfUrl { get; set; }

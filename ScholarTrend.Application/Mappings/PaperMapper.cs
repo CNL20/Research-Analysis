@@ -14,6 +14,7 @@ public static class PaperMapper
             Abstract = TruncateAbstract(paper.Abstract),
             PublicationYear = paper.PublicationYear,
             CitationCount = paper.CitationCount,
+            ViewCount = paper.ViewCount,
             Doi = paper.Doi,
             Journal = paper.Journal == null ? null : new JournalBriefDto
             {
@@ -36,6 +37,7 @@ public static class PaperMapper
             PublicationYear = paper.PublicationYear,
             PublicationDate = paper.PublicationDate,
             CitationCount = paper.CitationCount,
+            ViewCount = paper.ViewCount,
             Doi = paper.Doi,
             Url = paper.Url,
             PdfUrl = paper.PdfUrl,

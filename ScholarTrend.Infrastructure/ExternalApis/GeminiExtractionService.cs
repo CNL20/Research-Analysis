@@ -66,45 +66,64 @@ Return ONLY a valid JSON object matching the following structure exactly (withou
             }
         };
 
-        try
+        int maxRetries = 3;
+        int currentRetry = 0;
+
+        while (currentRetry < maxRetries)
         {
-            var response = await _httpClient.PostAsJsonAsync(url, requestBody, cancellationToken);
-            response.EnsureSuccessStatusCode();
-
-            var responseData = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: cancellationToken);
-            var textResult = responseData
-                .GetProperty("candidates")[0]
-                .GetProperty("content")
-                .GetProperty("parts")[0]
-                .GetProperty("text")
-                .GetString();
-
-            if (string.IsNullOrWhiteSpace(textResult))
-                return null;
-
-            // Clean up markdown if Gemini ignores the prompt
-            textResult = textResult.Trim();
-            if (textResult.StartsWith("```json"))
-                textResult = textResult.Substring(7);
-            if (textResult.StartsWith("```"))
-                textResult = textResult.Substring(3);
-            if (textResult.EndsWith("```"))
-                textResult = textResult.Substring(0, textResult.Length - 3);
-            
-            textResult = textResult.Trim();
-
-            var result = JsonSerializer.Deserialize<AiPaperExtractionDto>(textResult, new JsonSerializerOptions
+            try
             {
-                PropertyNameCaseInsensitive = true
-            });
+                var response = await _httpClient.PostAsJsonAsync(url, requestBody, cancellationToken);
+                response.EnsureSuccessStatusCode();
 
-            return result;
+                var responseData = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: cancellationToken);
+                var textResult = responseData
+                    .GetProperty("candidates")[0]
+                    .GetProperty("content")
+                    .GetProperty("parts")[0]
+                    .GetProperty("text")
+                    .GetString();
+
+                if (string.IsNullOrWhiteSpace(textResult))
+                    return null;
+
+                // Clean up markdown if Gemini ignores the prompt
+                textResult = textResult.Trim();
+                if (textResult.StartsWith("```json"))
+                    textResult = textResult.Substring(7);
+                if (textResult.StartsWith("```"))
+                    textResult = textResult.Substring(3);
+                if (textResult.EndsWith("```"))
+                    textResult = textResult.Substring(0, textResult.Length - 3);
+                
+                textResult = textResult.Trim();
+
+                var result = JsonSerializer.Deserialize<AiPaperExtractionDto>(textResult, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+
+                return result;
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+            {
+                currentRetry++;
+                _logger.LogWarning($"Gemini API Rate Limit (429). Retrying {currentRetry}/{maxRetries} in 15 seconds...");
+                if (currentRetry >= maxRetries)
+                {
+                    _logger.LogError(ex, "Max retries reached for Gemini API.");
+                    return null;
+                }
+                await Task.Delay(15000, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to extract info using Gemini AI.");
+                return null;
+            }
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to extract info using Gemini AI.");
-            return null;
-        }
+        
+        return null;
     }
 
     public async Task<List<AiOpportunityDto>> SummarizeOpportunitiesAsync(string topicName, List<string> futureWorks, CancellationToken cancellationToken = default)
@@ -145,39 +164,58 @@ Return ONLY a valid JSON array matching this structure exactly (without Markdown
             generationConfig = new { temperature = 0.2, responseMimeType = "application/json" }
         };
 
-        try
+        int maxRetries = 3;
+        int currentRetry = 0;
+
+        while (currentRetry < maxRetries)
         {
-            var response = await _httpClient.PostAsJsonAsync(url, requestBody, cancellationToken);
-            response.EnsureSuccessStatusCode();
-
-            var responseData = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: cancellationToken);
-            var textResult = responseData.GetProperty("candidates")[0].GetProperty("content").GetProperty("parts")[0].GetProperty("text").GetString();
-
-            if (string.IsNullOrWhiteSpace(textResult))
-                return new List<AiOpportunityDto>();
-
-            // Clean up markdown if Gemini ignores the prompt
-            textResult = textResult.Trim();
-            if (textResult.StartsWith("```json"))
-                textResult = textResult.Substring(7);
-            if (textResult.StartsWith("```"))
-                textResult = textResult.Substring(3);
-            if (textResult.EndsWith("```"))
-                textResult = textResult.Substring(0, textResult.Length - 3);
-            
-            textResult = textResult.Trim();
-
-            var result = JsonSerializer.Deserialize<List<AiOpportunityDto>>(textResult, new JsonSerializerOptions
+            try
             {
-                PropertyNameCaseInsensitive = true
-            });
+                var response = await _httpClient.PostAsJsonAsync(url, requestBody, cancellationToken);
+                response.EnsureSuccessStatusCode();
 
-            return result ?? new List<AiOpportunityDto>();
+                var responseData = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: cancellationToken);
+                var textResult = responseData.GetProperty("candidates")[0].GetProperty("content").GetProperty("parts")[0].GetProperty("text").GetString();
+
+                if (string.IsNullOrWhiteSpace(textResult))
+                    return new List<AiOpportunityDto>();
+
+                // Clean up markdown if Gemini ignores the prompt
+                textResult = textResult.Trim();
+                if (textResult.StartsWith("```json"))
+                    textResult = textResult.Substring(7);
+                if (textResult.StartsWith("```"))
+                    textResult = textResult.Substring(3);
+                if (textResult.EndsWith("```"))
+                    textResult = textResult.Substring(0, textResult.Length - 3);
+                
+                textResult = textResult.Trim();
+
+                var result = JsonSerializer.Deserialize<List<AiOpportunityDto>>(textResult, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+
+                return result ?? new List<AiOpportunityDto>();
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+            {
+                currentRetry++;
+                _logger.LogWarning($"Gemini API Rate Limit (429) during summarize. Retrying {currentRetry}/{maxRetries} in 15 seconds...");
+                if (currentRetry >= maxRetries)
+                {
+                    _logger.LogError(ex, "Max retries reached for Gemini API.");
+                    return new List<AiOpportunityDto>();
+                }
+                await Task.Delay(15000, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to summarize opportunities using Gemini AI.");
+                return new List<AiOpportunityDto>();
+            }
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to summarize opportunities using Gemini AI.");
-            return new List<AiOpportunityDto>();
-        }
+        
+        return new List<AiOpportunityDto>();
     }
 }

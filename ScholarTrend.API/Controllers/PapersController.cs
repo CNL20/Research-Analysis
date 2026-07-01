@@ -85,6 +85,23 @@ public class PapersController : ControllerBase
     }
 
     /// <summary>
+    /// Record a view for a paper.
+    /// </summary>
+    [HttpPost("{id:int}/view")]
+    public async Task<ActionResult<ApiResponse<object>>> RecordView(int id)
+    {
+        try
+        {
+            await _paperService.RecordViewAsync(id);
+            return Ok(ApiResponse<object>.SuccessResponse(null, "View recorded successfully."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ApiResponse<object>.FailResponse(ex.Message));
+        }
+    }
+
+    /// <summary>
     /// Get papers by research topic with pagination.
     /// </summary>
     [HttpGet("by-topic/{topicId:int}")]

@@ -11,4 +11,5 @@ public interface IPaperService
     Task<PagedResult<PaperListItemDto>> GetByTopicAsync(int topicId, int page, int pageSize);
     Task<PagedResult<PaperListItemDto>> GetByJournalAsync(int journalId, int page, int pageSize);
     Task<IReadOnlyList<SearchHistoryDto>> GetSearchHistoryAsync(string userId, int limit = 20);
+    Task RecordViewAsync(int id);
 }
