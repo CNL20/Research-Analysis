@@ -45,7 +45,7 @@ public class ResearchPaperConfiguration : IEntityTypeConfiguration<ResearchPaper
             .HasDefaultValue(Domain.Enums.PaperStatus.Fetched);
 
         builder.Property(p => p.CreatedAt)
-            .HasDefaultValueSql("GETUTCDATE()");
+            .HasDefaultValueSql("timezone('utc', now())");
 
         builder.Property(p => p.UpdatedAt);
 

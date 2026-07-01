@@ -17,7 +17,7 @@ public class KeywordConfiguration : IEntityTypeConfiguration<Keyword>
             .HasMaxLength(200);
 
         builder.Property(k => k.CreatedAt)
-            .HasDefaultValueSql("GETUTCDATE()");
+            .HasDefaultValueSql("timezone('utc', now())");
 
         // Indexes
         builder.HasIndex(k => k.Name)

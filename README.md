@@ -43,16 +43,20 @@ Hỗ trợ cung cấp đầy đủ chức năng từ xác thực người dùng,
    - Kích hoạt Đồng bộ dữ liệu (Data Sync) qua Hangfire từ Semantic Scholar, OpenAlex.
    - Xuất (Export) báo cáo dữ liệu định dạng JSON, CSV.
 
+7. 🧠 **[Master Plan: Automated Literature Review (Topic Review)](docs/08-topic-review-master-plan.md)**
+   - Kế hoạch tổng hợp full vision: AI Survey Paper Generator.
+   - Pipeline 7 phase, database schema, API design, timeline & rủi ro.
+
 ---
 
 ## 🛠️ Công nghệ tóm tắt
 
 - **Framework:** .NET 9 ASP.NET Core Web API (RESTful)
-- **Database:** Entity Framework Core 9 + SQL Server
+- **Database:** Entity Framework Core 9 + PostgreSQL (Supabase / Neon / Docker)
 - **Authentication:** ASP.NET Identity + JWT Bearer
-- **Job Background:** Hangfire (SQL Server storage)
+- **Job Background:** Hangfire (PostgreSQL storage)
 - **Unit Test:** xUnit + Moq + FluentAssertions
-- **Data Source:** Semantic Scholar, OpenAlex
+- **Data Source:** Semantic Scholar, OpenAlex, Crossref, ArXiv
 
 ---
 

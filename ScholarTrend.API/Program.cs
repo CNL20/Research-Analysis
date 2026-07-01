@@ -1,7 +1,7 @@
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Hangfire;
-using Hangfire.SqlServer;
+using Hangfire.PostgreSql;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -18,9 +18,15 @@ using ScholarTrend.Infrastructure.Data.Seeders;
 using ScholarTrend.Infrastructure.ExternalApis;
 using ScholarTrend.Infrastructure.Jobs;
 using ScholarTrend.Infrastructure.Repositories;
+using ScholarTrend.Infrastructure.Storage;
 using ScholarTrend.Application.Interfaces.External;
 using ScholarTrend.Application.DTOs.Common;
+using ScholarTrend.Application.Options;
+using Microsoft.AspNetCore.Http.Features;
 using System.Text;
+
+// PostgreSQL requires UTC for timestamptz; allow legacy DateTime from seed/import code paths.
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -29,7 +35,7 @@ var builder = WebApplication.CreateBuilder(args);
 // 1. Database
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<ScholarTrendDbContext>(options =>
-    options.UseSqlServer(connectionString));
+    options.UseNpgsql(connectionString));
 
 // 2. Identity
 builder.Services.AddIdentity<User, IdentityRole>(options =>
@@ -110,6 +116,14 @@ builder.Services.AddScoped<IAdminDashboardService, AdminDashboardService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<ISyncService, SyncService>();
 builder.Services.AddScoped<IPaperImportRepository, PaperImportRepository>();
+builder.Services.AddScoped<IUserFileRepository, UserFileRepository>();
+builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
+builder.Services.AddScoped<IFileService, FileService>();
+builder.Services.Configure<FileUploadSettings>(builder.Configuration.GetSection("FileUpload"));
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = 20 * 1024 * 1024;
+});
 builder.Services.AddScoped<SyncJob>();
 // Bind cấu hình EmailSettings từ appsettings
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
@@ -143,14 +157,7 @@ builder.Services.AddHangfire(config =>
     config.SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
           .UseSimpleAssemblyNameTypeSerializer()
           .UseRecommendedSerializerSettings()
-          .UseSqlServerStorage(connectionString, new SqlServerStorageOptions
-          {
-              CommandBatchMaxTimeout = TimeSpan.FromMinutes(5),
-              SlidingInvisibilityTimeout = TimeSpan.FromMinutes(5),
-              QueuePollInterval = TimeSpan.FromSeconds(15),
-              UseRecommendedIsolationLevel = true,
-              DisableGlobalLocks = true
-          }));
+          .UsePostgreSqlStorage(options => options.UseNpgsqlConnection(connectionString)));
 builder.Services.AddHangfireServer();
 
 // 8. Swagger with JWT support

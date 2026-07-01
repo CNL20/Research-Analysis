@@ -32,6 +32,7 @@ public interface IOpenAlexClient
 
 public interface ICrossrefClient
 {
+    Task<IReadOnlyList<ExternalPaperDto>> SearchPapersAsync(string query, int limit = 20);
     Task<PaperSourceMetadataDto> GetByDoiAsync(string doi);
 }
 

@@ -188,7 +188,7 @@ public class AdminSyncController : ControllerBase
     /// </summary>
     /// <remarks>
     /// Request body (optional):
-    /// - sourceName: "SemanticScholar" or "OpenAlex" or null for all
+    /// - sourceName: "SemanticScholar", "OpenAlex", "Crossref", "ArXiv", or null for all
     /// - paperLimit: number of papers to fetch (default 10)
     /// - searchQuery: custom search query (optional)
     /// </remarks>

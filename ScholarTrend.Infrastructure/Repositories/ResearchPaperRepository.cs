@@ -18,9 +18,17 @@ public class ResearchPaperRepository : GenericRepository<ResearchPaper>, IResear
         var query = BuildSearchQuery(criteria);
 
         var total = await query.CountAsync();
-        var items = await query
-            .OrderByDescending(p => p.CitationCount)
-            .ThenByDescending(p => p.PublicationYear)
+
+        var ordered = criteria.SearchType.Equals("publish", StringComparison.OrdinalIgnoreCase)
+            ? query
+                .OrderByDescending(p => p.PublicationYear)
+                .ThenByDescending(p => p.PublicationDate)
+                .ThenByDescending(p => p.CitationCount)
+            : query
+                .OrderByDescending(p => p.CitationCount)
+                .ThenByDescending(p => p.PublicationYear);
+
+        var items = await ordered
             .Skip((criteria.Page - 1) * criteria.PageSize)
             .Take(criteria.PageSize)
             .ToListAsync();
@@ -31,7 +39,7 @@ public class ResearchPaperRepository : GenericRepository<ResearchPaper>, IResear
     public async Task<IEnumerable<ResearchPaper>> GetPapersByTopicAsync(int topicId, int limit = 0)
     {
         var query = _dbSet
-            .Where(p => p.Status == PaperStatus.Available && p.PaperTopics.Any(pt => pt.TopicId == topicId))
+            .Where(p => PaperStatusRules.Browsable.Contains(p.Status) && p.PaperTopics.Any(pt => pt.TopicId == topicId))
             .Include(p => p.Journal)
             .Include(p => p.PaperAuthors).ThenInclude(pa => pa.Author)
             .Include(p => p.PaperKeywords).ThenInclude(pk => pk.Keyword)
@@ -45,7 +53,7 @@ public class ResearchPaperRepository : GenericRepository<ResearchPaper>, IResear
     public async Task<IEnumerable<ResearchPaper>> GetPapersByJournalAsync(int journalId, int limit = 0)
     {
         var query = _dbSet
-            .Where(p => p.JournalId == journalId && p.Status == PaperStatus.Available)
+            .Where(p => p.JournalId == journalId && PaperStatusRules.Browsable.Contains(p.Status))
             .Include(p => p.Journal)
             .Include(p => p.PaperAuthors).ThenInclude(pa => pa.Author)
             .Include(p => p.PaperKeywords).ThenInclude(pk => pk.Keyword)
@@ -62,7 +70,7 @@ public class ResearchPaperRepository : GenericRepository<ResearchPaper>, IResear
     public async Task<IEnumerable<ResearchPaper>> GetPapersByAuthorAsync(int authorId, int limit = 0)
     {
         var query = _dbSet
-            .Where(p => p.Status == PaperStatus.Available && p.PaperAuthors.Any(pa => pa.AuthorId == authorId))
+            .Where(p => PaperStatusRules.Browsable.Contains(p.Status) && p.PaperAuthors.Any(pa => pa.AuthorId == authorId))
             .Include(p => p.Journal)
             .Include(p => p.PaperAuthors).ThenInclude(pa => pa.Author)
             .Include(p => p.PaperKeywords).ThenInclude(pk => pk.Keyword)
@@ -81,24 +89,24 @@ public class ResearchPaperRepository : GenericRepository<ResearchPaper>, IResear
             .Include(p => p.PaperAuthors).ThenInclude(pa => pa.Author)
             .Include(p => p.PaperKeywords).ThenInclude(pk => pk.Keyword)
             .Include(p => p.PaperTopics).ThenInclude(pt => pt.Topic)
-            .FirstOrDefaultAsync(p => p.Id == id && p.Status == PaperStatus.Available);
+            .FirstOrDefaultAsync(p => p.Id == id && PaperStatusRules.Browsable.Contains(p.Status));
     }
 
     public Task<int> CountByTopicAsync(int topicId)
     {
         return _context.PaperTopics
-            .CountAsync(pt => pt.TopicId == topicId && pt.Paper.Status == PaperStatus.Available);
+            .CountAsync(pt => pt.TopicId == topicId && PaperStatusRules.Browsable.Contains(pt.Paper.Status));
     }
 
     public Task<int> CountByJournalAsync(int journalId)
     {
-        return _dbSet.CountAsync(p => p.JournalId == journalId && p.Status == PaperStatus.Available);
+        return _dbSet.CountAsync(p => p.JournalId == journalId && PaperStatusRules.Browsable.Contains(p.Status));
     }
 
     public Task<int> CountByAuthorAsync(int authorId)
     {
         return _context.PaperAuthors
-            .CountAsync(pa => pa.AuthorId == authorId && pa.Paper.Status == PaperStatus.Available);
+            .CountAsync(pa => pa.AuthorId == authorId && PaperStatusRules.Browsable.Contains(pa.Paper.Status));
     }
 
     public Task<ResearchPaper?> GetByExternalIdAsync(string externalId, string source)
@@ -122,7 +130,7 @@ public class ResearchPaperRepository : GenericRepository<ResearchPaper>, IResear
             .Include(p => p.Journal)
             .Include(p => p.PaperAuthors).ThenInclude(pa => pa.Author)
             .Include(p => p.PaperKeywords).ThenInclude(pk => pk.Keyword)
-            .Where(p => p.Status == PaperStatus.Available);
+            .Where(p => PaperStatusRules.Browsable.Contains(p.Status));
 
         if (criteria.JournalId.HasValue)
         {
@@ -156,12 +164,15 @@ public class ResearchPaperRepository : GenericRepository<ResearchPaper>, IResear
             {
                 "author" => query.Where(p => p.PaperAuthors.Any(pa => pa.Author.Name.Contains(term))),
                 "journal" => query.Where(p => p.Journal != null && p.Journal.Name.Contains(term)),
+                "title" => query.Where(p => p.Title.Contains(term)),
+                "publish" => ApplyPublishSearch(query, term),
                 "all" => query.Where(p =>
                     p.Title.Contains(term) ||
                     (p.Abstract != null && p.Abstract.Contains(term)) ||
                     p.PaperAuthors.Any(pa => pa.Author.Name.Contains(term)) ||
                     (p.Journal != null && p.Journal.Name.Contains(term)) ||
-                    p.PaperKeywords.Any(pk => pk.Keyword.Name.Contains(term))),
+                    p.PaperKeywords.Any(pk => pk.Keyword.Name.Contains(term)) ||
+                    (p.PublicationYear != null && p.PublicationYear.ToString() == term)),
                 _ => query.Where(p =>
                     p.Title.Contains(term) ||
                     (p.Abstract != null && p.Abstract.Contains(term)) ||
@@ -170,5 +181,27 @@ public class ResearchPaperRepository : GenericRepository<ResearchPaper>, IResear
         }
 
         return query;
+    }
+
+    private static IQueryable<ResearchPaper> ApplyPublishSearch(IQueryable<ResearchPaper> query, string term)
+    {
+        if (!term.All(char.IsDigit))
+        {
+            return query.Where(p => false);
+        }
+
+        if (term.Length == 4 && int.TryParse(term, out var exactYear))
+        {
+            return query.Where(p => p.PublicationYear == exactYear);
+        }
+
+        if (term.Length is > 0 and < 4)
+        {
+            var minYear = int.Parse(term.PadRight(4, '0'));
+            var maxYear = int.Parse(term.PadRight(4, '9'));
+            return query.Where(p => p.PublicationYear >= minYear && p.PublicationYear <= maxYear);
+        }
+
+        return query.Where(p => false);
     }
 }
