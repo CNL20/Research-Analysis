@@ -109,6 +109,19 @@ public class PaperService : IPaperService
         }).ToList();
     }
 
+    public async Task RecordViewAsync(int id)
+    {
+        var paper = await _unitOfWork.ResearchPapers.GetByIdAsync(id);
+        if (paper == null)
+        {
+            throw new InvalidOperationException("Paper not found.");
+        }
+
+        paper.ViewCount += 1;
+        _unitOfWork.ResearchPapers.Update(paper);
+        await _unitOfWork.SaveChangesAsync();
+    }
+
     private async Task LogSearchHistoryAsync(string userId, PaperSearchRequest request, int resultCount, int durationMs)
     {
         var history = new SearchHistory

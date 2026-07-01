@@ -7,6 +7,7 @@ public class PaperListItemDto
     public string? Abstract { get; set; }
     public int? PublicationYear { get; set; }
     public int? CitationCount { get; set; }
+    public int ViewCount { get; set; }
     public string? Doi { get; set; }
     public JournalBriefDto? Journal { get; set; }
     public List<string> Authors { get; set; } = [];
