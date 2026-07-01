@@ -20,4 +20,7 @@ public class User : IdentityUser
     public ICollection<SearchHistory> SearchHistories { get; set; } = [];
     public NotificationSetting? NotificationSetting { get; set; }
     public ICollection<RefreshToken> RefreshTokens { get; set; } = [];
+    public ICollection<PaymentTransaction> PaymentTransactions { get; set; } = [];
+    public ICollection<Subscription> Subscriptions { get; set; } = [];
+    public ICollection<Invoice> Invoices { get; set; } = [];
 }
