@@ -29,6 +29,9 @@ public class SyncService : ISyncService
     private readonly INotificationService _notificationService;
     private readonly ILogger<SyncService> _logger;
     private readonly string _defaultSearchQuery;
+    private readonly IReadOnlyList<string> _defaultSearchQueries;
+    private readonly int _semanticScholarPageSize;
+    private readonly int _openAlexPageSize;
 
     public SyncService(
         IUnitOfWork unitOfWork,
@@ -50,14 +53,45 @@ public class SyncService : ISyncService
         _notificationService = notificationService;
         _logger = logger;
         _defaultSearchQuery = configuration["ExternalApis:SemanticScholar:SearchQuery"] ?? "artificial intelligence";
+        _defaultSearchQueries = ReadDefaultSearchQueries(configuration);
+        _semanticScholarPageSize = int.TryParse(configuration["ExternalApis:SemanticScholar:PageSize"], out var ss) ? ss : 10;
+        _openAlexPageSize = int.TryParse(configuration["ExternalApis:OpenAlex:PageSize"], out var oa) ? oa : 10;
+    }
+
+    private static IReadOnlyList<string> ReadDefaultSearchQueries(IConfiguration configuration)
+    {
+        var section = configuration.GetSection("SyncSchedule:SearchQueries");
+        var values = new List<string>();
+        foreach (var child in section.GetChildren())
+        {
+            var v = child.Value;
+            if (!string.IsNullOrWhiteSpace(v))
+            {
+                values.Add(v);
+            }
+        }
+
+        var cleaned = values
+            .Where(q => !string.IsNullOrWhiteSpace(q))
+            .Select(q => q.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return cleaned.Count > 0 ? cleaned : new List<string> { configuration["ExternalApis:SemanticScholar:SearchQuery"] ?? "artificial intelligence" };
     }
 
     public DbContext Context => _unitOfWork.Context;
 
-    public async Task<MultiSyncResultDto> RunSyncAsync(string? sourceName = null, string syncType = "Manual", string? triggeredBy = null)
+    public async Task<MultiSyncResultDto> RunSyncAsync(
+        string? sourceName = null,
+        string syncType = "Manual",
+        string? triggeredBy = null,
+        List<string>? searchQueries = null,
+        int? paperLimit = null)
     {
-        _logger.LogInformation("Starting {SyncType} sync triggered by {TriggeredBy} for source: {Source}",
-            syncType, triggeredBy ?? "system", sourceName ?? "all");
+        _logger.LogInformation("Starting {SyncType} sync triggered by {TriggeredBy} for source: {Source} (queries: {QueryCount}, limit: {Limit})",
+            syncType, triggeredBy ?? "system", sourceName ?? "all",
+            searchQueries?.Count ?? 1, paperLimit?.ToString() ?? "default");
 
         var sources = await _unitOfWork.ApiDataSources.GetActiveAsync();
         if (!string.IsNullOrWhiteSpace(sourceName))
@@ -68,6 +102,20 @@ public class SyncService : ISyncService
         if (sources.Count == 0)
         {
             throw new InvalidOperationException("No active API data sources found.");
+        }
+
+        // Normalize queries: empty/null => fall back to the full default query list from SyncSchedule:SearchQueries.
+        var normalizedQueries = (searchQueries == null || searchQueries.Count == 0)
+            ? _defaultSearchQueries.ToList()
+            : searchQueries
+                .Where(q => !string.IsNullOrWhiteSpace(q))
+                .Select(q => q.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+        if (normalizedQueries.Count == 0)
+        {
+            normalizedQueries = _defaultSearchQueries.ToList();
         }
 
         var results = new List<SyncResultDto>();
@@ -93,8 +141,24 @@ public class SyncService : ISyncService
 
             try
             {
-                var result = await SyncSingleSourceAsync(source, syncType, triggeredBy);
-                results.Add(result);
+                var sourceResults = await SyncSingleSourceAsync(source, syncType, triggeredBy, normalizedQueries, paperLimit);
+                results.AddRange(sourceResults);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Sync failed for source {Source} (queries={QueryCount})", source.Name, normalizedQueries.Count);
+
+                // Add a single "Failed" result so callers see the error and continue with remaining sources.
+                results.Add(new SyncResultDto
+                {
+                    Source = source.Name,
+                    Query = string.Join(", ", normalizedQueries),
+                    PapersFetched = 0,
+                    PapersAdded = 0,
+                    PapersUpdated = 0,
+                    Status = "Failed",
+                    Message = $"Source-level sync failed: {ex.Message}"
+                });
             }
             finally
             {
@@ -108,8 +172,8 @@ public class SyncService : ISyncService
         var skippedCount = results.Count(r => r.Status == "Skipped");
 
         _logger.LogInformation(
-            "{SyncType} sync completed: TotalFetched={Fetched}, TotalQueued={Queued}, Failed={Failed}, Skipped={Skipped}",
-            syncType, totalFetched, totalQueued, failedCount, skippedCount);
+            "{SyncType} sync completed: TotalFetched={Fetched}, TotalQueued={Queued}, Failed={Failed}, Skipped={Skipped}, Proposals={Proposals}",
+            syncType, totalFetched, totalQueued, failedCount, skippedCount, results.Count(r => r.SyncProposalId.HasValue));
 
         return new MultiSyncResultDto
         {
@@ -122,7 +186,39 @@ public class SyncService : ISyncService
         };
     }
 
-    private async Task<SyncResultDto> SyncSingleSourceAsync(ApiDataSource source, string syncType, string? triggeredBy)
+    private async Task<List<SyncResultDto>> SyncSingleSourceAsync(
+        ApiDataSource source,
+        string syncType,
+        string? triggeredBy,
+        List<string> searchQueries,
+        int? paperLimit)
+    {
+        var results = new List<SyncResultDto>();
+
+        foreach (var (query, index) in searchQueries.Select((q, i) => (q, i)))
+        {
+            var single = await SyncSingleQueryAsync(source, syncType, triggeredBy, query, paperLimit, index + 1, searchQueries.Count);
+            results.Add(single);
+        }
+
+        source.LastSyncAt = DateTime.UtcNow;
+        _unitOfWork.ApiDataSources.Update(source);
+        await _unitOfWork.SaveChangesAsync();
+
+        return results;
+    }
+
+    /// <summary>
+    /// Sync one source against one query, creating one SyncProposal for the resulting papers.
+    /// </summary>
+    private async Task<SyncResultDto> SyncSingleQueryAsync(
+        ApiDataSource source,
+        string syncType,
+        string? triggeredBy,
+        string searchQuery,
+        int? paperLimit,
+        int queryIndex,
+        int totalQueries)
     {
         var log = new SyncLog
         {
@@ -136,22 +232,24 @@ public class SyncService : ISyncService
 
         try
         {
+            var limit = paperLimit ?? (source.Name == OpenAlexName ? _openAlexPageSize : _semanticScholarPageSize);
+
             IReadOnlyList<ExternalPaperDto> externalPapers;
 
             try
             {
                 externalPapers = source.Name switch
                 {
-                    SemanticScholarName => await _semanticScholarClient.SearchPapersAsync(_defaultSearchQuery, 10),
-                    OpenAlexName => await _openAlexClient.SearchPapersAsync(_defaultSearchQuery, 10),
-                    CrossrefName => await _crossrefClient.SearchPapersAsync(_defaultSearchQuery, 10),
-                    ArXivName => await _arXivClient.SearchPapersAsync(_defaultSearchQuery, 10),
+                    SemanticScholarName => await _semanticScholarClient.SearchPapersAsync(searchQuery, limit),
+                    OpenAlexName => await _openAlexClient.SearchPapersAsync(searchQuery, limit),
+                    CrossrefName => await _crossrefClient.SearchPapersAsync(searchQuery, limit),
+                    ArXivName => await _arXivClient.SearchPapersAsync(searchQuery, limit),
                     _ => throw new InvalidOperationException($"Unsupported data source: {source.Name}")
                 };
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to fetch papers from {Source}, continuing with empty list", source.Name);
+                _logger.LogWarning(ex, "Failed to fetch papers from {Source} for query '{Query}', continuing with empty list", source.Name, searchQuery);
                 externalPapers = [];
             }
 
@@ -177,9 +275,6 @@ public class SyncService : ISyncService
                 newPapersToAdd.Add(external);
             }
 
-            source.LastSyncAt = DateTime.UtcNow;
-            _unitOfWork.ApiDataSources.Update(source);
-
             if (newPapersToAdd.Count == 0)
             {
                 log.Status = "Completed";
@@ -192,11 +287,12 @@ public class SyncService : ISyncService
                     SyncProposalId = null,
                     SyncLogId = log.Id,
                     Source = source.Name,
+                    Query = searchQuery,
                     PapersFetched = log.PapersFetched,
                     PapersAdded = 0,
                     PapersUpdated = 0,
                     Status = log.Status,
-                    Message = "No new papers found to sync."
+                    Message = $"[{searchQuery}] No new papers found to sync."
                 };
             }
 
@@ -219,6 +315,7 @@ public class SyncService : ISyncService
 
             log.Status = "Completed";
             log.CompletedAt = DateTime.UtcNow;
+            log.PapersAdded = newPapersToAdd.Count;
             _unitOfWork.SyncLogs.Update(log);
             await RetrySaveChangesAsync();
 
@@ -229,16 +326,17 @@ public class SyncService : ISyncService
                 SyncProposalId = proposal.Id,
                 SyncLogId = log.Id,
                 Source = source.Name,
+                Query = searchQuery,
                 PapersFetched = log.PapersFetched,
                 PapersAdded = newPapersToAdd.Count,
                 PapersUpdated = 0,
                 Status = log.Status,
-                Message = $"{proposal.TotalFetched} paper(s) are awaiting admin approval."
+                Message = $"[{searchQuery}] {proposal.TotalFetched} paper(s) are awaiting admin approval."
             };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Sync failed for source {Source}", source.Name);
+            _logger.LogError(ex, "Sync failed for source {Source} query '{Query}'", source.Name, searchQuery);
 
             log.Status = "Failed";
             log.ErrorMessage = ex.Message;
@@ -259,11 +357,12 @@ public class SyncService : ISyncService
                 SyncProposalId = null,
                 SyncLogId = log.Id,
                 Source = source.Name,
+                Query = searchQuery,
                 PapersFetched = log.PapersFetched,
                 PapersAdded = 0,
                 PapersUpdated = 0,
                 Status = log.Status,
-                Message = $"Sync failed: {ex.Message}"
+                Message = $"[{searchQuery}] Sync failed: {ex.Message}"
             };
         }
     }

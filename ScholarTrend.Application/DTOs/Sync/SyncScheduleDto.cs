@@ -21,7 +21,15 @@ public class SyncScheduleConfigRequest
 public class ManualSyncRequest
 {
     public string? SourceName { get; set; }
-    public int PaperLimit { get; set; } = 10;
+
+    /// <summary>
+    /// Number of papers to fetch per query. Null means "use the source's configured PageSize".
+    /// </summary>
+    public int? PaperLimit { get; set; }
+
+    /// <summary>
+    /// Optional custom search query. If null/empty, the system's default query is used.
+    /// </summary>
     public string? SearchQuery { get; set; }
 }
 

@@ -28,25 +28,33 @@ public class SyncJob : ISyncJob
 
         using var scope = _serviceProvider.CreateScope();
         var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
+        var schedulerService = scope.ServiceProvider.GetRequiredService<ISyncSchedulerService>();
 
         try
         {
-            var result = await syncService.RunSyncAsync(sourceName: null, syncType: SyncTypeAutomatic, triggeredBy: SystemTrigger);
+            var searchQueries = await schedulerService.GetActiveSearchQueriesAsync();
+
+            var result = await syncService.RunSyncAsync(
+                sourceName: null,
+                syncType: SyncTypeAutomatic,
+                triggeredBy: SystemTrigger,
+                searchQueries: searchQueries);
 
             var totalFetched = result.TotalFetched;
             var totalQueued = result.TotalQueued;
             var failedCount = result.Results.Count(r => r.Status == "Failed");
             var skippedCount = result.Results.Count(r => r.Status == "Skipped");
+            var proposalCount = result.Results.Count(r => r.SyncProposalId.HasValue);
 
             _logger.LogInformation(
-                "Scheduled (Automatic) sync completed: Fetched={Fetched}, Queued={Queued}, Failed={Failed}, Skipped={Skipped}",
-                totalFetched, totalQueued, failedCount, skippedCount);
+                "Scheduled (Automatic) sync completed: Queries={QueryCount}, Proposals={ProposalCount}, Fetched={Fetched}, Queued={Queued}, Failed={Failed}, Skipped={Skipped}",
+                searchQueries.Count, proposalCount, totalFetched, totalQueued, failedCount, skippedCount);
 
             if (failedCount > 0)
             {
                 var failedSources = result.Results
                     .Where(r => r.Status == "Failed")
-                    .Select(r => $"{r.Source}: {r.Message}")
+                    .Select(r => $"{r.Source}/{r.Query}: {r.Message}")
                     .ToList();
 
                 _logger.LogWarning("Some sources failed: {FailedSources}",
