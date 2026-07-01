@@ -29,6 +29,7 @@ public class SyncService : ISyncService
     private readonly INotificationService _notificationService;
     private readonly ILogger<SyncService> _logger;
     private readonly string _defaultSearchQuery;
+    private readonly IReadOnlyList<string> _defaultSearchQueries;
     private readonly int _semanticScholarPageSize;
     private readonly int _openAlexPageSize;
 
@@ -52,8 +53,31 @@ public class SyncService : ISyncService
         _notificationService = notificationService;
         _logger = logger;
         _defaultSearchQuery = configuration["ExternalApis:SemanticScholar:SearchQuery"] ?? "artificial intelligence";
+        _defaultSearchQueries = ReadDefaultSearchQueries(configuration);
         _semanticScholarPageSize = int.TryParse(configuration["ExternalApis:SemanticScholar:PageSize"], out var ss) ? ss : 10;
         _openAlexPageSize = int.TryParse(configuration["ExternalApis:OpenAlex:PageSize"], out var oa) ? oa : 10;
+    }
+
+    private static IReadOnlyList<string> ReadDefaultSearchQueries(IConfiguration configuration)
+    {
+        var section = configuration.GetSection("SyncSchedule:SearchQueries");
+        var values = new List<string>();
+        foreach (var child in section.GetChildren())
+        {
+            var v = child.Value;
+            if (!string.IsNullOrWhiteSpace(v))
+            {
+                values.Add(v);
+            }
+        }
+
+        var cleaned = values
+            .Where(q => !string.IsNullOrWhiteSpace(q))
+            .Select(q => q.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return cleaned.Count > 0 ? cleaned : new List<string> { configuration["ExternalApis:SemanticScholar:SearchQuery"] ?? "artificial intelligence" };
     }
 
     public DbContext Context => _unitOfWork.Context;
@@ -80,9 +104,9 @@ public class SyncService : ISyncService
             throw new InvalidOperationException("No active API data sources found.");
         }
 
-        // Normalize queries: empty/null => fall back to default single query so existing behavior is preserved.
+        // Normalize queries: empty/null => fall back to the full default query list from SyncSchedule:SearchQueries.
         var normalizedQueries = (searchQueries == null || searchQueries.Count == 0)
-            ? new List<string> { _defaultSearchQuery }
+            ? _defaultSearchQueries.ToList()
             : searchQueries
                 .Where(q => !string.IsNullOrWhiteSpace(q))
                 .Select(q => q.Trim())
@@ -91,7 +115,7 @@ public class SyncService : ISyncService
 
         if (normalizedQueries.Count == 0)
         {
-            normalizedQueries.Add(_defaultSearchQuery);
+            normalizedQueries = _defaultSearchQueries.ToList();
         }
 
         var results = new List<SyncResultDto>();
@@ -216,10 +240,10 @@ public class SyncService : ISyncService
             {
                 externalPapers = source.Name switch
                 {
-                    SemanticScholarName => await _semanticScholarClient.SearchPapersAsync(_defaultSearchQuery, 10),
-                    OpenAlexName => await _openAlexClient.SearchPapersAsync(_defaultSearchQuery, 10),
-                    CrossrefName => await _crossrefClient.SearchPapersAsync(_defaultSearchQuery, 10),
-                    ArXivName => await _arXivClient.SearchPapersAsync(_defaultSearchQuery, 10),
+                    SemanticScholarName => await _semanticScholarClient.SearchPapersAsync(searchQuery, limit),
+                    OpenAlexName => await _openAlexClient.SearchPapersAsync(searchQuery, limit),
+                    CrossrefName => await _crossrefClient.SearchPapersAsync(searchQuery, limit),
+                    ArXivName => await _arXivClient.SearchPapersAsync(searchQuery, limit),
                     _ => throw new InvalidOperationException($"Unsupported data source: {source.Name}")
                 };
             }
