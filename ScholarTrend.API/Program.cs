@@ -16,7 +16,9 @@ using ScholarTrend.Domain.Entities;
 using ScholarTrend.Infrastructure.Data;
 using ScholarTrend.Infrastructure.Data.Seeders;
 using ScholarTrend.Infrastructure.ExternalApis;
+using ScholarTrend.Infrastructure.HostedServices;
 using ScholarTrend.Infrastructure.Jobs;
+using ScholarTrend.Infrastructure.Persistence.Repositories;
 using ScholarTrend.Infrastructure.Repositories;
 using ScholarTrend.Infrastructure.Storage;
 using ScholarTrend.Application.Interfaces.External;
@@ -119,6 +121,14 @@ builder.Services.AddScoped<IPaperImportRepository, PaperImportRepository>();
 builder.Services.AddScoped<IUserFileRepository, UserFileRepository>();
 builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
 builder.Services.AddScoped<IFileService, FileService>();
+builder.Services.AddScoped<IPaperPdfFileRepository, PaperPdfFileRepository>();
+builder.Services.AddSingleton<IPaperPdfChannel, PaperPdfChannel>();
+builder.Services.AddScoped<IPaperPdfEnqueuer, PaperPdfDownloadService>();
+builder.Services.AddScoped<IPaperPdfProcessor, PaperPdfDownloadService>();
+builder.Services.AddScoped<IPaperFileStorage, LocalPaperFileStorage>();
+builder.Services.AddHostedService<PaperPdfDownloadWorker>();
+builder.Services.AddHostedService<PaperPdfStartupRecovery>();
+builder.Services.Configure<StorageSettings>(builder.Configuration.GetSection("FileUpload"));
 builder.Services.Configure<FileUploadSettings>(builder.Configuration.GetSection("FileUpload"));
 builder.Services.Configure<FormOptions>(options =>
 {
@@ -137,6 +147,7 @@ builder.Services.AddHttpClient<ISemanticScholarClient, SemanticScholarClient>();
 builder.Services.AddHttpClient<IOpenAlexClient, OpenAlexClient>();
 builder.Services.AddHttpClient<ICrossrefClient, CrossrefClient>();
 builder.Services.AddHttpClient<IArXivClient, ArXivClient>();
+builder.Services.AddHttpClient<IDocumentDownloader, HttpDocumentDownloader>();
 
 builder.Services.AddScoped<ISyncSchedulerService, SyncSchedulerService>();
 builder.Services.AddScoped<ISyncJob, SyncJob>();

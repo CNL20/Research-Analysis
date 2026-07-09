@@ -21,6 +21,7 @@ public interface IUnitOfWork : IDisposable
     ISyncLogRepository SyncLogs { get; }
     ISyncProposalRepository SyncProposals { get; }
     IPendingPaperRepository PendingPapers { get; }
+    IPaperPdfFileRepository PaperPdfFiles { get; }
     Task<int> SaveChangesAsync();
 
     Task<bool> BeginTransactionAsync();

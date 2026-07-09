@@ -13,7 +13,7 @@ namespace ScholarTrend.Infrastructure.Migrations
             migrationBuilder.AddColumn<int>(
                 name: "ViewCount",
                 table: "ResearchPapers",
-                type: "int",
+                type: "integer",
                 nullable: false,
                 defaultValue: 0);
         }

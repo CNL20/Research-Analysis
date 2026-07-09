@@ -14,4 +14,7 @@ public class PendingPaperDto
     public List<string> Authors { get; set; } = [];
     public string Status { get; set; } = string.Empty;
     public int? ImportedPaperId { get; set; }
+    public string? PdfUrl { get; set; }
+    public string? PdfAccessType { get; set; }
+    public string? PdfLicense { get; set; }
 }

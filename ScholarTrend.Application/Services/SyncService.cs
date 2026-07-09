@@ -27,6 +27,7 @@ public class SyncService : ISyncService
     private readonly ICrossrefClient _crossrefClient;
     private readonly IArXivClient _arXivClient;
     private readonly INotificationService _notificationService;
+    private readonly IPaperPdfEnqueuer _paperPdfEnqueuer;
     private readonly ILogger<SyncService> _logger;
     private readonly string _defaultSearchQuery;
     private readonly IReadOnlyList<string> _defaultSearchQueries;
@@ -41,6 +42,7 @@ public class SyncService : ISyncService
         ICrossrefClient crossrefClient,
         IArXivClient arXivClient,
         INotificationService notificationService,
+        IPaperPdfEnqueuer paperPdfEnqueuer,
         IConfiguration configuration,
         ILogger<SyncService> logger)
     {
@@ -51,6 +53,7 @@ public class SyncService : ISyncService
         _crossrefClient = crossrefClient;
         _arXivClient = arXivClient;
         _notificationService = notificationService;
+        _paperPdfEnqueuer = paperPdfEnqueuer;
         _logger = logger;
         _defaultSearchQuery = configuration["ExternalApis:SemanticScholar:SearchQuery"] ?? "artificial intelligence";
         _defaultSearchQueries = ReadDefaultSearchQueries(configuration);
@@ -62,7 +65,7 @@ public class SyncService : ISyncService
     {
         var section = configuration.GetSection("SyncSchedule:SearchQueries");
         var values = new List<string>();
-        foreach (var child in section.GetChildren())
+        foreach (var child in section.GetChildren() ?? Enumerable.Empty<IConfigurationSection>())
         {
             var v = child.Value;
             if (!string.IsNullOrWhiteSpace(v))
@@ -426,6 +429,9 @@ public class SyncService : ISyncService
             approvedCount++;
 
             await _notificationService.NotifyFollowersForNewPaperAsync(result.PaperId);
+
+            // Nếu paper có PDF URL và thuộc loại tải được (ArXiv hoặc OpenAccess) → enqueue download
+            await TryEnqueuePdfDownloadAsync(external, result.PaperId);
         }
 
         proposal.TotalApproved += approvedCount;
@@ -531,7 +537,10 @@ public class SyncService : ISyncService
             Doi = external.Doi,
             Url = external.Url,
             AuthorNamesJson = JsonSerializer.Serialize(external.AuthorNames),
-            Status = PendingPaperStatus.Pending
+            Status = PendingPaperStatus.Pending,
+            PdfUrl = external.PdfUrl,
+            PdfAccessType = external.PdfAccessType,
+            PdfLicense = external.PdfLicense
         };
     }
 
@@ -549,7 +558,10 @@ public class SyncService : ISyncService
             CitationCount = pending.CitationCount,
             Doi = pending.Doi,
             Url = pending.Url,
-            AuthorNames = authors
+            AuthorNames = authors,
+            PdfUrl = pending.PdfUrl,
+            PdfAccessType = pending.PdfAccessType,
+            PdfLicense = pending.PdfLicense
         };
     }
 
@@ -601,7 +613,10 @@ public class SyncService : ISyncService
             Url = pending.Url,
             Authors = authors,
             Status = pending.Status,
-            ImportedPaperId = pending.ImportedPaperId
+            ImportedPaperId = pending.ImportedPaperId,
+            PdfUrl = pending.PdfUrl,
+            PdfAccessType = pending.PdfAccessType,
+            PdfLicense = pending.PdfLicense
         };
     }
 
@@ -687,5 +702,41 @@ public class SyncService : ISyncService
             LockedAt = lockInfo.AcquiredAt,
             ExpiresAt = lockInfo.ExpiresAt
         };
+    }
+
+    /// <summary>
+    /// Nếu external paper có PDF URL và thuộc loại tải được (ArXiv/OpenAccess) thì enqueue.
+    /// </summary>
+    private async Task TryEnqueuePdfDownloadAsync(ExternalPaperDto external, int researchPaperId)
+    {
+        if (string.IsNullOrWhiteSpace(external.PdfUrl))
+        {
+            return;
+        }
+
+        // Chỉ tải khi paper là từ nguồn cho phép tải
+        var accessType = external.PdfAccessType;
+        if (accessType is not (PaperDownloadStatus.AccessTypes.ArXiv
+                              or PaperDownloadStatus.AccessTypes.OpenAccess))
+        {
+            _logger.LogInformation(
+                "Paper {PaperId} from {Source}: PDF URL available but access type is '{AccessType}' — skipping download",
+                researchPaperId, external.Source, accessType ?? "<null>");
+            return;
+        }
+
+        try
+        {
+            await _paperPdfEnqueuer.EnqueueAsync(
+                externalSource: external.Source,
+                sourceUrl: external.PdfUrl!,
+                researchPaperId: researchPaperId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Failed to enqueue PDF download for paper {PaperId} (source={Source})",
+                researchPaperId, external.Source);
+        }
     }
 }

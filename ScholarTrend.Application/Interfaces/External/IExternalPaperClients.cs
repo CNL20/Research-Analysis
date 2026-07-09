@@ -16,6 +16,8 @@ public class ExternalPaperDto
     public List<string> AuthorNames { get; set; } = [];
     public List<string> Keywords { get; set; } = [];
     public string? PdfUrl { get; set; }
+    public string? PdfAccessType { get; set; }
+    public string? PdfLicense { get; set; }
 }
 
 public interface ISemanticScholarClient

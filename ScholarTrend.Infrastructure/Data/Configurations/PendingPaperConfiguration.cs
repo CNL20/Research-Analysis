@@ -39,6 +39,15 @@ public class PendingPaperConfiguration : IEntityTypeConfiguration<PendingPaper>
             .IsRequired()
             .HasMaxLength(50);
 
+        builder.Property(p => p.PdfUrl)
+            .HasMaxLength(500);
+
+        builder.Property(p => p.PdfAccessType)
+            .HasMaxLength(50);
+
+        builder.Property(p => p.PdfLicense)
+            .HasMaxLength(100);
+
         builder.HasIndex(p => new { p.ExternalId, p.ExternalSource });
         builder.HasIndex(p => p.Status);
     }

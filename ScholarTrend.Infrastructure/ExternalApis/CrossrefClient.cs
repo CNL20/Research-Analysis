@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using ScholarTrend.Application.DTOs.Aggregation;
 using ScholarTrend.Application.Interfaces.External;
 using ScholarTrend.Application.Services.Aggregation;
+using ScholarTrend.Domain.Constants;
 
 namespace ScholarTrend.Infrastructure.ExternalApis;
 
@@ -121,6 +122,17 @@ public class CrossrefClient : ICrossrefClient
             .Select(name => name!)
             .ToList() ?? [];
 
+        // Tìm link PDF trong mảng Link. Crossref phân biệt:
+        //   "content-type": "application/pdf" → PDF thật
+        //   "content-type": "text/html"        → landing page
+        var pdfLink = work.Link?
+            .FirstOrDefault(l => string.Equals(l.ContentType, "application/pdf", StringComparison.OrdinalIgnoreCase)
+                              && !string.IsNullOrWhiteSpace(l.Url));
+        var pdfUrl = pdfLink?.Url;
+        var pdfAccessType = pdfUrl is null
+            ? null
+            : PaperDownloadStatus.AccessTypes.Publisher;
+
         return new ExternalPaperDto
         {
             ExternalId = doi ?? work.Doi ?? title,
@@ -132,7 +144,10 @@ public class CrossrefClient : ICrossrefClient
             Doi = doi,
             Url = string.IsNullOrWhiteSpace(doi) ? null : $"https://doi.org/{doi}",
             Journal = journal,
-            AuthorNames = authors
+            AuthorNames = authors,
+            PdfUrl = pdfUrl,
+            PdfAccessType = pdfAccessType,
+            PdfLicense = work.License?.FirstOrDefault()?.Url
         };
     }
 
@@ -179,6 +194,27 @@ public class CrossrefClient : ICrossrefClient
 
         [JsonPropertyName("is-referenced-by-count")]
         public int? IsReferencedByCount { get; set; }
+
+        [JsonPropertyName("link")]
+        public List<CrossrefLink>? Link { get; set; }
+
+        [JsonPropertyName("license")]
+        public List<CrossrefLicense>? License { get; set; }
+    }
+
+    private sealed class CrossrefLink
+    {
+        [JsonPropertyName("URL")]
+        public string? Url { get; set; }
+
+        [JsonPropertyName("content-type")]
+        public string? ContentType { get; set; }
+    }
+
+    private sealed class CrossrefLicense
+    {
+        [JsonPropertyName("URL")]
+        public string? Url { get; set; }
     }
 
     private sealed class CrossrefAuthor

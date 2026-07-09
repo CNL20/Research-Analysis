@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using ScholarTrend.Application.DTOs.Aggregation;
 using ScholarTrend.Application.Interfaces.External;
 using ScholarTrend.Application.Services.Aggregation;
+using ScholarTrend.Domain.Constants;
 
 namespace ScholarTrend.Infrastructure.ExternalApis;
 
@@ -120,7 +121,10 @@ public class ArXivClient : IArXivClient
                     CitationCount = 0,
                     Doi = doi,
                     Url = url,
-                    AuthorNames = authors
+                    AuthorNames = authors,
+                    PdfUrl = $"https://arxiv.org/pdf/{arxivId}.pdf",
+                    PdfAccessType = PaperDownloadStatus.AccessTypes.ArXiv,
+                    PdfLicense = "arXiv perpetual non-exclusive"
                 });
             }
 

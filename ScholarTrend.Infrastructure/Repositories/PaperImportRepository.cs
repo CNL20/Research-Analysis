@@ -24,6 +24,10 @@ public class PaperImportRepository : IPaperImportRepository
         if (existing != null)
         {
             existing.CitationCount = external.CitationCount;
+            if (!string.IsNullOrEmpty(external.PdfUrl))
+            {
+                existing.PdfUrl = external.PdfUrl;
+            }
             existing.UpdatedAt = DateTime.UtcNow;
             existing.Status = PaperStatus.Updated;
             _context.ResearchPapers.Update(existing);
@@ -40,6 +44,7 @@ public class PaperImportRepository : IPaperImportRepository
             CitationCount = external.CitationCount,
             Doi = external.Doi,
             Url = external.Url,
+            PdfUrl = external.PdfUrl,
             ExternalId = external.ExternalId,
             ExternalSource = external.Source,
             JournalId = journalId,
@@ -108,10 +113,12 @@ public class PaperImportRepository : IPaperImportRepository
 
         // Match topic based on keywords in title/abstract
         // Check if any keyword matches a topic name
+        // EF.Functions.ILike: Postgres-only, case-insensitive, fully translatable to SQL
         var topic = matched.Count > 0
             ? await _context.ResearchTopics.FirstOrDefaultAsync(t =>
-                matched.Any(k => t.TopicName.Contains(k.Name, StringComparison.OrdinalIgnoreCase) ||
-                               k.Name.Contains(t.TopicName, StringComparison.OrdinalIgnoreCase)))
+                matched.Any(k =>
+                    EF.Functions.ILike(t.TopicName, $"%{k.Name}%") ||
+                    EF.Functions.ILike(k.Name, $"%{t.TopicName}%")))
             : null;
 
         // If no topic matched via keywords, use ML/AI keywords to determine topic
@@ -180,7 +187,7 @@ public class PaperImportRepository : IPaperImportRepository
     private async Task<ResearchTopic?> GetTopicByNameAsync(string topicName)
     {
         return await _context.ResearchTopics
-            .FirstOrDefaultAsync(t => t.TopicName.Contains(topicName, StringComparison.OrdinalIgnoreCase));
+            .FirstOrDefaultAsync(t => EF.Functions.ILike(t.TopicName, topicName));
     }
 
     private static bool HasWordBoundary(string text, string keyword)

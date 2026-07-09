@@ -67,6 +67,7 @@ public class ScholarTrendDbContext : IdentityDbContext<User>
     public DbSet<ApiDataSource> ApiDataSources => Set<ApiDataSource>();
     public DbSet<SyncProposal> SyncProposals => Set<SyncProposal>();
     public DbSet<PendingPaper> PendingPapers => Set<PendingPaper>();
+    public DbSet<PaperPdfFile> PaperPdfFiles => Set<PaperPdfFile>();
 
     #endregion
 
