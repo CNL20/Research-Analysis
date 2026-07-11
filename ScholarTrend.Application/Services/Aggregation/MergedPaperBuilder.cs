@@ -3,92 +3,116 @@ using ScholarTrend.Application.Interfaces.External;
 
 namespace ScholarTrend.Application.Services.Aggregation;
 
+/// <summary>
+/// Merges metadata from multiple bibliographic sources into a single unified
+/// <see cref="ExternalPaperDto"/>.
+///
+/// Field priority is: Crossref > OpenAlex > SemanticScholar > ArXiv.
+/// - For text fields: pick the first non-empty value in priority order (NOT the longest).
+/// - For CitationCount: take the MAX across all sources (more accurate than single-source).
+/// - For PdfUrl: prefer ArXiv > OpenAlex > SemanticScholar (ArXiv PDF URLs are most reliable).
+/// </summary>
 public static class MergedPaperBuilder
 {
     public static ExternalPaperDto? MergeFromSources(
         IReadOnlyDictionary<string, PaperSourceMetadataDto> sources,
         string normalizedDoi)
     {
+        var crossref = GetFound(sources, "crossref");
         var openAlex = GetFound(sources, "openalex");
         var semantic = GetFound(sources, "semantic_scholar");
-        var crossref = GetFound(sources, "crossref");
         var arxiv = GetFound(sources, "arxiv");
 
-        var primary = openAlex ?? semantic ?? crossref ?? arxiv;
-        if (primary == null)
+        if (crossref == null && openAlex == null && semantic == null && arxiv == null)
         {
             return null;
         }
 
-        var title = PickBestText(openAlex?.Title, semantic?.Title, crossref?.Title, arxiv?.Title);
+        var title = PickByPriority(crossref?.Title, openAlex?.Title, semantic?.Title, arxiv?.Title);
         if (string.IsNullOrWhiteSpace(title))
         {
             return null;
         }
 
+        var abstractText = PickByPriority(
+            crossref?.Abstract, openAlex?.Abstract, semantic?.Abstract, arxiv?.Abstract);
+
+        var journal = PickByPriority(crossref?.Journal, openAlex?.Journal, semantic?.Journal);
+
+        var year = PickByPriority(
+            crossref?.Year, openAlex?.Year, semantic?.Year, arxiv?.Year);
+
         var doi = MetadataMapper.NormalizeDoi(
-            openAlex?.Doi ?? semantic?.Doi ?? crossref?.Doi ?? arxiv?.Doi ?? normalizedDoi);
+            crossref?.Doi ?? openAlex?.Doi ?? semantic?.Doi ?? arxiv?.Doi ?? normalizedDoi);
 
-        var externalId = openAlex?.ExternalId
-            ?? semantic?.ExternalId
-            ?? arxiv?.ExternalId
-            ?? crossref?.ExternalId
-            ?? doi;
+        var citationCount = MaxCitation(
+            crossref?.CitationCount, openAlex?.CitationCount, semantic?.CitationCount);
 
-        var source = openAlex != null
-            ? "OpenAlex"
-            : semantic != null
-                ? "SemanticScholar"
-                : arxiv != null
-                    ? "ArXiv"
-                    : "Crossref";
+        var pdfUrl = arxiv?.PdfUrl ?? openAlex?.PdfUrl ?? semantic?.PdfUrl;
+
+        var sourceName = crossref != null
+            ? "Crossref"
+            : openAlex != null
+                ? "OpenAlex"
+                : semantic != null
+                    ? "SemanticScholar"
+                    : "ArXiv";
+
+        var externalId = crossref?.ExternalId
+                       ?? openAlex?.ExternalId
+                       ?? semantic?.ExternalId
+                       ?? arxiv?.ExternalId
+                       ?? doi;
 
         return new ExternalPaperDto
         {
             ExternalId = externalId,
-            Source = source,
-            Title = title,
-            Abstract = PickBestText(openAlex?.Abstract, semantic?.Abstract, arxiv?.Abstract),
-            Year = openAlex?.Year ?? semantic?.Year ?? crossref?.Year ?? arxiv?.Year,
-            CitationCount = MaxCitation(openAlex?.CitationCount, semantic?.CitationCount),
+            Source = sourceName,
+            Title = title!,
+            Abstract = abstractText,
+            Year = year,
+            CitationCount = citationCount,
             Doi = doi,
-            Url = string.IsNullOrWhiteSpace(doi) ? openAlex?.ExternalId : $"https://doi.org/{doi}",
-            Journal = PickBestText(crossref?.Journal, openAlex?.Journal, semantic?.Journal),
-            AuthorNames = PickAuthors(openAlex, semantic, crossref, arxiv),
-            Keywords = MergeKeywords(openAlex, semantic),
-            PdfUrl = arxiv?.PdfUrl ?? openAlex?.PdfUrl
+            Url = !string.IsNullOrWhiteSpace(doi) ? $"https://doi.org/{doi}" : null,
+            Journal = journal,
+            AuthorNames = PickAuthorsByPriority(crossref, openAlex, semantic, arxiv),
+            Keywords = MergeKeywordsByPriority(crossref, openAlex, semantic),
+            PdfUrl = pdfUrl
         };
     }
 
     private static PaperSourceMetadataDto? GetFound(
-        IReadOnlyDictionary<string, PaperSourceMetadataDto> sources,
-        string key)
+        IReadOnlyDictionary<string, PaperSourceMetadataDto> sources, string key)
     {
         return sources.TryGetValue(key, out var value) && value.Found ? value : null;
     }
 
-    private static string? PickBestText(params string?[] values)
+    /// <summary>Q7: pick the first non-null value in priority order (not the longest).</summary>
+    private static string? PickByPriority(params string?[] values)
     {
-        return values
-            .Where(v => !string.IsNullOrWhiteSpace(v))
-            .OrderByDescending(v => v!.Length)
-            .FirstOrDefault();
+        return values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+    }
+
+    private static int? PickByPriority(params int?[] values)
+    {
+        return values.FirstOrDefault(v => v.HasValue);
     }
 
     private static int? MaxCitation(params int?[] values)
     {
-        return values.Where(v => v.HasValue).Select(v => v!.Value).DefaultIfEmpty().Max();
+        var filtered = values.Where(v => v.HasValue).Select(v => v!.Value).ToList();
+        return filtered.Count == 0 ? null : filtered.Max();
     }
 
-    private static List<string> PickAuthors(
+    private static List<string> PickAuthorsByPriority(
+        PaperSourceMetadataDto? crossref,
         PaperSourceMetadataDto? openAlex,
         PaperSourceMetadataDto? semantic,
-        PaperSourceMetadataDto? crossref,
         PaperSourceMetadataDto? arxiv)
     {
-        var candidates = new[] { openAlex?.Authors, semantic?.Authors, crossref?.Authors, arxiv?.Authors }
-            .Where(a => a is { Count: > 0 })
-            .OrderByDescending(a => a!.Count)
+        var candidates = new[] { crossref, openAlex, semantic, arxiv }
+            .Where(s => s?.Authors is { Count: > 0 })
+            .Select(s => s!.Authors)
             .FirstOrDefault();
 
         return candidates?
@@ -98,11 +122,13 @@ public static class MergedPaperBuilder
             .ToList() ?? [];
     }
 
-    private static List<string> MergeKeywords(
+    private static List<string> MergeKeywordsByPriority(
+        PaperSourceMetadataDto? crossref,
         PaperSourceMetadataDto? openAlex,
         PaperSourceMetadataDto? semantic)
     {
-        return (openAlex?.Keywords ?? [])
+        return (crossref?.Keywords ?? [])
+            .Concat(openAlex?.Keywords ?? [])
             .Concat(semantic?.Keywords ?? [])
             .Where(k => !string.IsNullOrWhiteSpace(k))
             .Distinct(StringComparer.OrdinalIgnoreCase)

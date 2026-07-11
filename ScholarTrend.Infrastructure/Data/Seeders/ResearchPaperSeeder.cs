@@ -250,13 +250,24 @@ public static class ResearchPaperSeeder
                 Doi = spec.Doi,
                 Url = $"https://doi.org/{spec.Doi}",
                 PdfUrl = null,
-                ExternalId = $"PAPER-{index + 1:0000}",
-                ExternalSource = "ScholarTrend Seed",
                 CitationCount = spec.CitationCount,
                 Status = Domain.Enums.PaperStatus.Available,
                 CreatedAt = spec.PublicationDate.AddDays(1),
                 UpdatedAt = null,
-                JournalId = journals[spec.JournalIndex].Id
+                JournalId = journals[spec.JournalIndex].Id,
+                PaperSources = new List<PaperSource>
+                {
+                    new()
+                    {
+                        SourceName = "ScholarTrend Seed",
+                        ExternalId = $"PAPER-{index + 1:0000}",
+                        SourceDoi = spec.Doi,
+                        SourceUrl = $"https://doi.org/{spec.Doi}",
+                        SourceCitationCount = spec.CitationCount,
+                        FetchedAt = spec.PublicationDate.AddDays(1),
+                        LastSeenAt = spec.PublicationDate.AddDays(1)
+                    }
+                }
             };
 
             papers.Add(paper);

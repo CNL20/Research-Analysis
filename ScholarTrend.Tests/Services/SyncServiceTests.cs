@@ -95,7 +95,7 @@ public class SyncServiceTests
         syncResult.Status.Should().Be("Completed");
         syncResult.PapersAdded.Should().Be(1);
         syncResult.SyncProposalId.Should().Be(101);
-        _mockPaperImportRepo.Verify(r => r.ImportAsync(It.IsAny<ExternalPaperDto>(), It.IsAny<int?>()), Times.Never);
+        _mockPaperImportRepo.Verify(r => r.ImportAsync(It.IsAny<ExternalPaperDto>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()), Times.Never);
         _mockNotificationService.Verify(n => n.NotifyAdminsPendingSyncAsync(101, 1), Times.Once);
         _mockNotificationService.Verify(n => n.NotifyFollowersForNewPaperAsync(It.IsAny<int>()), Times.Never);
     }
@@ -124,14 +124,14 @@ public class SyncServiceTests
         _mockSyncProposalRepo.Setup(r => r.GetByIdWithPapersAsync(101)).ReturnsAsync(proposal);
         _mockUnitOfWork.Setup(u => u.Journals.GetAllAsync())
             .ReturnsAsync(new List<Journal> { new() { Id = 1 } });
-        _mockPaperImportRepo.Setup(r => r.ImportAsync(It.IsAny<ExternalPaperDto>(), It.IsAny<int?>()))
+        _mockPaperImportRepo.Setup(r => r.ImportAsync(It.IsAny<ExternalPaperDto>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Application.Interfaces.Repositories.ResearchPaperImportResult { IsNew = true, PaperId = 501 });
 
         var result = await _syncService.ApprovePendingSyncAsync(101, "admin-id", new ApproveSyncRequest());
 
         result.Status.Should().Be(SyncProposalStatus.Approved);
         result.PapersApproved.Should().Be(1);
-        _mockPaperImportRepo.Verify(r => r.ImportAsync(It.IsAny<ExternalPaperDto>(), It.IsAny<int?>()), Times.Once);
+        _mockPaperImportRepo.Verify(r => r.ImportAsync(It.IsAny<ExternalPaperDto>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()), Times.Once);
         _mockNotificationService.Verify(n => n.NotifyFollowersForNewPaperAsync(501), Times.Once);
     }
 

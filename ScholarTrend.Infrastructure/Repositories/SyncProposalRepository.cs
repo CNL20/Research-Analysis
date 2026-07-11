@@ -45,7 +45,8 @@ public class SyncProposalRepository : ISyncProposalRepository
     public async Task<bool> IsPaperAlreadyQueuedOrStoredAsync(string externalId, string externalSource)
     {
         var existsInPapers = await _context.ResearchPapers
-            .AnyAsync(p => p.ExternalId == externalId && p.ExternalSource == externalSource);
+            .AnyAsync(p => p.PaperSources.Any(ps =>
+                ps.SourceName == externalSource && ps.ExternalId == externalId));
 
         if (existsInPapers)
         {

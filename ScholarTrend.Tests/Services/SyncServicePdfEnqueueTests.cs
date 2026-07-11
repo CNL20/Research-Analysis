@@ -88,7 +88,7 @@ public class SyncServicePdfEnqueueTests
         };
 
     private void SetupImport(int paperId) =>
-        _mockPaperImportRepo.Setup(r => r.ImportAsync(It.IsAny<ExternalPaperDto>(), It.IsAny<int?>()))
+        _mockPaperImportRepo.Setup(r => r.ImportAsync(It.IsAny<ExternalPaperDto>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ResearchPaperImportResult { IsNew = true, PaperId = paperId });
 
     // ========================================================================

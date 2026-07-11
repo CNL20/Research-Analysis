@@ -12,8 +12,6 @@ public class ResearchPaper
     public string? Doi { get; set; }
     public string? Url { get; set; }
     public string? PdfUrl { get; set; }
-    public string? ExternalId { get; set; }
-    public string? ExternalSource { get; set; }
     public int? CitationCount { get; set; }
     public int ViewCount { get; set; } = 0;
     public PaperStatus Status { get; set; } = PaperStatus.Fetched;
@@ -27,4 +25,5 @@ public class ResearchPaper
     public ICollection<PaperTopic> PaperTopics { get; set; } = [];
     public ICollection<Bookmark> Bookmarks { get; set; } = [];
     public ICollection<FollowedPaper> FollowedPapers { get; set; } = [];
+    public ICollection<PaperSource> PaperSources { get; set; } = [];
 }
