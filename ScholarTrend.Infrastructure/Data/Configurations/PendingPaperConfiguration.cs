@@ -48,6 +48,16 @@ public class PendingPaperConfiguration : IEntityTypeConfiguration<PendingPaper>
         builder.Property(p => p.PdfLicense)
             .HasMaxLength(100);
 
+        builder.Property(p => p.SyncSearchQuery)
+            .HasMaxLength(200);
+
+        builder.Property(p => p.JournalName)
+            .HasMaxLength(300);
+
+        builder.Property(p => p.KeywordsJson)
+            .IsRequired()
+            .HasMaxLength(2000);
+
         builder.HasIndex(p => new { p.ExternalId, p.ExternalSource });
         builder.HasIndex(p => p.Status);
     }

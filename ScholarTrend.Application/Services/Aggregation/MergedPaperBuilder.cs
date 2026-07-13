@@ -48,7 +48,19 @@ public static class MergedPaperBuilder
         var citationCount = MaxCitation(
             crossref?.CitationCount, openAlex?.CitationCount, semantic?.CitationCount);
 
-        var pdfUrl = arxiv?.PdfUrl ?? openAlex?.PdfUrl ?? semantic?.PdfUrl;
+        var pdfUrl = arxiv?.PdfUrl ?? openAlex?.PdfUrl ?? semantic?.PdfUrl ?? crossref?.PdfUrl;
+
+        var url = PickByPriority(crossref?.Url, openAlex?.Url, semantic?.Url, arxiv?.Url)
+            ?? (!string.IsNullOrWhiteSpace(doi) ? $"https://doi.org/{doi}" : null);
+
+        var publicationType = PickByPriority(
+            crossref?.PublicationType, openAlex?.PublicationType, semantic?.PublicationType);
+
+        var pdfAccessType = PickByPriority(
+            arxiv?.PdfAccessType, openAlex?.PdfAccessType, semantic?.PdfAccessType, crossref?.PdfAccessType);
+
+        var pdfLicense = PickByPriority(
+            crossref?.PdfLicense, openAlex?.PdfLicense, semantic?.PdfLicense, arxiv?.PdfLicense);
 
         var sourceName = crossref != null
             ? "Crossref"
@@ -73,11 +85,14 @@ public static class MergedPaperBuilder
             Year = year,
             CitationCount = citationCount,
             Doi = doi,
-            Url = !string.IsNullOrWhiteSpace(doi) ? $"https://doi.org/{doi}" : null,
+            Url = url,
             Journal = journal,
             AuthorNames = PickAuthorsByPriority(crossref, openAlex, semantic, arxiv),
             Keywords = MergeKeywordsByPriority(crossref, openAlex, semantic),
-            PdfUrl = pdfUrl
+            PdfUrl = pdfUrl,
+            PdfAccessType = pdfAccessType,
+            PdfLicense = pdfLicense,
+            PublicationType = publicationType
         };
     }
 

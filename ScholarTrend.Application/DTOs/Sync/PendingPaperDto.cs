@@ -11,6 +11,9 @@ public class PendingPaperDto
     public int? CitationCount { get; set; }
     public string? Doi { get; set; }
     public string? Url { get; set; }
+    public string? Journal { get; set; }
+    public List<string> Keywords { get; set; } = [];
+    public string? SyncSearchQuery { get; set; }
     public List<string> Authors { get; set; } = [];
     public string Status { get; set; } = string.Empty;
     public int? ImportedPaperId { get; set; }

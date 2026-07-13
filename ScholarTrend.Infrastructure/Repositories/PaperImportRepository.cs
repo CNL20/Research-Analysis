@@ -28,17 +28,26 @@ public class PaperImportRepository : IPaperImportRepository
     private readonly ScholarTrendDbContext _context;
     private readonly IArxivDoiResolver _arxivDoi;
     private readonly IEnrichPaperSourcesEnqueuer _enrichEnqueuer;
+    private readonly IPaperKeywordLinkerService _keywordLinker;
+    private readonly IJournalResolver _journalResolver;
+    private readonly IPaperAuthorLinkerService _authorLinker;
     private readonly ILogger<PaperImportRepository> _logger;
 
     public PaperImportRepository(
         ScholarTrendDbContext context,
         IArxivDoiResolver arxivDoi,
         IEnrichPaperSourcesEnqueuer enrichEnqueuer,
+        IPaperKeywordLinkerService keywordLinker,
+        IJournalResolver journalResolver,
+        IPaperAuthorLinkerService authorLinker,
         ILogger<PaperImportRepository> logger)
     {
         _context = context;
         _arxivDoi = arxivDoi;
         _enrichEnqueuer = enrichEnqueuer;
+        _keywordLinker = keywordLinker;
+        _journalResolver = journalResolver;
+        _authorLinker = authorLinker;
         _logger = logger;
     }
 
@@ -96,6 +105,8 @@ public class PaperImportRepository : IPaperImportRepository
         // ============ STEP 3A: Insert new ============
         if (paper == null)
         {
+            var resolvedJournalId = await ResolveJournalIdAsync(external.Journal, journalId, ct);
+
             paper = new ResearchPaper
             {
                 Title = external.Title ?? "(no title)",
@@ -108,7 +119,7 @@ public class PaperImportRepository : IPaperImportRepository
                 Url = external.Url,
                 PdfUrl = external.PdfUrl,
                 CitationCount = external.CitationCount ?? 0,
-                JournalId = journalId,
+                JournalId = resolvedJournalId,
                 Status = PaperStatus.Available,
                 CreatedAt = DateTime.UtcNow,
                 PaperSources = new List<PaperSource>
@@ -123,7 +134,7 @@ public class PaperImportRepository : IPaperImportRepository
                         SourceYear = external.Year,
                         FetchedAt = DateTime.UtcNow,
                         LastSeenAt = DateTime.UtcNow,
-                        RawMetadataJson = System.Text.Json.JsonSerializer.Serialize(external)
+                        RawMetadataJson = SerializeSourceMetadata(external)
                     }
                 }
             };
@@ -131,7 +142,7 @@ public class PaperImportRepository : IPaperImportRepository
             await _context.ResearchPapers.AddAsync(paper, ct);
             await _context.SaveChangesAsync(ct);
 
-            await LinkAuthorsAsync(paper.Id, external.AuthorNames, ct);
+            await _authorLinker.LinkAuthorsAsync(paper.Id, external.AuthorNames, ct);
             await LinkKeywordsAndTopicAsync(paper.Id, external, ct);
 
             // Q5: Enqueue background enrichment to fill in other sources.
@@ -178,7 +189,7 @@ public class PaperImportRepository : IPaperImportRepository
         {
             existingSource.LastSeenAt = DateTime.UtcNow;
             existingSource.SourceCitationCount = external.CitationCount;
-            existingSource.RawMetadataJson = System.Text.Json.JsonSerializer.Serialize(external);
+            existingSource.RawMetadataJson = SerializeSourceMetadata(external);
         }
         else
         {
@@ -192,85 +203,76 @@ public class PaperImportRepository : IPaperImportRepository
                 SourceYear = external.Year,
                 FetchedAt = DateTime.UtcNow,
                 LastSeenAt = DateTime.UtcNow,
-                RawMetadataJson = System.Text.Json.JsonSerializer.Serialize(external)
+                RawMetadataJson = SerializeSourceMetadata(external)
             });
         }
 
+        if (paper.JournalId == null && !string.IsNullOrWhiteSpace(external.Journal))
+        {
+            paper.JournalId = await ResolveJournalIdAsync(external.Journal, null, ct);
+        }
+
         await _context.SaveChangesAsync(ct);
-        await LinkAuthorsAsync(paper.Id, external.AuthorNames, ct);
+        await _authorLinker.LinkAuthorsAsync(paper.Id, external.AuthorNames, ct);
+        await LinkKeywordsAndTopicAsync(paper.Id, external, ct);
 
         return new ResearchPaperImportResult { PaperId = paper.Id, IsNew = false };
     }
 
-    private async Task LinkAuthorsAsync(int paperId, List<string> authorNames, CancellationToken ct)
+    private async Task<int?> ResolveJournalIdAsync(string? journalName, int? fallbackJournalId, CancellationToken ct)
     {
-        var order = 1;
-        foreach (var name in authorNames.Take(5))
+        var resolved = await _journalResolver.ResolveAsync(journalName, ct);
+        if (resolved.HasValue)
         {
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                continue;
-            }
-
-            var author = await _context.Authors.FirstOrDefaultAsync(a => a.Name == name, ct);
-            if (author == null)
-            {
-                author = new Author { Name = name };
-                await _context.Authors.AddAsync(author, ct);
-                await _context.SaveChangesAsync(ct);
-            }
-
-            var exists = await _context.PaperAuthors
-                .AnyAsync(pa => pa.PaperId == paperId && pa.AuthorId == author.Id, ct);
-            if (!exists)
-            {
-                await _context.PaperAuthors.AddAsync(new PaperAuthor
-                {
-                    PaperId = paperId,
-                    AuthorId = author.Id,
-                    AuthorOrder = order++
-                }, ct);
-            }
+            return resolved.Value;
         }
 
-        await _context.SaveChangesAsync(ct);
+        if (fallbackJournalId.HasValue)
+        {
+            return fallbackJournalId;
+        }
+
+        return null;
+    }
+
+    private static string SerializeSourceMetadata(ExternalPaperDto external)
+    {
+        var sourceKey = SourceNameNormalizer.ToMergeKey(external.Source);
+        return System.Text.Json.JsonSerializer.Serialize(MetadataMapper.FromExternal(external, sourceKey));
     }
 
     private async Task LinkKeywordsAndTopicAsync(int paperId, ExternalPaperDto external, CancellationToken ct)
     {
-        var keywords = await _context.Keywords.ToListAsync(ct);
-        var titleLower = external.Title?.ToLowerInvariant() ?? "";
-        var abstractLower = external.Abstract?.ToLowerInvariant() ?? "";
-        var text = $"{titleLower} {abstractLower}";
-        var matched = keywords.Where(k => text.Contains(k.Name.ToLowerInvariant())).Take(3).ToList();
+        await _keywordLinker.LinkFromContextAsync(
+            paperId,
+            external.Title,
+            external.Abstract,
+            external.SyncSearchQuery,
+            external.Keywords,
+            ct);
 
-        foreach (var keyword in matched)
+        var linkedKeywordNames = await _context.PaperKeywords
+            .Where(pk => pk.PaperId == paperId)
+            .Select(pk => pk.Keyword.Name)
+            .ToListAsync(ct);
+
+        var text = $"{external.Title ?? string.Empty} {external.Abstract ?? string.Empty}"
+            .ToLowerInvariant();
+
+        ResearchTopic? topic = null;
+        if (linkedKeywordNames.Count > 0)
         {
-            var exists = await _context.PaperKeywords
-                .AnyAsync(pk => pk.PaperId == paperId && pk.KeywordId == keyword.Id, ct);
-            if (!exists)
-            {
-                await _context.PaperKeywords.AddAsync(new PaperKeyword
-                {
-                    PaperId = paperId,
-                    KeywordId = keyword.Id
-                }, ct);
-            }
+            var topics = await _context.ResearchTopics.ToListAsync(ct);
+            topic = topics.FirstOrDefault(t =>
+                linkedKeywordNames.Any(k =>
+                    t.TopicName.Contains(k, StringComparison.OrdinalIgnoreCase) ||
+                    k.Contains(t.TopicName, StringComparison.OrdinalIgnoreCase)));
         }
-
-        var topic = matched.Count > 0
-            ? await _context.ResearchTopics.FirstOrDefaultAsync(t =>
-                matched.Any(k =>
-                    EF.Functions.ILike(t.TopicName, $"%{k.Name}%") ||
-                    EF.Functions.ILike(k.Name, $"%{t.TopicName}%")), ct)
-            : null;
 
         if (topic == null)
         {
             topic = await MatchTopicByKeywordsAsync(text, ct);
         }
-
-        topic ??= await _context.ResearchTopics.FirstOrDefaultAsync(ct);
 
         if (topic != null)
         {

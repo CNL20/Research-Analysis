@@ -119,9 +119,13 @@ builder.Services.AddScoped<IAdminDashboardService, AdminDashboardService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<ISyncService, SyncService>();
 builder.Services.AddScoped<IPaperImportRepository, PaperImportRepository>();
+builder.Services.AddScoped<IPaperKeywordLinkerService, PaperKeywordLinkerService>();
+builder.Services.AddScoped<IPaperAuthorLinkerService, PaperAuthorLinkerService>();
+builder.Services.AddScoped<IJournalResolver, JournalResolver>();
 builder.Services.AddScoped<IEnrichmentFetcher, EnrichmentFetcher>();
 builder.Services.AddScoped<IEnrichPaperSourcesEnqueuer, EnrichPaperSourcesEnqueuer>();
 builder.Services.AddScoped<EnrichPaperSourcesJob>();
+builder.Services.AddScoped<RecalculateKeywordTrendsJob>();
 builder.Services.AddScoped<IUserFileRepository, UserFileRepository>();
 builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
 builder.Services.AddScoped<IFileService, FileService>();
@@ -249,6 +253,7 @@ if (syncEnabled)
     RecurringJob.AddOrUpdate<ISyncJob>("daily-paper-sync", job => job.RunAsync(), syncCron);
     RecurringJob.AddOrUpdate<TopicInsightExtractionJob>("topic-insight-extraction", job => job.RunExtractionAsync(CancellationToken.None), "*/10 * * * *"); // Run every 10 mins
     RecurringJob.AddOrUpdate<TopicInsightAggregationJob>("topic-insight-aggregation", job => job.RunAggregationAsync(CancellationToken.None), "0 2 * * *"); // Run daily at 2 AM
+    RecurringJob.AddOrUpdate<RecalculateKeywordTrendsJob>("keyword-trend-recalc", job => job.RunAsync(CancellationToken.None), "0 3 * * *"); // Run daily at 3 AM
 }
 
 app.MapControllers();

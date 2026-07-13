@@ -128,6 +128,71 @@ public class NotificationService : INotificationService
         await _unitOfWork.SaveChangesAsync();
     }
 
+    public async Task NotifyAdminsPaperEnrichmentIssueAsync(
+        int paperId,
+        string paperTitle,
+        IReadOnlyList<string> missingFields,
+        IReadOnlyList<string> fetchErrors)
+    {
+        if (missingFields.Count == 0 && fetchErrors.Count == 0)
+        {
+            return;
+        }
+
+        var details = new List<string>();
+        if (missingFields.Count > 0)
+        {
+            details.Add($"Missing: {string.Join(", ", missingFields)}");
+        }
+
+        if (fetchErrors.Count > 0)
+        {
+            details.Add($"Fetch errors: {string.Join("; ", fetchErrors)}");
+        }
+
+        var message =
+            $"Paper \"{paperTitle}\" (#{paperId}) enrichment incomplete. {string.Join(". ", details)}.";
+
+        var admins = await _userManager.GetUsersInRoleAsync(RoleConstants.Admin);
+        foreach (var admin in admins)
+        {
+            await _unitOfWork.Notifications.AddAsync(new Notification
+            {
+                UserId = admin.Id,
+                Title = "Paper enrichment incomplete",
+                Message = message,
+                TargetUrl = $"/papers/{paperId}",
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+
+        await _unitOfWork.SaveChangesAsync();
+    }
+
+    public async Task NotifyAdminsPaperEnrichmentCompleteAsync(
+        int paperId,
+        string paperTitle,
+        int sourceCount)
+    {
+        var message =
+            $"Paper \"{paperTitle}\" (#{paperId}) enrichment completed with full metadata ({sourceCount} source(s)).";
+
+        var admins = await _userManager.GetUsersInRoleAsync(RoleConstants.Admin);
+        foreach (var admin in admins)
+        {
+            await _unitOfWork.Notifications.AddAsync(new Notification
+            {
+                UserId = admin.Id,
+                Title = "Paper enrichment complete",
+                Message = message,
+                TargetUrl = $"/papers/{paperId}",
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+
+        await _unitOfWork.SaveChangesAsync();
+    }
+
     private async Task TryNotifyUserAsync(
         string userId,
         HashSet<string> notifiedUsers,

@@ -55,6 +55,9 @@ public class OpenAlexClient : IOpenAlexClient
                         Doi = w.Doi,
                         Url = w.Id,
                         AuthorNames = w.Authorships?.Select(a => a.Author?.DisplayName ?? "Unknown").ToList() ?? [],
+                        Journal = w.PrimaryLocation?.Source?.DisplayName,
+                        Keywords = w.Keywords?.Select(k => k.DisplayName ?? string.Empty)
+                            .Where(k => !string.IsNullOrWhiteSpace(k)).ToList() ?? [],
                         PdfUrl = pdfUrl,
                         PdfAccessType = pdfUrl is null
                             ? null
@@ -98,7 +101,7 @@ public class OpenAlexClient : IOpenAlexClient
                 return MetadataMapper.NotFound("openalex", "No OpenAlex record found.");
             }
 
-            var pdfUrl = work.OpenAccess?.Url;
+            var pdfUrl = work.OpenAccess?.Url ?? work.PrimaryLocation?.PdfUrl;
             var isOa = work.OpenAccess?.IsOa == true;
             var external = new ExternalPaperDto
             {
@@ -109,7 +112,7 @@ public class OpenAlexClient : IOpenAlexClient
                 Year = work.PublicationYear,
                 CitationCount = work.CitedByCount,
                 Doi = work.Doi,
-                Url = work.Id,
+                Url = work.PrimaryLocation?.LandingPageUrl ?? work.Doi ?? work.Id,
                 Journal = work.PrimaryLocation?.Source?.DisplayName,
                 AuthorNames = work.Authorships?.Select(a => a.Author?.DisplayName ?? "Unknown").ToList() ?? [],
                 Keywords = work.Keywords?.Select(k => k.DisplayName ?? string.Empty).Where(k => !string.IsNullOrWhiteSpace(k)).ToList() ?? [],
@@ -119,7 +122,8 @@ public class OpenAlexClient : IOpenAlexClient
                     : isOa
                         ? PaperDownloadStatus.AccessTypes.OpenAccess
                         : PaperDownloadStatus.AccessTypes.Closed,
-                PdfLicense = work.OpenAccess?.OaStatus
+                PdfLicense = work.OpenAccess?.OaStatus,
+                PublicationType = work.Type
             };
 
             return MetadataMapper.FromExternal(external, "openalex");
@@ -158,6 +162,9 @@ public class OpenAlexClient : IOpenAlexClient
         [JsonPropertyName("doi")]
         public string? Doi { get; set; }
 
+        [JsonPropertyName("type")]
+        public string? Type { get; set; }
+
         [JsonPropertyName("abstract_inverted_index")]
         public Dictionary<string, int[]>? AbstractInvertedIndex { get; set; }
 
@@ -176,6 +183,12 @@ public class OpenAlexClient : IOpenAlexClient
 
     private sealed class OpenAlexLocation
     {
+        [JsonPropertyName("landing_page_url")]
+        public string? LandingPageUrl { get; set; }
+
+        [JsonPropertyName("pdf_url")]
+        public string? PdfUrl { get; set; }
+
         [JsonPropertyName("source")]
         public OpenAlexSource? Source { get; set; }
     }

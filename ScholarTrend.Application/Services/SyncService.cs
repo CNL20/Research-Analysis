@@ -310,7 +310,7 @@ public class SyncService : ISyncService
 
             foreach (var external in newPapersToAdd)
             {
-                proposal.PendingPapers.Add(MapToPendingPaper(external, proposal.Id));
+                proposal.PendingPapers.Add(MapToPendingPaper(external, proposal.Id, searchQuery));
             }
 
             proposal.TotalFetched = proposal.PendingPapers.Count;
@@ -415,14 +415,12 @@ public class SyncService : ISyncService
             throw new InvalidOperationException("No pending papers available to approve.");
         }
 
-        var journals = await _unitOfWork.Journals.GetAllAsync();
-        var defaultJournalId = journals.FirstOrDefault()?.Id;
         var approvedCount = 0;
 
         foreach (var pending in pendingPapers)
         {
             var external = MapToExternalPaper(pending);
-            var result = await _paperImportRepository.ImportAsync(external, defaultJournalId);
+            var result = await _paperImportRepository.ImportAsync(external);
 
             pending.Status = PendingPaperStatus.Approved;
             pending.ImportedPaperId = result.PaperId;
@@ -523,7 +521,15 @@ public class SyncService : ISyncService
         return MapSourceToDto(source);
     }
 
-    private static PendingPaper MapToPendingPaper(ExternalPaperDto external, int proposalId)
+    private static List<string> DeserializeStringList(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            return [];
+
+        return JsonSerializer.Deserialize<List<string>>(json) ?? [];
+    }
+
+    private static PendingPaper MapToPendingPaper(ExternalPaperDto external, int proposalId, string searchQuery)
     {
         return new PendingPaper
         {
@@ -537,6 +543,9 @@ public class SyncService : ISyncService
             Doi = external.Doi,
             Url = external.Url,
             AuthorNamesJson = JsonSerializer.Serialize(external.AuthorNames),
+            KeywordsJson = JsonSerializer.Serialize(external.Keywords),
+            SyncSearchQuery = searchQuery,
+            JournalName = external.Journal,
             Status = PendingPaperStatus.Pending,
             PdfUrl = external.PdfUrl,
             PdfAccessType = external.PdfAccessType,
@@ -546,7 +555,8 @@ public class SyncService : ISyncService
 
     private static ExternalPaperDto MapToExternalPaper(PendingPaper pending)
     {
-        var authors = JsonSerializer.Deserialize<List<string>>(pending.AuthorNamesJson) ?? [];
+        var authors = DeserializeStringList(pending.AuthorNamesJson);
+        var keywords = DeserializeStringList(pending.KeywordsJson);
 
         return new ExternalPaperDto
         {
@@ -558,7 +568,10 @@ public class SyncService : ISyncService
             CitationCount = pending.CitationCount,
             Doi = pending.Doi,
             Url = pending.Url,
+            Journal = pending.JournalName,
             AuthorNames = authors,
+            Keywords = keywords,
+            SyncSearchQuery = pending.SyncSearchQuery,
             PdfUrl = pending.PdfUrl,
             PdfAccessType = pending.PdfAccessType,
             PdfLicense = pending.PdfLicense
@@ -598,7 +611,8 @@ public class SyncService : ISyncService
 
     private static PendingPaperDto MapPendingPaperToDto(PendingPaper pending)
     {
-        var authors = JsonSerializer.Deserialize<List<string>>(pending.AuthorNamesJson) ?? [];
+        var authors = DeserializeStringList(pending.AuthorNamesJson);
+        var keywords = DeserializeStringList(pending.KeywordsJson);
 
         return new PendingPaperDto
         {
@@ -611,6 +625,9 @@ public class SyncService : ISyncService
             CitationCount = pending.CitationCount,
             Doi = pending.Doi,
             Url = pending.Url,
+            Journal = pending.JournalName,
+            Keywords = keywords,
+            SyncSearchQuery = pending.SyncSearchQuery,
             Authors = authors,
             Status = pending.Status,
             ImportedPaperId = pending.ImportedPaperId,

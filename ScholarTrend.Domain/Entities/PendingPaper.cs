@@ -18,6 +18,9 @@ public class PendingPaper
     public string? PdfUrl { get; set; }
     public string? PdfAccessType { get; set; }
     public string? PdfLicense { get; set; }
+    public string? SyncSearchQuery { get; set; }
+    public string? JournalName { get; set; }
+    public string KeywordsJson { get; set; } = "[]";
 
     public SyncProposal SyncProposal { get; set; } = null!;
 }

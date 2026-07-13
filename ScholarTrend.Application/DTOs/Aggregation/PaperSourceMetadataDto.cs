@@ -19,5 +19,8 @@ public class PaperSourceMetadataDto
     public int? CitationCount { get; set; }
     public List<string> Keywords { get; set; } = [];
     public string? PdfUrl { get; set; }
+    public string? PdfAccessType { get; set; }
+    public string? PdfLicense { get; set; }
+    public string? PublicationType { get; set; }
     public string? ArxivId { get; set; }
 }
