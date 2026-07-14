@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Identity;
 using ScholarTrend.Application.Interfaces;
 using ScholarTrend.Application.Interfaces.Services;
 using ScholarTrend.Domain.Entities;
@@ -7,10 +8,12 @@ namespace ScholarTrend.Application.Services;
 public class SubscriptionService : ISubscriptionService
 {
     private readonly IUnitOfWork _unitOfWork;
+    private readonly UserManager<User> _userManager;
 
-    public SubscriptionService(IUnitOfWork unitOfWork)
+    public SubscriptionService(IUnitOfWork unitOfWork, UserManager<User> userManager)
     {
         _unitOfWork = unitOfWork;
+        _userManager = userManager;
     }
 
     public async Task<IEnumerable<SubscriptionPlan>> GetPlansAsync()
@@ -55,8 +58,17 @@ public class SubscriptionService : ISubscriptionService
             await subscriptionRepo.AddAsync(newSub);
         }
 
-        // Change user role/metadata if needed, depending on the system design
-        // Here we just ensure the Subscription entity is correct as requested.
+        // Upgrade user role if plan specifies a target role
+        if (!string.IsNullOrEmpty(plan.TargetRole))
+        {
+            var currentRoles = await _userManager.GetRolesAsync(user);
+            if (!currentRoles.Contains(plan.TargetRole))
+            {
+                // We add the user to the target role
+                await _userManager.AddToRoleAsync(user, plan.TargetRole);
+            }
+        }
+
         await _unitOfWork.SaveChangesAsync();
     }
 }

@@ -13,6 +13,12 @@ public static class SubscriptionPlanSeeder
             var needsUpdate = false;
             foreach (var plan in existingPlans)
             {
+                if (plan.TargetRole == "PremiumUser")
+                {
+                    plan.TargetRole = "Researcher";
+                    needsUpdate = true;
+                }
+
                 if (plan.Name == "Gói Premium (1 Tháng)")
                 {
                     plan.Name = "Premium Plan (1 Month)";
@@ -39,9 +45,9 @@ public static class SubscriptionPlanSeeder
             {
                 Name = "Premium Plan (1 Month)",
                 Code = "PREM_1M",
-                TargetRole = "PremiumUser",
+                TargetRole = "Researcher",
                 PriceVND = 30000,
-                PriceUSD = 1.25m, // Giá tương đối
+                PriceUSD = 1.25m, // Relative price
                 DurationDays = 30,
                 TrialDays = 0,
                 IsActive = true,
@@ -52,8 +58,8 @@ public static class SubscriptionPlanSeeder
             {
                 Name = "Premium Plan (1 Year)",
                 Code = "PREM_1Y",
-                TargetRole = "PremiumUser",
-                PriceVND = 324000, // 30k * 12 tháng - 10% discount = 324k
+                TargetRole = "Researcher",
+                PriceVND = 324000, // 30k * 12 months - 10% discount = 324k
                 PriceUSD = 13.5m,
                 DurationDays = 365,
                 TrialDays = 0,
