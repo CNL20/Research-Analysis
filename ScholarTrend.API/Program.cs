@@ -10,6 +10,7 @@ using Microsoft.OpenApi.Models;
 using ScholarTrend.API.Filters;
 using ScholarTrend.Application.Interfaces;
 using ScholarTrend.Application.Interfaces.Repositories;
+using ScholarTrend.Application.Interfaces.Services;
 using ScholarTrend.Application.Services;
 using ScholarTrend.Application.Validators;
 using ScholarTrend.Domain.Entities;
@@ -19,6 +20,7 @@ using ScholarTrend.Infrastructure.ExternalApis;
 using ScholarTrend.Infrastructure.Jobs;
 using ScholarTrend.Infrastructure.Repositories;
 using ScholarTrend.Infrastructure.Storage;
+using ScholarTrend.Infrastructure.Services;
 using ScholarTrend.Application.Interfaces.External;
 using ScholarTrend.Application.DTOs.Common;
 using ScholarTrend.Application.Options;
@@ -118,15 +120,23 @@ builder.Services.AddScoped<ITrendRepository, TrendRepository>();
 builder.Services.AddScoped<IStatisticsRepository, StatisticsRepository>();
 builder.Services.AddScoped<ITrendService, TrendService>();
 builder.Services.AddScoped<IFollowService, FollowService>();
+builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
+builder.Services.AddScoped<IFileService, FileService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+
+// Payment & Subscriptions
+builder.Services.AddSingleton<IPaymentProvider, PayOSPaymentProvider>();
+builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
+builder.Services.AddScoped<IPaymentService, PaymentService>();
+
+// Extration Jobs
+builder.Services.AddScoped<IAiExtractionService, GeminiExtractionService>();
 builder.Services.AddScoped<IAdminDashboardService, AdminDashboardService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<ISyncService, SyncService>();
 builder.Services.AddScoped<IPaperImportRepository, PaperImportRepository>();
 builder.Services.AddScoped<IUserFileRepository, UserFileRepository>();
-builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
-builder.Services.AddScoped<IFileService, FileService>();
 builder.Services.Configure<FileUploadSettings>(builder.Configuration.GetSection("FileUpload"));
 builder.Services.Configure<FormOptions>(options =>
 {
