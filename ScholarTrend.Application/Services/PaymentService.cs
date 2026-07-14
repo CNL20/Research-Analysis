@@ -70,8 +70,10 @@ public class PaymentService : IPaymentService
             return false;
         }
 
-        var transactionId = (int)verificationResult.OrderCode;
-        var transaction = await _unitOfWork.Context.Set<PaymentTransaction>().FindAsync(transactionId);
+        var orderCodeStr = verificationResult.OrderCode.ToString();
+        var transaction = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+            _unitOfWork.Context.Set<PaymentTransaction>(),
+            t => t.ProviderTransactionId == orderCodeStr);
 
         if (transaction == null) return false;
 
