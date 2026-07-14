@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -10,25 +10,20 @@ namespace ScholarTrend.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AlterColumn<int>(
+            migrationBuilder.AddColumn<int>(
                 name: "ViewCount",
                 table: "ResearchPapers",
                 type: "integer",
                 nullable: false,
-                oldClrType: typeof(int),
-                oldType: "int");
+                defaultValue: 0);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AlterColumn<int>(
+            migrationBuilder.DropColumn(
                 name: "ViewCount",
-                table: "ResearchPapers",
-                type: "int",
-                nullable: false,
-                oldClrType: typeof(int),
-                oldType: "integer");
+                table: "ResearchPapers");
         }
     }
 }
