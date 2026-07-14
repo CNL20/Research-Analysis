@@ -34,6 +34,25 @@ var builder = WebApplication.CreateBuilder(args);
 
 // 1. Database
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
+// Convert Render PostgreSQL URI (postgres://user:pass@host/db) to standard connection string
+if (!string.IsNullOrEmpty(connectionString) && connectionString.StartsWith("postgres://"))
+{
+    var uri = new Uri(connectionString);
+    var userInfo = uri.UserInfo.Split(':');
+    var builderDb = new Npgsql.NpgsqlConnectionStringBuilder
+    {
+        Host = uri.Host,
+        Port = uri.Port > 0 ? uri.Port : 5432,
+        Database = uri.LocalPath.TrimStart('/'),
+        Username = userInfo[0],
+        Password = userInfo.Length > 1 ? userInfo[1] : "",
+        SslMode = Npgsql.SslMode.Require,
+        TrustServerCertificate = true
+    };
+    connectionString = builderDb.ConnectionString;
+}
+
 builder.Services.AddDbContext<ScholarTrendDbContext>(options =>
     options.UseNpgsql(connectionString));
 
