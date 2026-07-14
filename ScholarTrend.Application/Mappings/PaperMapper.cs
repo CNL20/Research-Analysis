@@ -1,4 +1,5 @@
 using ScholarTrend.Application.DTOs.Papers;
+using ScholarTrend.Application.DTOs.Topics;
 using ScholarTrend.Domain.Entities;
 
 namespace ScholarTrend.Application.Mappings;
@@ -54,7 +55,11 @@ public static class PaperMapper
                 Affiliation = pa.Author.Affiliation
             }).ToList(),
             Keywords = paper.PaperKeywords.Select(pk => pk.Keyword.Name).ToList(),
-            Topics = paper.PaperTopics.Select(pt => pt.Topic.TopicName).ToList(),
+            Topics = paper.PaperTopics.Select(pt => new TopicBriefDto
+            {
+                Id = pt.TopicId,
+                Name = pt.Topic.TopicName
+            }).ToList(),
             IsBookmarked = isBookmarked
         };
     }

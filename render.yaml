@@ -1,0 +1,31 @@
+databases:
+  - name: scholartrend-db
+    databaseName: scholartrenddb
+    user: postgres
+    plan: free
+    region: singapore
+
+services:
+  - type: web
+    name: scholartrend-api
+    env: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    envVars:
+      - key: ConnectionStrings__DefaultConnection
+        fromDatabase:
+          name: scholartrend-db
+          property: connectionString
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: Authentication__Jwt__SecretKey
+        generateValue: true
+      # Chỗ này bạn có thể bổ sung các key của PayOS sau khi tạo tài khoản
+      # - key: PayOS__ClientId
+      #   value: your-client-id
+      # - key: PayOS__ApiKey
+      #   value: your-api-key
+      # - key: PayOS__ChecksumKey
+      #   value: your-checksum-key
