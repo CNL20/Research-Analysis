@@ -35,22 +35,39 @@ var builder = WebApplication.CreateBuilder(args);
 // 1. Database
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
-// Convert Render PostgreSQL URI (postgres:// or postgresql://) to standard connection string
-if (!string.IsNullOrEmpty(connectionString) && (connectionString.StartsWith("postgres://") || connectionString.StartsWith("postgresql://")))
+// Parse connection string (handles Render URLs or ADO.NET formats)
+if (!string.IsNullOrEmpty(connectionString))
 {
-    var uri = new Uri(connectionString);
-    var userInfo = uri.UserInfo.Split(':');
-    var builderDb = new Npgsql.NpgsqlConnectionStringBuilder
+    connectionString = connectionString.Trim('"', '\'', ' ');
+    if (connectionString.Contains("://"))
     {
-        Host = uri.Host,
-        Port = uri.Port > 0 ? uri.Port : 5432,
-        Database = uri.LocalPath.TrimStart('/'),
-        Username = userInfo.Length > 0 ? userInfo[0] : "",
-        Password = userInfo.Length > 1 ? userInfo[1] : "",
-        SslMode = Npgsql.SslMode.Require,
-        TrustServerCertificate = true
-    };
-    connectionString = builderDb.ConnectionString;
+        try
+        {
+            var uri = new Uri(connectionString);
+            var userInfo = uri.UserInfo.Split(':');
+            var builderDb = new Npgsql.NpgsqlConnectionStringBuilder
+            {
+                Host = uri.Host,
+                Port = uri.Port > 0 ? uri.Port : 5432,
+                Database = uri.LocalPath.TrimStart('/'),
+                Username = userInfo.Length > 0 ? userInfo[0] : "",
+                Password = userInfo.Length > 1 ? userInfo[1] : "",
+                SslMode = Npgsql.SslMode.Require,
+                TrustServerCertificate = true
+            };
+            connectionString = builderDb.ConnectionString;
+        }
+        catch (Exception ex)
+        {
+            var prefix = connectionString.Length > 15 ? connectionString.Substring(0, 15) : connectionString;
+            throw new Exception($"[DEBUG] Failed to parse URI. Starts with: '{prefix}'. Error: {ex.Message}");
+        }
+    }
+    else if (!connectionString.Contains("="))
+    {
+        var prefix = connectionString.Length > 15 ? connectionString.Substring(0, 15) : connectionString;
+        throw new Exception($"[DEBUG] Connection string is invalid format. Starts with: '{prefix}'");
+    }
 }
 
 builder.Services.AddDbContext<ScholarTrendDbContext>(options =>
