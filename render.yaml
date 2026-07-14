@@ -22,6 +22,20 @@ services:
         value: Production
       - key: Authentication__Jwt__SecretKey
         generateValue: true
+      - key: GoogleAuth__ClientId
+        value: "YOUR_GOOGLE_CLIENT_ID"
+      - key: GoogleAuth__ClientSecret
+        value: "YOUR_GOOGLE_CLIENT_SECRET"
+      - key: EmailSettings__SenderName
+        value: ScholarTrend
+      - key: EmailSettings__SenderEmail
+        value: chunhatlam2004@gmail.com
+      - key: EmailSettings__ApiKey
+        value: "YOUR_BREVO_API_KEY"
+      - key: ClientSettings__ClientUrl
+        value: "YOUR_FRONTEND_URL" # TODO: Đổi thành URL Frontend thật trên Render sau khi deploy FE
+      - key: GeminiAI__ApiKey
+        value: "YOUR_GEMINI_API_KEY"
       # Chỗ này bạn có thể bổ sung các key của PayOS sau khi tạo tài khoản
       # - key: PayOS__ClientId
       #   value: your-client-id
