@@ -35,7 +35,7 @@ var builder = WebApplication.CreateBuilder(args);
 // 1. Database
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
-if (!string.IsNullOrEmpty(connectionString) && connectionString.StartsWith("postgres://"))
+if (!string.IsNullOrEmpty(connectionString) && (connectionString.StartsWith("postgres://") || connectionString.StartsWith("postgresql://")))
 {
     var uri = new Uri(connectionString);
     var userInfo = uri.UserInfo.Split(':');
