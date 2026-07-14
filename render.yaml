@@ -1,7 +1,7 @@
 databases:
   - name: scholartrend-db
     databaseName: scholartrenddb
-    user: postgres
+    user: scholartrend_user
     plan: free
     region: singapore
 
