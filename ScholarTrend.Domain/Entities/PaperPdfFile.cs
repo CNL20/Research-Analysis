@@ -22,5 +22,12 @@ public class PaperPdfFile
     public DateTime? CompletedAt { get; set; }
     public int AttemptCount { get; set; }
 
+    // --- PDF Text Extraction & Analysis Cache ---
+    public string? ExtractedText { get; set; }
+    public DateTime? ExtractedAt { get; set; }
+    public string? AnalysisResultJson { get; set; }
+    public string? AnalysisError { get; set; }
+    public string AnalysisStatus { get; set; } = PdfAnalysisStatus.Pending;
+
     public ResearchPaper ResearchPaper { get; set; } = null!;
 }

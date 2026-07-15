@@ -4,7 +4,10 @@ using Microsoft.AspNetCore.Mvc;
 using ScholarTrend.Application.DTOs.Aggregation;
 using ScholarTrend.Application.DTOs.Common;
 using ScholarTrend.Application.DTOs.Papers;
+using ScholarTrend.Application.DTOs.TopicInsights;
 using ScholarTrend.Application.Interfaces;
+using ScholarTrend.Application.Interfaces.External;
+using ScholarTrend.Domain.Constants;
 
 namespace ScholarTrend.API.Controllers;
 
@@ -15,11 +18,16 @@ public class PapersController : ControllerBase
 {
     private readonly IPaperService _paperService;
     private readonly IPaperAggregationService _paperAggregationService;
+    private readonly IPdfAnalysisService _pdfAnalysisService;
 
-    public PapersController(IPaperService paperService, IPaperAggregationService paperAggregationService)
+    public PapersController(
+        IPaperService paperService,
+        IPaperAggregationService paperAggregationService,
+        IPdfAnalysisService pdfAnalysisService)
     {
         _paperService = paperService;
         _paperAggregationService = paperAggregationService;
+        _pdfAnalysisService = pdfAnalysisService;
     }
 
     /// <summary>
@@ -98,6 +106,53 @@ public class PapersController : ControllerBase
         catch (InvalidOperationException ex)
         {
             return NotFound(ApiResponse<object>.FailResponse(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Analyze a paper using AI to extract limitations, gap-statements, and future work from its PDF.
+    /// Reads the PDF directly for richer analysis. Falls back to "PDF không tồn tại" / "PDF gặp trục trặc".
+    /// Only available to Researcher and Admin roles (premium feature).
+    /// </summary>
+    [Authorize(Roles = $"{RoleConstants.Admin},{RoleConstants.Researcher}")]
+    [HttpPost("{id:int}/analyze")]
+    public async Task<ActionResult<ApiResponse<PaperAnalysisResultDto>>> AnalyzePaper(int id)
+    {
+        try
+        {
+            var extraction = await _pdfAnalysisService.AnalyzePdfAsync(id);
+
+            if (extraction == null)
+            {
+                var paperCheck = await _paperService.GetByIdAsync(id, GetUserId());
+                if (paperCheck == null)
+                    return NotFound(ApiResponse<PaperAnalysisResultDto>.FailResponse("Paper not found."));
+
+                if (string.IsNullOrWhiteSpace(paperCheck.PdfUrl))
+                    return BadRequest(ApiResponse<PaperAnalysisResultDto>.FailResponse("PDF không tồn tại"));
+
+                return StatusCode(503,
+                    ApiResponse<PaperAnalysisResultDto>.FailResponse("PDF gặp trục trặc. Vui lòng thử lại sau."));
+            }
+
+            var paper = await _paperService.GetByIdAsync(id, GetUserId());
+
+            var result = new PaperAnalysisResultDto
+            {
+                PaperId = id,
+                Title = paper?.Title ?? "",
+                Limitations = extraction.Limitations,
+                GapStatements = extraction.FutureWork,
+                FutureWork = extraction.FutureWork,
+                WasInferred = extraction.Limitations.Any(l => l.Contains("[AI Inferred]")) ||
+                              extraction.FutureWork.Any(f => f.Contains("[AI Inferred]"))
+            };
+
+            return Ok(ApiResponse<PaperAnalysisResultDto>.SuccessResponse(result, "Paper analyzed successfully."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ApiResponse<PaperAnalysisResultDto>.FailResponse(ex.Message));
         }
     }
 

@@ -167,6 +167,7 @@ builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Emai
 builder.Services.AddHttpClient<IEmailService, EmailService>();
 builder.Services.AddScoped<IPaperAggregationService, PaperAggregationService>();
 builder.Services.AddHttpClient<IAiExtractionService, GeminiExtractionService>();
+builder.Services.AddScoped<IPdfAnalysisService, GeminiPdfAnalysisService>();
 
 builder.Services.AddHttpClient<ISemanticScholarClient, SemanticScholarClient>();
 builder.Services.AddHttpClient<IOpenAlexClient, OpenAlexClient>();
