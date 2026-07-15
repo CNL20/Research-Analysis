@@ -16,6 +16,9 @@ public static class DatabaseSeeder
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
         var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
+        // Always try to seed subscription plans (it has its own AnyAsync check)
+        await SubscriptionPlanSeeder.SeedAsync(context);
+
         var hasAnyData = await context.Users.AnyAsync()
             || await context.Journals.AnyAsync()
             || await context.Authors.AnyAsync()

@@ -12,8 +12,8 @@ using ScholarTrend.Infrastructure.Data;
 namespace ScholarTrend.Infrastructure.Migrations
 {
     [DbContext(typeof(ScholarTrendDbContext))]
-    [Migration("20260702061459_AddViewCountToResearchPaper")]
-    partial class AddViewCountToResearchPaper
+    [Migration("20260714125956_SyncModelChanges")]
+    partial class SyncModelChanges
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

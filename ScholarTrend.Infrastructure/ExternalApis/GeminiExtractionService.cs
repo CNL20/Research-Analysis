@@ -36,6 +36,10 @@ public class GeminiExtractionService : IAiExtractionService
         var prompt = $@"
 You are an expert AI academic researcher. 
 Read the following paper abstract and extract the core methodologies (methods), datasets used (if any), limitations mentioned, and future work/research directions proposed.
+IMPORTANT: 
+1. If the abstract does not explicitly state future work, YOU MUST logically INFER at least one potential future research direction based on the paper's methods or limitations. Do not leave 'future_work' empty.
+2. If the abstract does not explicitly name a dataset, INFER the general type of data or data domain being used (e.g., 'clinical text data', 'satellite imagery', 'sensor data'). Do not leave 'datasets' empty if the paper involves empirical research.
+3. CRITICAL: For any item (in methods, datasets, limitations, or future_work) that you INFERRED (meaning it was not explicitly stated in the text), you MUST append the exact string ' [AI Inferred]' to the end of that item's text.
 
 Abstract:
 """"""{abstractText}""""""

@@ -10,6 +10,7 @@ using Microsoft.OpenApi.Models;
 using ScholarTrend.API.Filters;
 using ScholarTrend.Application.Interfaces;
 using ScholarTrend.Application.Interfaces.Repositories;
+using ScholarTrend.Application.Interfaces.Services;
 using ScholarTrend.Application.Services;
 using ScholarTrend.Application.Validators;
 using ScholarTrend.Domain.Entities;
@@ -37,6 +38,14 @@ var builder = WebApplication.CreateBuilder(args);
 
 // 1. Database
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
+if (!string.IsNullOrEmpty(connectionString) && (connectionString.StartsWith("postgres://") || connectionString.StartsWith("postgresql://")))
+{
+    var uri = new Uri(connectionString);
+    var userInfo = uri.UserInfo.Split(':');
+    connectionString = $"Host={uri.Host};Port={(uri.Port > 0 ? uri.Port : 5432)};Database={uri.LocalPath.TrimStart('/')};Username={(userInfo.Length > 0 ? userInfo[0] : "")};Password={(userInfo.Length > 1 ? userInfo[1] : "")};SslMode=Require;TrustServerCertificate=true";
+}
+
 builder.Services.AddDbContext<ScholarTrendDbContext>(options =>
     options.UseNpgsql(connectionString));
 
@@ -113,8 +122,18 @@ builder.Services.AddScoped<ITrendRepository, TrendRepository>();
 builder.Services.AddScoped<IStatisticsRepository, StatisticsRepository>();
 builder.Services.AddScoped<ITrendService, TrendService>();
 builder.Services.AddScoped<IFollowService, FollowService>();
+builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
+builder.Services.AddScoped<IFileService, FileService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+
+// Payment & Subscriptions
+builder.Services.AddSingleton<IPaymentProvider, PayOSPaymentProvider>();
+builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
+builder.Services.AddScoped<IPaymentService, PaymentService>();
+
+// Extration Jobs
+builder.Services.AddScoped<IAiExtractionService, GeminiExtractionService>();
 builder.Services.AddScoped<IAdminDashboardService, AdminDashboardService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<ISyncService, SyncService>();
@@ -127,8 +146,6 @@ builder.Services.AddScoped<IEnrichPaperSourcesEnqueuer, EnrichPaperSourcesEnqueu
 builder.Services.AddScoped<EnrichPaperSourcesJob>();
 builder.Services.AddScoped<RecalculateKeywordTrendsJob>();
 builder.Services.AddScoped<IUserFileRepository, UserFileRepository>();
-builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
-builder.Services.AddScoped<IFileService, FileService>();
 builder.Services.AddScoped<IPaperPdfFileRepository, PaperPdfFileRepository>();
 builder.Services.AddSingleton<IPaperPdfChannel, PaperPdfChannel>();
 builder.Services.AddScoped<IPaperPdfEnqueuer, PaperPdfDownloadService>();
