@@ -1,13 +1,15 @@
 using ScholarTrend.Application.DTOs.Follows;
+using ScholarTrend.Application.DTOs.Common;
 
 namespace ScholarTrend.Application.Interfaces;
 
 public interface IFollowService
 {
-    Task<IReadOnlyList<FollowItemDto>> GetFollowedTopicsAsync(string userId);
-    Task<IReadOnlyList<FollowItemDto>> GetFollowedJournalsAsync(string userId);
-    Task<IReadOnlyList<FollowItemDto>> GetFollowedAuthorsAsync(string userId);
-    Task<IReadOnlyList<FollowItemDto>> GetFollowedPapersAsync(string userId);
+    Task<PagedResult<FollowItemDto>> GetFollowedTopicsAsync(string userId, int page = 1, int pageSize = 10);
+    Task<PagedResult<FollowItemDto>> GetFollowedJournalsAsync(string userId, int page = 1, int pageSize = 10);
+    Task<PagedResult<FollowItemDto>> GetFollowedAuthorsAsync(string userId, int page = 1, int pageSize = 10);
+    Task<PagedResult<FollowItemDto>> GetFollowedPapersAsync(string userId, int page = 1, int pageSize = 10);
+    Task<FollowCountsDto> GetFollowCountsAsync(string userId);
     Task<FollowItemDto> FollowTopicAsync(string userId, int topicId);
     Task UnfollowTopicAsync(string userId, int topicId);
     Task<FollowItemDto> FollowJournalAsync(string userId, int journalId);

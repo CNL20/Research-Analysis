@@ -26,20 +26,20 @@ public class DashboardService : IDashboardService
 
     public async Task<PersonalDashboardDto> GetPersonalDashboardAsync(string userId)
     {
-        var bookmarks = await _unitOfWork.Bookmarks.GetUserBookmarksAsync(userId);
-        var followedTopics = await _unitOfWork.Follows.GetUserFollowedTopicsAsync(userId);
-        var followedJournals = await _unitOfWork.Follows.GetUserFollowedJournalsAsync(userId);
+        var (bookmarks, bookmarksCount) = await _unitOfWork.Bookmarks.GetUserBookmarksAsync(userId, 1, 5);
+        var (followedTopics, followedTopicsCount) = await _unitOfWork.Follows.GetUserFollowedTopicsAsync(userId, 1, 5);
+        var (followedJournals, followedJournalsCount) = await _unitOfWork.Follows.GetUserFollowedJournalsAsync(userId, 1, 5);
         var notifications = await _unitOfWork.Notifications.GetUserNotificationsAsync(userId, null, 5);
         var unreadCount = await _unitOfWork.Notifications.GetUnreadCountAsync(userId);
         var topTopics = await _trendService.GetTopTopicsAsync(new DTOs.Trends.TrendFilterRequest { Top = 5 });
 
         return new PersonalDashboardDto
         {
-            BookmarkCount = bookmarks.Count(),
-            FollowedTopicsCount = followedTopics.Count,
-            FollowedJournalsCount = followedJournals.Count,
+            BookmarkCount = bookmarksCount,
+            FollowedTopicsCount = followedTopicsCount,
+            FollowedJournalsCount = followedJournalsCount,
             UnreadNotifications = unreadCount,
-            RecentBookmarks = bookmarks.Take(5).Select(b => new BookmarkDto
+            RecentBookmarks = bookmarks.Select(b => new BookmarkDto
             {
                 Id = b.Id,
                 PaperId = b.PaperId,
