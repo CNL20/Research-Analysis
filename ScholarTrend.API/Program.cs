@@ -133,7 +133,7 @@ builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 
 // Extration Jobs
-builder.Services.AddScoped<IAiExtractionService, GeminiExtractionService>();
+builder.Services.AddScoped<IAiExtractionService, GroqExtractionService>();
 builder.Services.AddScoped<IAdminDashboardService, AdminDashboardService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<ISyncService, SyncService>();
@@ -166,7 +166,7 @@ builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Emai
 // Đăng ký Email Service vào DI Container
 builder.Services.AddHttpClient<IEmailService, EmailService>();
 builder.Services.AddScoped<IPaperAggregationService, PaperAggregationService>();
-builder.Services.AddHttpClient<IAiExtractionService, GeminiExtractionService>();
+builder.Services.AddHttpClient<IAiExtractionService, GroqExtractionService>();
 builder.Services.AddScoped<IPdfAnalysisService, GeminiPdfAnalysisService>();
 
 builder.Services.AddHttpClient<ISemanticScholarClient, SemanticScholarClient>();
