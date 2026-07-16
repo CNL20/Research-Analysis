@@ -12,4 +12,10 @@ public interface INotificationService
     Task<NotificationSettingDto> UpdateSettingsAsync(string userId, NotificationSettingDto request);
     Task NotifyFollowersForNewPaperAsync(int paperId);
     Task NotifyAdminsPendingSyncAsync(int proposalId, int pendingCount);
+    Task NotifyAdminsPaperEnrichmentIssueAsync(
+        int paperId,
+        string paperTitle,
+        IReadOnlyList<string> missingFields,
+        IReadOnlyList<string> fetchErrors);
+    Task NotifyAdminsPaperEnrichmentCompleteAsync(int paperId, string paperTitle, int sourceCount);
 }

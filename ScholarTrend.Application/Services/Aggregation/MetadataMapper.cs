@@ -40,13 +40,31 @@ public static class MetadataMapper
             Title = external.Title,
             Year = external.Year,
             Journal = external.Journal,
+            Url = external.Url,
             Authors = external.AuthorNames,
             Abstract = external.Abstract,
             CitationCount = external.CitationCount,
             Keywords = external.Keywords,
             PdfUrl = pdfUrl,
+            PdfAccessType = external.PdfAccessType,
+            PdfLicense = external.PdfLicense,
+            PublicationType = external.PublicationType,
             ArxivId = arxivId,
         };
+    }
+
+    /// <summary>
+    /// Cached source metadata should be re-fetched when key bibliographic fields are missing.
+    /// </summary>
+    public static bool NeedsRefresh(PaperSourceMetadataDto? cached)
+    {
+        if (cached == null || !cached.Found)
+        {
+            return true;
+        }
+
+        return string.IsNullOrWhiteSpace(cached.Journal)
+            || string.IsNullOrWhiteSpace(cached.PdfUrl);
     }
 
     public static PaperSourceMetadataDto FromInternalPaper(ResearchPaper paper)
@@ -60,6 +78,7 @@ public static class MetadataMapper
             Title = paper.Title,
             Year = paper.PublicationYear,
             Journal = paper.Journal?.Name,
+            Url = paper.Url,
             Authors = paper.PaperAuthors
                 .OrderBy(pa => pa.AuthorOrder)
                 .Select(pa => pa.Author.Name)

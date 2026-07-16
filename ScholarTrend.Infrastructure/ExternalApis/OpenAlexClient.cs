@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using ScholarTrend.Application.DTOs.Aggregation;
 using ScholarTrend.Application.Interfaces.External;
 using ScholarTrend.Application.Services.Aggregation;
+using ScholarTrend.Domain.Constants;
 
 namespace ScholarTrend.Infrastructure.ExternalApis;
 
@@ -27,7 +28,7 @@ public class OpenAlexClient : IOpenAlexClient
     public async Task<IReadOnlyList<ExternalPaperDto>> SearchPapersAsync(string query, int limit = 20)
     {
         var searchTerm = string.IsNullOrWhiteSpace(query) ? _searchQuery : query;
-        var url = $"works?search={Uri.EscapeDataString(searchTerm)}&per-page={limit}";
+        var url = $"works?search={Uri.EscapeDataString(searchTerm)}&per-page={limit}&select=id,display_name,publication_year,cited_by_count,doi,abstract_inverted_index,authorships,primary_location,open_access,keywords";
 
         for (var attempt = 1; attempt <= 3; attempt++)
         {
@@ -39,17 +40,32 @@ public class OpenAlexClient : IOpenAlexClient
                     return [];
                 }
 
-                return response.Results.Select(w => new ExternalPaperDto
+                return response.Results.Select(w =>
                 {
-                    ExternalId = w.Id ?? string.Empty,
-                    Source = "OpenAlex",
-                    Title = w.DisplayName ?? "Untitled",
-                    Abstract = w.AbstractInvertedIndex == null ? null : string.Join(" ", w.AbstractInvertedIndex.Keys),
-                    Year = w.PublicationYear,
-                    CitationCount = w.CitedByCount,
-                    Doi = w.Doi,
-                    Url = w.Id,
-                    AuthorNames = w.Authorships?.Select(a => a.Author?.DisplayName ?? "Unknown").ToList() ?? []
+                    var pdfUrl = w.OpenAccess?.Url;
+                    var isOa = w.OpenAccess?.IsOa == true;
+                    return new ExternalPaperDto
+                    {
+                        ExternalId = w.Id ?? string.Empty,
+                        Source = "OpenAlex",
+                        Title = w.DisplayName ?? "Untitled",
+                        Abstract = w.AbstractInvertedIndex == null ? null : string.Join(" ", w.AbstractInvertedIndex.Keys),
+                        Year = w.PublicationYear,
+                        CitationCount = w.CitedByCount,
+                        Doi = w.Doi,
+                        Url = w.Id,
+                        AuthorNames = w.Authorships?.Select(a => a.Author?.DisplayName ?? "Unknown").ToList() ?? [],
+                        Journal = w.PrimaryLocation?.Source?.DisplayName,
+                        Keywords = w.Keywords?.Select(k => k.DisplayName ?? string.Empty)
+                            .Where(k => !string.IsNullOrWhiteSpace(k)).ToList() ?? [],
+                        PdfUrl = pdfUrl,
+                        PdfAccessType = pdfUrl is null
+                            ? null
+                            : isOa
+                                ? PaperDownloadStatus.AccessTypes.OpenAccess
+                                : PaperDownloadStatus.AccessTypes.Closed,
+                        PdfLicense = null
+                    };
                 }).Where(p => !string.IsNullOrWhiteSpace(p.ExternalId)).ToList();
             }
             catch (Exception ex) when (attempt < 3)
@@ -85,6 +101,8 @@ public class OpenAlexClient : IOpenAlexClient
                 return MetadataMapper.NotFound("openalex", "No OpenAlex record found.");
             }
 
+            var pdfUrl = work.OpenAccess?.Url ?? work.PrimaryLocation?.PdfUrl;
+            var isOa = work.OpenAccess?.IsOa == true;
             var external = new ExternalPaperDto
             {
                 ExternalId = work.Id,
@@ -94,11 +112,18 @@ public class OpenAlexClient : IOpenAlexClient
                 Year = work.PublicationYear,
                 CitationCount = work.CitedByCount,
                 Doi = work.Doi,
-                Url = work.Id,
+                Url = work.PrimaryLocation?.LandingPageUrl ?? work.Doi ?? work.Id,
                 Journal = work.PrimaryLocation?.Source?.DisplayName,
                 AuthorNames = work.Authorships?.Select(a => a.Author?.DisplayName ?? "Unknown").ToList() ?? [],
                 Keywords = work.Keywords?.Select(k => k.DisplayName ?? string.Empty).Where(k => !string.IsNullOrWhiteSpace(k)).ToList() ?? [],
-                PdfUrl = work.OpenAccess?.Url,
+                PdfUrl = pdfUrl,
+                PdfAccessType = pdfUrl is null
+                    ? null
+                    : isOa
+                        ? PaperDownloadStatus.AccessTypes.OpenAccess
+                        : PaperDownloadStatus.AccessTypes.Closed,
+                PdfLicense = work.OpenAccess?.OaStatus,
+                PublicationType = work.Type
             };
 
             return MetadataMapper.FromExternal(external, "openalex");
@@ -137,6 +162,9 @@ public class OpenAlexClient : IOpenAlexClient
         [JsonPropertyName("doi")]
         public string? Doi { get; set; }
 
+        [JsonPropertyName("type")]
+        public string? Type { get; set; }
+
         [JsonPropertyName("abstract_inverted_index")]
         public Dictionary<string, int[]>? AbstractInvertedIndex { get; set; }
 
@@ -155,6 +183,12 @@ public class OpenAlexClient : IOpenAlexClient
 
     private sealed class OpenAlexLocation
     {
+        [JsonPropertyName("landing_page_url")]
+        public string? LandingPageUrl { get; set; }
+
+        [JsonPropertyName("pdf_url")]
+        public string? PdfUrl { get; set; }
+
         [JsonPropertyName("source")]
         public OpenAlexSource? Source { get; set; }
     }
@@ -175,6 +209,12 @@ public class OpenAlexClient : IOpenAlexClient
     {
         [JsonPropertyName("oa_url")]
         public string? Url { get; set; }
+
+        [JsonPropertyName("is_oa")]
+        public bool? IsOa { get; set; }
+
+        [JsonPropertyName("oa_status")]
+        public string? OaStatus { get; set; }
     }
 
     private sealed class OpenAlexAuthorship

@@ -111,7 +111,11 @@ public class ResearchPaperRepository : GenericRepository<ResearchPaper>, IResear
 
     public Task<ResearchPaper?> GetByExternalIdAsync(string externalId, string source)
     {
-        return _dbSet.FirstOrDefaultAsync(p => p.ExternalId == externalId && p.ExternalSource == source);
+        return _dbSet
+            .Include(p => p.PaperSources)
+            .FirstOrDefaultAsync(p =>
+                p.PaperSources.Any(ps =>
+                    ps.SourceName == source && ps.ExternalId == externalId));
     }
 
     public async Task<ResearchPaper?> GetByDoiAsync(string doi)

@@ -17,10 +17,12 @@ using ScholarTrend.Domain.Entities;
 using ScholarTrend.Infrastructure.Data;
 using ScholarTrend.Infrastructure.Data.Seeders;
 using ScholarTrend.Infrastructure.ExternalApis;
+using ScholarTrend.Infrastructure.HostedServices;
 using ScholarTrend.Infrastructure.Jobs;
+using ScholarTrend.Infrastructure.Persistence.Repositories;
 using ScholarTrend.Infrastructure.Repositories;
-using ScholarTrend.Infrastructure.Storage;
 using ScholarTrend.Infrastructure.Services;
+using ScholarTrend.Infrastructure.Storage;
 using ScholarTrend.Application.Interfaces.External;
 using ScholarTrend.Application.DTOs.Common;
 using ScholarTrend.Application.Options;
@@ -131,12 +133,27 @@ builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 
 // Extration Jobs
-builder.Services.AddScoped<IAiExtractionService, GeminiExtractionService>();
+builder.Services.AddScoped<IAiExtractionService, GroqExtractionService>();
 builder.Services.AddScoped<IAdminDashboardService, AdminDashboardService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<ISyncService, SyncService>();
 builder.Services.AddScoped<IPaperImportRepository, PaperImportRepository>();
+builder.Services.AddScoped<IPaperKeywordLinkerService, PaperKeywordLinkerService>();
+builder.Services.AddScoped<IPaperAuthorLinkerService, PaperAuthorLinkerService>();
+builder.Services.AddScoped<IJournalResolver, JournalResolver>();
+builder.Services.AddScoped<IEnrichmentFetcher, EnrichmentFetcher>();
+builder.Services.AddScoped<IEnrichPaperSourcesEnqueuer, EnrichPaperSourcesEnqueuer>();
+builder.Services.AddScoped<EnrichPaperSourcesJob>();
+builder.Services.AddScoped<RecalculateKeywordTrendsJob>();
 builder.Services.AddScoped<IUserFileRepository, UserFileRepository>();
+builder.Services.AddScoped<IPaperPdfFileRepository, PaperPdfFileRepository>();
+builder.Services.AddSingleton<IPaperPdfChannel, PaperPdfChannel>();
+builder.Services.AddScoped<IPaperPdfEnqueuer, PaperPdfDownloadService>();
+builder.Services.AddScoped<IPaperPdfProcessor, PaperPdfDownloadService>();
+builder.Services.AddScoped<IPaperFileStorage, LocalPaperFileStorage>();
+builder.Services.AddHostedService<PaperPdfDownloadWorker>();
+builder.Services.AddHostedService<PaperPdfStartupRecovery>();
+builder.Services.Configure<StorageSettings>(builder.Configuration.GetSection("FileUpload"));
 builder.Services.Configure<FileUploadSettings>(builder.Configuration.GetSection("FileUpload"));
 builder.Services.Configure<FormOptions>(options =>
 {
@@ -149,12 +166,15 @@ builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Emai
 // Đăng ký Email Service vào DI Container
 builder.Services.AddHttpClient<IEmailService, EmailService>();
 builder.Services.AddScoped<IPaperAggregationService, PaperAggregationService>();
-builder.Services.AddHttpClient<IAiExtractionService, GeminiExtractionService>();
+builder.Services.AddHttpClient<IAiExtractionService, GroqExtractionService>();
+builder.Services.AddScoped<IPdfAnalysisService, GeminiPdfAnalysisService>();
 
 builder.Services.AddHttpClient<ISemanticScholarClient, SemanticScholarClient>();
 builder.Services.AddHttpClient<IOpenAlexClient, OpenAlexClient>();
 builder.Services.AddHttpClient<ICrossrefClient, CrossrefClient>();
 builder.Services.AddHttpClient<IArXivClient, ArXivClient>();
+builder.Services.AddHttpClient<IDocumentDownloader, HttpDocumentDownloader>();
+builder.Services.AddHttpClient<IArxivDoiResolver, ArxivDoiResolver>();
 
 builder.Services.AddScoped<ISyncSchedulerService, SyncSchedulerService>();
 builder.Services.AddScoped<ISyncJob, SyncJob>();
@@ -251,6 +271,7 @@ if (syncEnabled)
     RecurringJob.AddOrUpdate<ISyncJob>("daily-paper-sync", job => job.RunAsync(), syncCron);
     RecurringJob.AddOrUpdate<TopicInsightExtractionJob>("topic-insight-extraction", job => job.RunExtractionAsync(CancellationToken.None), "*/10 * * * *"); // Run every 10 mins
     RecurringJob.AddOrUpdate<TopicInsightAggregationJob>("topic-insight-aggregation", job => job.RunAggregationAsync(CancellationToken.None), "0 2 * * *"); // Run daily at 2 AM
+    RecurringJob.AddOrUpdate<RecalculateKeywordTrendsJob>("keyword-trend-recalc", job => job.RunAsync(CancellationToken.None), "0 3 * * *"); // Run daily at 3 AM
 }
 
 app.MapControllers();

@@ -27,6 +27,7 @@ public class SyncService : ISyncService
     private readonly ICrossrefClient _crossrefClient;
     private readonly IArXivClient _arXivClient;
     private readonly INotificationService _notificationService;
+    private readonly IPaperPdfEnqueuer _paperPdfEnqueuer;
     private readonly ILogger<SyncService> _logger;
     private readonly string _defaultSearchQuery;
     private readonly IReadOnlyList<string> _defaultSearchQueries;
@@ -41,6 +42,7 @@ public class SyncService : ISyncService
         ICrossrefClient crossrefClient,
         IArXivClient arXivClient,
         INotificationService notificationService,
+        IPaperPdfEnqueuer paperPdfEnqueuer,
         IConfiguration configuration,
         ILogger<SyncService> logger)
     {
@@ -51,6 +53,7 @@ public class SyncService : ISyncService
         _crossrefClient = crossrefClient;
         _arXivClient = arXivClient;
         _notificationService = notificationService;
+        _paperPdfEnqueuer = paperPdfEnqueuer;
         _logger = logger;
         _defaultSearchQuery = configuration["ExternalApis:SemanticScholar:SearchQuery"] ?? "artificial intelligence";
         _defaultSearchQueries = ReadDefaultSearchQueries(configuration);
@@ -62,7 +65,7 @@ public class SyncService : ISyncService
     {
         var section = configuration.GetSection("SyncSchedule:SearchQueries");
         var values = new List<string>();
-        foreach (var child in section.GetChildren())
+        foreach (var child in section.GetChildren() ?? Enumerable.Empty<IConfigurationSection>())
         {
             var v = child.Value;
             if (!string.IsNullOrWhiteSpace(v))
@@ -307,7 +310,7 @@ public class SyncService : ISyncService
 
             foreach (var external in newPapersToAdd)
             {
-                proposal.PendingPapers.Add(MapToPendingPaper(external, proposal.Id));
+                proposal.PendingPapers.Add(MapToPendingPaper(external, proposal.Id, searchQuery));
             }
 
             proposal.TotalFetched = proposal.PendingPapers.Count;
@@ -412,20 +415,21 @@ public class SyncService : ISyncService
             throw new InvalidOperationException("No pending papers available to approve.");
         }
 
-        var journals = await _unitOfWork.Journals.GetAllAsync();
-        var defaultJournalId = journals.FirstOrDefault()?.Id;
         var approvedCount = 0;
 
         foreach (var pending in pendingPapers)
         {
             var external = MapToExternalPaper(pending);
-            var result = await _paperImportRepository.ImportAsync(external, defaultJournalId);
+            var result = await _paperImportRepository.ImportAsync(external);
 
             pending.Status = PendingPaperStatus.Approved;
             pending.ImportedPaperId = result.PaperId;
             approvedCount++;
 
             await _notificationService.NotifyFollowersForNewPaperAsync(result.PaperId);
+
+            // Nếu paper có PDF URL và thuộc loại tải được (ArXiv hoặc OpenAccess) → enqueue download
+            await TryEnqueuePdfDownloadAsync(external, result.PaperId);
         }
 
         proposal.TotalApproved += approvedCount;
@@ -517,7 +521,15 @@ public class SyncService : ISyncService
         return MapSourceToDto(source);
     }
 
-    private static PendingPaper MapToPendingPaper(ExternalPaperDto external, int proposalId)
+    private static List<string> DeserializeStringList(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            return [];
+
+        return JsonSerializer.Deserialize<List<string>>(json) ?? [];
+    }
+
+    private static PendingPaper MapToPendingPaper(ExternalPaperDto external, int proposalId, string searchQuery)
     {
         return new PendingPaper
         {
@@ -531,13 +543,20 @@ public class SyncService : ISyncService
             Doi = external.Doi,
             Url = external.Url,
             AuthorNamesJson = JsonSerializer.Serialize(external.AuthorNames),
-            Status = PendingPaperStatus.Pending
+            KeywordsJson = JsonSerializer.Serialize(external.Keywords),
+            SyncSearchQuery = searchQuery,
+            JournalName = external.Journal,
+            Status = PendingPaperStatus.Pending,
+            PdfUrl = external.PdfUrl,
+            PdfAccessType = external.PdfAccessType,
+            PdfLicense = external.PdfLicense
         };
     }
 
     private static ExternalPaperDto MapToExternalPaper(PendingPaper pending)
     {
-        var authors = JsonSerializer.Deserialize<List<string>>(pending.AuthorNamesJson) ?? [];
+        var authors = DeserializeStringList(pending.AuthorNamesJson);
+        var keywords = DeserializeStringList(pending.KeywordsJson);
 
         return new ExternalPaperDto
         {
@@ -549,7 +568,13 @@ public class SyncService : ISyncService
             CitationCount = pending.CitationCount,
             Doi = pending.Doi,
             Url = pending.Url,
-            AuthorNames = authors
+            Journal = pending.JournalName,
+            AuthorNames = authors,
+            Keywords = keywords,
+            SyncSearchQuery = pending.SyncSearchQuery,
+            PdfUrl = pending.PdfUrl,
+            PdfAccessType = pending.PdfAccessType,
+            PdfLicense = pending.PdfLicense
         };
     }
 
@@ -586,7 +611,8 @@ public class SyncService : ISyncService
 
     private static PendingPaperDto MapPendingPaperToDto(PendingPaper pending)
     {
-        var authors = JsonSerializer.Deserialize<List<string>>(pending.AuthorNamesJson) ?? [];
+        var authors = DeserializeStringList(pending.AuthorNamesJson);
+        var keywords = DeserializeStringList(pending.KeywordsJson);
 
         return new PendingPaperDto
         {
@@ -599,9 +625,15 @@ public class SyncService : ISyncService
             CitationCount = pending.CitationCount,
             Doi = pending.Doi,
             Url = pending.Url,
+            Journal = pending.JournalName,
+            Keywords = keywords,
+            SyncSearchQuery = pending.SyncSearchQuery,
             Authors = authors,
             Status = pending.Status,
-            ImportedPaperId = pending.ImportedPaperId
+            ImportedPaperId = pending.ImportedPaperId,
+            PdfUrl = pending.PdfUrl,
+            PdfAccessType = pending.PdfAccessType,
+            PdfLicense = pending.PdfLicense
         };
     }
 
@@ -687,5 +719,41 @@ public class SyncService : ISyncService
             LockedAt = lockInfo.AcquiredAt,
             ExpiresAt = lockInfo.ExpiresAt
         };
+    }
+
+    /// <summary>
+    /// Nếu external paper có PDF URL và thuộc loại tải được (ArXiv/OpenAccess) thì enqueue.
+    /// </summary>
+    private async Task TryEnqueuePdfDownloadAsync(ExternalPaperDto external, int researchPaperId)
+    {
+        if (string.IsNullOrWhiteSpace(external.PdfUrl))
+        {
+            return;
+        }
+
+        // Chỉ tải khi paper là từ nguồn cho phép tải
+        var accessType = external.PdfAccessType;
+        if (accessType is not (PaperDownloadStatus.AccessTypes.ArXiv
+                              or PaperDownloadStatus.AccessTypes.OpenAccess))
+        {
+            _logger.LogInformation(
+                "Paper {PaperId} from {Source}: PDF URL available but access type is '{AccessType}' — skipping download",
+                researchPaperId, external.Source, accessType ?? "<null>");
+            return;
+        }
+
+        try
+        {
+            await _paperPdfEnqueuer.EnqueueAsync(
+                externalSource: external.Source,
+                sourceUrl: external.PdfUrl!,
+                researchPaperId: researchPaperId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Failed to enqueue PDF download for paper {PaperId} (source={Source})",
+                researchPaperId, external.Source);
+        }
     }
 }

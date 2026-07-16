@@ -4,6 +4,8 @@ using Microsoft.Extensions.Logging;
 using ScholarTrend.Application.DTOs.Aggregation;
 using ScholarTrend.Application.Interfaces.External;
 using ScholarTrend.Application.Services.Aggregation;
+using ScholarTrend.Application.Services.Keywords;
+using ScholarTrend.Domain.Constants;
 
 namespace ScholarTrend.Infrastructure.ExternalApis;
 
@@ -107,6 +109,12 @@ public class ArXivClient : IArXivClient
                     .Select(a => a.Element(atom + "name")?.Value ?? "Unknown")
                     .ToList();
 
+                var categories = entry.Elements(atom + "category")
+                    .Select(c => c.Attribute("term")?.Value)
+                    .Where(term => !string.IsNullOrWhiteSpace(term))
+                    .Select(term => term!)
+                    .ToList();
+
                 var doi = entry.Element(arxiv + "doi")?.Value;
                 var url = entry.Element(atom + "id")?.Value;
 
@@ -120,7 +128,11 @@ public class ArXivClient : IArXivClient
                     CitationCount = 0,
                     Doi = doi,
                     Url = url,
-                    AuthorNames = authors
+                    AuthorNames = authors,
+                    Keywords = ArxivCategoryMapper.MapCategories(categories).ToList(),
+                    PdfUrl = $"https://arxiv.org/pdf/{arxivId}.pdf",
+                    PdfAccessType = PaperDownloadStatus.AccessTypes.ArXiv,
+                    PdfLicense = "arXiv perpetual non-exclusive"
                 });
             }
 

@@ -4,7 +4,10 @@ namespace ScholarTrend.Application.Interfaces.Repositories;
 
 public interface IPaperImportRepository
 {
-    Task<ResearchPaperImportResult> ImportAsync(ExternalPaperDto external, int? journalId);
+    Task<ResearchPaperImportResult> ImportAsync(
+        ExternalPaperDto external,
+        int? journalId = null,
+        CancellationToken ct = default);
 }
 
 public class ResearchPaperImportResult

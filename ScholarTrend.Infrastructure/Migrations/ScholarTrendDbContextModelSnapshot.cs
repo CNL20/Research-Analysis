@@ -641,6 +641,142 @@ namespace ScholarTrend.Infrastructure.Migrations
                     b.ToTable("PaperKeywords");
                 });
 
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.PaperPdfFile", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AnalysisError")
+                        .HasColumnType("text");
+
+                    b.Property<string>("AnalysisResultJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("AnalysisStatus")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("ContentType")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("EnqueuedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("ExternalSource")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("ExtractedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("ExtractedText")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("LocalRelativePath")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("ResearchPaperId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Sha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<long?>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("SourceUrl")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ResearchPaperId")
+                        .IsUnique();
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("PaperPdfFiles");
+                });
+
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.PaperSource", b =>
+                {
+                    b.Property<int>("PaperId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SourceName")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("ExternalId")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("FetchedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp without time zone")
+                        .HasDefaultValueSql("timezone('utc', now())");
+
+                    b.Property<DateTime>("LastSeenAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp without time zone")
+                        .HasDefaultValueSql("timezone('utc', now())");
+
+                    b.Property<string>("RawMetadataJson")
+                        .HasColumnType("jsonb");
+
+                    b.Property<int?>("SourceCitationCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SourceDoi")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("SourceUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int?>("SourceYear")
+                        .HasColumnType("integer");
+
+                    b.HasKey("PaperId", "SourceName");
+
+                    b.HasIndex("ExternalId")
+                        .HasDatabaseName("IX_PaperSources_ExternalId");
+
+                    b.HasIndex("SourceDoi")
+                        .HasDatabaseName("IX_PaperSources_SourceDoi");
+
+                    b.HasIndex("SourceName")
+                        .HasDatabaseName("IX_PaperSources_SourceName");
+
+                    b.ToTable("PaperSources", (string)null);
+                });
+
             modelBuilder.Entity("ScholarTrend.Domain.Entities.PaperTopic", b =>
                 {
                     b.Property<int>("PaperId")
@@ -834,6 +970,27 @@ namespace ScholarTrend.Infrastructure.Migrations
                     b.Property<int?>("ImportedPaperId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("JournalName")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("KeywordsJson")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("PdfAccessType")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("PdfLicense")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("PdfUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -841,6 +998,10 @@ namespace ScholarTrend.Infrastructure.Migrations
 
                     b.Property<int>("SyncProposalId")
                         .HasColumnType("integer");
+
+                    b.Property<string>("SyncSearchQuery")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
 
                     b.Property<string>("Title")
                         .IsRequired()
@@ -928,14 +1089,6 @@ namespace ScholarTrend.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
-                    b.Property<string>("ExternalId")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("ExternalSource")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
                     b.Property<int?>("JournalId")
                         .HasColumnType("integer");
 
@@ -976,10 +1129,6 @@ namespace ScholarTrend.Infrastructure.Migrations
 
                     b.HasIndex("CreatedAt")
                         .HasDatabaseName("IX_ResearchPaper_CreatedAt");
-
-                    b.HasIndex("ExternalId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_ResearchPaper_ExternalId");
 
                     b.HasIndex("JournalId");
 
@@ -1761,6 +1910,28 @@ namespace ScholarTrend.Infrastructure.Migrations
                     b.Navigation("Paper");
                 });
 
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.PaperPdfFile", b =>
+                {
+                    b.HasOne("ScholarTrend.Domain.Entities.ResearchPaper", "ResearchPaper")
+                        .WithMany()
+                        .HasForeignKey("ResearchPaperId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ResearchPaper");
+                });
+
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.PaperSource", b =>
+                {
+                    b.HasOne("ScholarTrend.Domain.Entities.ResearchPaper", "Paper")
+                        .WithMany("PaperSources")
+                        .HasForeignKey("PaperId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Paper");
+                });
+
             modelBuilder.Entity("ScholarTrend.Domain.Entities.PaperTopic", b =>
                 {
                     b.HasOne("ScholarTrend.Domain.Entities.ResearchPaper", "Paper")
@@ -1988,6 +2159,8 @@ namespace ScholarTrend.Infrastructure.Migrations
                     b.Navigation("PaperAuthors");
 
                     b.Navigation("PaperKeywords");
+
+                    b.Navigation("PaperSources");
 
                     b.Navigation("PaperTopics");
                 });

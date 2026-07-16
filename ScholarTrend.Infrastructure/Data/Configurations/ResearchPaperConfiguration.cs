@@ -28,12 +28,6 @@ public class ResearchPaperConfiguration : IEntityTypeConfiguration<ResearchPaper
         builder.Property(p => p.PdfUrl)
             .HasMaxLength(500);
 
-        builder.Property(p => p.ExternalId)
-            .HasMaxLength(200);
-
-        builder.Property(p => p.ExternalSource)
-            .HasMaxLength(100);
-
         builder.Property(p => p.PublicationYear);
 
         builder.Property(p => p.PublicationDate);
@@ -50,10 +44,6 @@ public class ResearchPaperConfiguration : IEntityTypeConfiguration<ResearchPaper
         builder.Property(p => p.UpdatedAt);
 
         // Indexes - Critical for search & filtering
-        builder.HasIndex(p => p.ExternalId)
-            .IsUnique()
-            .HasDatabaseName("IX_ResearchPaper_ExternalId");
-
         builder.HasIndex(p => p.Title)
             .HasDatabaseName("IX_ResearchPaper_Title");
 
@@ -91,6 +81,11 @@ public class ResearchPaperConfiguration : IEntityTypeConfiguration<ResearchPaper
         builder.HasMany(p => p.Bookmarks)
             .WithOne(b => b.Paper)
             .HasForeignKey(b => b.PaperId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(p => p.PaperSources)
+            .WithOne(ps => ps.Paper)
+            .HasForeignKey(ps => ps.PaperId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

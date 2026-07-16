@@ -13,10 +13,14 @@ public class PaperSourceMetadataDto
     public string? Title { get; set; }
     public int? Year { get; set; }
     public string? Journal { get; set; }
+    public string? Url { get; set; }
     public List<string> Authors { get; set; } = [];
     public string? Abstract { get; set; }
     public int? CitationCount { get; set; }
     public List<string> Keywords { get; set; } = [];
     public string? PdfUrl { get; set; }
+    public string? PdfAccessType { get; set; }
+    public string? PdfLicense { get; set; }
+    public string? PublicationType { get; set; }
     public string? ArxivId { get; set; }
 }

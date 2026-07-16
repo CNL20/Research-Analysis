@@ -33,7 +33,6 @@ public class TopicInsightAggregationJob
         var topicsToProcess = await _dbContext.ResearchTopics
             .Where(t => _dbContext.PaperTopicExtractions.Any(e => e.TopicId == t.Id))
             .Where(t => !_dbContext.TopicInsights.Any(ti => ti.TopicId == t.Id && ti.Year == currentYear))
-            .Take(5)
             .ToListAsync(cancellationToken);
 
         if (!topicsToProcess.Any())
@@ -106,7 +105,27 @@ public class TopicInsightAggregationJob
             var topDatasets = allDatasets.OrderByDescending(x => x.Value).Take(5).Select(x => x.Key).ToList();
 
             // 3. Summarize Opportunities using AI (Phase 3 - Part 2)
-            var aiOpportunities = await _aiExtractionService.SummarizeOpportunitiesAsync(topic.TopicName, allFutureWorks, cancellationToken);
+            // Limit to 15 future works to avoid exceeding free API quotas
+            var limitedFutureWorks = allFutureWorks.Take(15).ToList();
+            var aiOpportunities = await _aiExtractionService.SummarizeOpportunitiesAsync(topic.TopicName, limitedFutureWorks, cancellationToken);
+
+            // 3b. AI Fallback: Generate insights directly if they are missing
+            bool needMethods = !topMethods.Any();
+            bool needDatasets = !topDatasets.Any();
+            bool needOpportunities = aiOpportunities == null || !aiOpportunities.Any();
+
+            if (needMethods || needDatasets || needOpportunities)
+            {
+                _logger.LogInformation("Falling back to AI to generate missing insights for: {Topic}", topic.TopicName);
+                var fallback = await _aiExtractionService.GenerateFallbackInsightsAsync(topic.TopicName, needMethods, needDatasets, needOpportunities, cancellationToken);
+                
+                if (fallback != null)
+                {
+                    if (needMethods && fallback.Methods != null) topMethods = fallback.Methods;
+                    if (needDatasets && fallback.Datasets != null) topDatasets = fallback.Datasets;
+                    if (needOpportunities && fallback.Opportunities != null) aiOpportunities = fallback.Opportunities;
+                }
+            }
             
             // 4. Save to Database
             var newInsight = new TopicInsight
@@ -148,7 +167,9 @@ public class TopicInsightAggregationJob
                 await _dbContext.SaveChangesAsync(cancellationToken);
             }
             
-            await Task.Delay(5000, cancellationToken); // Rate limiting for Gemini AI
+            // Small delay for stability
+            _logger.LogInformation("Waiting 1 second before processing next topic...");
+            await Task.Delay(1000, cancellationToken);
         }
         
         _logger.LogInformation("Finished TopicInsightAggregationJob batch.");

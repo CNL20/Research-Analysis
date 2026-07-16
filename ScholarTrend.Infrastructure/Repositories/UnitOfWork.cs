@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using ScholarTrend.Application.Interfaces;
 using ScholarTrend.Application.Interfaces.Repositories;
 using ScholarTrend.Infrastructure.Data;
+using ScholarTrend.Infrastructure.Persistence.Repositories;
 
 namespace ScholarTrend.Infrastructure.Repositories;
 
@@ -23,6 +24,7 @@ public class UnitOfWork : IUnitOfWork
     private ISyncLogRepository? _syncLogs;
     private ISyncProposalRepository? _syncProposals;
     private IPendingPaperRepository? _pendingPapers;
+    private IPaperPdfFileRepository? _paperPdfFiles;
     private Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? _transaction;
 
     public DbContext Context => _context;
@@ -44,6 +46,7 @@ public class UnitOfWork : IUnitOfWork
     public ISyncLogRepository SyncLogs => _syncLogs ??= new SyncLogRepository(_context);
     public ISyncProposalRepository SyncProposals => _syncProposals ??= new SyncProposalRepository(_context);
     public IPendingPaperRepository PendingPapers => _pendingPapers ??= new PendingPaperRepository(_context);
+    public IPaperPdfFileRepository PaperPdfFiles => _paperPdfFiles ??= new PaperPdfFileRepository(_context);
 
     public async Task<int> SaveChangesAsync()
     {

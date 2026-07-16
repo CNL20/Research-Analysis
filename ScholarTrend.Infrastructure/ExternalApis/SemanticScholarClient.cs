@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using ScholarTrend.Application.DTOs.Aggregation;
 using ScholarTrend.Application.Interfaces.External;
 using ScholarTrend.Application.Services.Aggregation;
+using ScholarTrend.Domain.Constants;
 
 namespace ScholarTrend.Infrastructure.ExternalApis;
 
@@ -30,7 +31,7 @@ public class SemanticScholarClient : ISemanticScholarClient
     {
         var searchTerm = string.IsNullOrWhiteSpace(query) ? _searchQuery : query;
         var take = limit > 0 ? limit : _pageSize;
-        var url = $"paper/search?query={Uri.EscapeDataString(searchTerm)}&limit={take}&fields=title,abstract,year,citationCount,url,externalIds,authors.name";
+        var url = $"paper/search?query={Uri.EscapeDataString(searchTerm)}&limit={take}&fields=title,abstract,year,citationCount,url,externalIds,authors.name,journal,openAccessPdf,s2FieldsOfStudy";
 
         for (var attempt = 1; attempt <= 3; attempt++)
         {
@@ -42,17 +43,26 @@ public class SemanticScholarClient : ISemanticScholarClient
                     return [];
                 }
 
-                return response.Data.Select(p => new ExternalPaperDto
+                return response.Data.Select(p =>
                 {
-                    ExternalId = p.PaperId ?? string.Empty,
-                    Source = "SemanticScholar",
-                    Title = p.Title ?? "Untitled",
-                    Abstract = p.Abstract,
-                    Year = p.Year,
-                    CitationCount = p.CitationCount,
-                    Doi = p.ExternalIds?.Doi,
-                    Url = p.Url,
-                    AuthorNames = p.Authors?.Select(a => a.Name ?? "Unknown").ToList() ?? []
+                    var pdfUrl = p.OpenAccessPdf?.Url;
+                    return new ExternalPaperDto
+                    {
+                        ExternalId = p.PaperId ?? string.Empty,
+                        Source = "SemanticScholar",
+                        Title = p.Title ?? "Untitled",
+                        Abstract = p.Abstract,
+                        Year = p.Year,
+                        CitationCount = p.CitationCount,
+                        Doi = p.ExternalIds?.Doi,
+                        Url = p.Url,
+                        AuthorNames = p.Authors?.Select(a => a.Name ?? "Unknown").ToList() ?? [],
+                        Journal = p.Journal?.Name,
+                        Keywords = MapFieldsOfStudy(p),
+                        PdfUrl = pdfUrl,
+                        PdfAccessType = pdfUrl is null ? null : PaperDownloadStatus.AccessTypes.OpenAccess,
+                        PdfLicense = null
+                    };
                 }).Where(p => !string.IsNullOrWhiteSpace(p.ExternalId)).ToList();
             }
             catch (Exception ex) when (attempt < 3)
@@ -78,7 +88,7 @@ public class SemanticScholarClient : ISemanticScholarClient
             return MetadataMapper.NotFound("semantic_scholar", "DOI is required.");
         }
 
-        var url = $"paper/DOI:{Uri.EscapeDataString(normalizedDoi)}?fields=title,abstract,year,citationCount,url,externalIds,authors.name,journal";
+        var url = $"paper/DOI:{Uri.EscapeDataString(normalizedDoi)}?fields=title,abstract,year,citationCount,url,externalIds,authors.name,journal,openAccessPdf,s2FieldsOfStudy";
 
         try
         {
@@ -88,6 +98,7 @@ public class SemanticScholarClient : ISemanticScholarClient
                 return MetadataMapper.NotFound("semantic_scholar", "No Semantic Scholar record found.");
             }
 
+            var pdfUrl = paper.OpenAccessPdf?.Url;
             var external = new ExternalPaperDto
             {
                 ExternalId = paper.PaperId,
@@ -100,6 +111,10 @@ public class SemanticScholarClient : ISemanticScholarClient
                 Url = paper.Url,
                 Journal = paper.Journal?.Name,
                 AuthorNames = paper.Authors?.Select(a => a.Name ?? "Unknown").ToList() ?? [],
+                Keywords = MapFieldsOfStudy(paper),
+                PdfUrl = pdfUrl,
+                PdfAccessType = pdfUrl is null ? null : PaperDownloadStatus.AccessTypes.OpenAccess,
+                PdfLicense = null
             };
 
             return MetadataMapper.FromExternal(external, "semantic_scholar");
@@ -149,6 +164,37 @@ public class SemanticScholarClient : ISemanticScholarClient
 
         [JsonPropertyName("journal")]
         public SemanticScholarJournal? Journal { get; set; }
+
+        [JsonPropertyName("openAccessPdf")]
+        public SemanticScholarOpenAccessPdf? OpenAccessPdf { get; set; }
+
+        [JsonPropertyName("s2FieldsOfStudy")]
+        public List<SemanticScholarFieldOfStudy>? S2FieldsOfStudy { get; set; }
+    }
+
+    private static List<string> MapFieldsOfStudy(SemanticScholarPaper paper)
+    {
+        return paper.S2FieldsOfStudy?
+            .Select(f => f.Category ?? f.DisplayName)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList() ?? [];
+    }
+
+    private sealed class SemanticScholarFieldOfStudy
+    {
+        [JsonPropertyName("category")]
+        public string? Category { get; set; }
+
+        [JsonPropertyName("displayName")]
+        public string? DisplayName { get; set; }
+    }
+
+    private sealed class SemanticScholarOpenAccessPdf
+    {
+        [JsonPropertyName("url")]
+        public string? Url { get; set; }
     }
 
     private sealed class SemanticScholarJournal

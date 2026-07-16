@@ -9,6 +9,7 @@ using ScholarTrend.Application.Interfaces.Repositories;
 using ScholarTrend.Application.Services;
 using ScholarTrend.Domain.Constants;
 using ScholarTrend.Domain.Entities;
+using System.Threading.Channels;
 
 namespace ScholarTrend.Tests.Services;
 
@@ -22,6 +23,7 @@ public class SyncServiceTests
     private readonly Mock<ICrossrefClient> _mockCrossrefClient;
     private readonly Mock<IArXivClient> _mockArXivClient;
     private readonly Mock<INotificationService> _mockNotificationService;
+    private readonly Mock<IPaperPdfEnqueuer> _mockPaperPdfEnqueuer;
     private readonly Mock<IConfiguration> _mockConfig;
     private readonly Mock<ILogger<SyncService>> _mockLogger;
     private readonly SyncService _syncService;
@@ -36,12 +38,17 @@ public class SyncServiceTests
         _mockCrossrefClient = new Mock<ICrossrefClient>();
         _mockArXivClient = new Mock<IArXivClient>();
         _mockNotificationService = new Mock<INotificationService>();
+        _mockPaperPdfEnqueuer = new Mock<IPaperPdfEnqueuer>();
         _mockConfig = new Mock<IConfiguration>();
         _mockLogger = new Mock<ILogger<SyncService>>();
 
         _mockConfig.Setup(c => c["ExternalApis:SemanticScholar:SearchQuery"]).Returns("artificial intelligence");
+        _mockConfig.Setup(c => c.GetSection("SyncSchedule:SearchQueries"))
+            .Returns(Mock.Of<IConfigurationSection>(s => s.GetChildren() == Enumerable.Empty<IConfigurationSection>()));
 
         _mockUnitOfWork.Setup(u => u.SyncProposals).Returns(_mockSyncProposalRepo.Object);
+        _mockPaperPdfEnqueuer.Setup(s => s.EnqueueAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
         _syncService = new SyncService(
             _mockUnitOfWork.Object,
@@ -51,6 +58,7 @@ public class SyncServiceTests
             _mockCrossrefClient.Object,
             _mockArXivClient.Object,
             _mockNotificationService.Object,
+            _mockPaperPdfEnqueuer.Object,
             _mockConfig.Object,
             _mockLogger.Object
         );
@@ -87,7 +95,7 @@ public class SyncServiceTests
         syncResult.Status.Should().Be("Completed");
         syncResult.PapersAdded.Should().Be(1);
         syncResult.SyncProposalId.Should().Be(101);
-        _mockPaperImportRepo.Verify(r => r.ImportAsync(It.IsAny<ExternalPaperDto>(), It.IsAny<int?>()), Times.Never);
+        _mockPaperImportRepo.Verify(r => r.ImportAsync(It.IsAny<ExternalPaperDto>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()), Times.Never);
         _mockNotificationService.Verify(n => n.NotifyAdminsPendingSyncAsync(101, 1), Times.Once);
         _mockNotificationService.Verify(n => n.NotifyFollowersForNewPaperAsync(It.IsAny<int>()), Times.Never);
     }
@@ -116,14 +124,14 @@ public class SyncServiceTests
         _mockSyncProposalRepo.Setup(r => r.GetByIdWithPapersAsync(101)).ReturnsAsync(proposal);
         _mockUnitOfWork.Setup(u => u.Journals.GetAllAsync())
             .ReturnsAsync(new List<Journal> { new() { Id = 1 } });
-        _mockPaperImportRepo.Setup(r => r.ImportAsync(It.IsAny<ExternalPaperDto>(), It.IsAny<int?>()))
+        _mockPaperImportRepo.Setup(r => r.ImportAsync(It.IsAny<ExternalPaperDto>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Application.Interfaces.Repositories.ResearchPaperImportResult { IsNew = true, PaperId = 501 });
 
         var result = await _syncService.ApprovePendingSyncAsync(101, "admin-id", new ApproveSyncRequest());
 
         result.Status.Should().Be(SyncProposalStatus.Approved);
         result.PapersApproved.Should().Be(1);
-        _mockPaperImportRepo.Verify(r => r.ImportAsync(It.IsAny<ExternalPaperDto>(), It.IsAny<int?>()), Times.Once);
+        _mockPaperImportRepo.Verify(r => r.ImportAsync(It.IsAny<ExternalPaperDto>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()), Times.Once);
         _mockNotificationService.Verify(n => n.NotifyFollowersForNewPaperAsync(501), Times.Once);
     }
 
@@ -226,3 +234,4 @@ public class SyncServiceTests
             .Should().BeEquivalentTo(new[] { "ai", "robotics" });
     }
 }
+
