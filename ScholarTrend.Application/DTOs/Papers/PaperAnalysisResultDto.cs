@@ -13,9 +13,6 @@ public class PaperAnalysisResultDto
     [JsonPropertyName("limitations")]
     public List<string> Limitations { get; set; } = [];
 
-    [JsonPropertyName("gap_statements")]
-    public List<string> GapStatements { get; set; } = [];
-
     [JsonPropertyName("future_work")]
     public List<string> FutureWork { get; set; } = [];
 

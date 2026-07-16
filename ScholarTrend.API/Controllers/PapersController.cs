@@ -110,7 +110,7 @@ public class PapersController : ControllerBase
     }
 
     /// <summary>
-    /// Analyze a paper using AI to extract limitations, gap-statements, and future work from its PDF.
+    /// Analyze a paper using AI to extract limitations and future work from its PDF.
     /// Reads the PDF directly for richer analysis. Falls back to "PDF không tồn tại" / "PDF gặp trục trặc".
     /// Only available to Researcher and Admin roles (premium feature).
     /// </summary>
@@ -142,7 +142,6 @@ public class PapersController : ControllerBase
                 PaperId = id,
                 Title = paper?.Title ?? "",
                 Limitations = extraction.Limitations,
-                GapStatements = extraction.FutureWork,
                 FutureWork = extraction.FutureWork,
                 WasInferred = extraction.Limitations.Any(l => l.Contains("[AI Inferred]")) ||
                               extraction.FutureWork.Any(f => f.Contains("[AI Inferred]"))
