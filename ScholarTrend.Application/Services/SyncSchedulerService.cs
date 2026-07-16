@@ -1,5 +1,6 @@
 using Hangfire;
 using Hangfire.Storage;
+using ScholarTrend.Application.DTOs.Common;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -167,9 +168,10 @@ public class SyncSchedulerService : ISyncSchedulerService
         }
     }
 
-    public Task<List<SyncJobInfoDto>> GetJobHistoryAsync(int limit = 50)
+    public Task<PagedResult<SyncJobInfoDto>> GetJobHistoryAsync(int page = 1, int pageSize = 20)
     {
         var jobs = new List<SyncJobInfoDto>();
+        var totalCount = 0;
 
         try
         {
@@ -179,7 +181,14 @@ public class SyncSchedulerService : ISyncSchedulerService
             var succeededJobs = connection.GetRecurringJobs();
             var succeeded = succeededJobs.Where(j => j.Id == "daily-paper-sync").ToList();
 
-            foreach (var job in succeeded)
+            totalCount = succeeded.Count;
+
+            var paginated = succeeded
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            foreach (var job in paginated)
             {
                 jobs.Add(new SyncJobInfoDto
                 {
@@ -197,7 +206,13 @@ public class SyncSchedulerService : ISyncSchedulerService
             _logger.LogWarning(ex, "Failed to retrieve job history from Hangfire");
         }
 
-        return Task.FromResult(jobs);
+        return Task.FromResult(new PagedResult<SyncJobInfoDto>
+        {
+            Items = jobs,
+            TotalCount = totalCount,
+            Page = page,
+            PageSize = pageSize
+        });
     }
 
     private List<string> GetSearchQueries()

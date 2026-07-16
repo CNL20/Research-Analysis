@@ -6,6 +6,6 @@ public interface ISyncLogRepository
 {
     Task AddAsync(SyncLog log);
     Task<SyncLog?> GetByIdAsync(int id);
-    Task<IReadOnlyList<SyncLog>> GetRecentAsync(int limit = 50);
+    Task<(IReadOnlyList<SyncLog> Items, int TotalCount)> GetRecentAsync(int page = 1, int pageSize = 20);
     void Update(SyncLog log);
 }

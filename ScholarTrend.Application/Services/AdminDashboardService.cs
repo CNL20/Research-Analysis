@@ -31,7 +31,7 @@ public class AdminDashboardService : IAdminDashboardService
     public async Task<AdminDashboardDto> GetAdminDashboardAsync()
     {
         var trendFilter = new TrendFilterRequest { Top = 5 };
-        var syncLogs = await _syncService.GetSyncLogsAsync(5);
+        var syncLogs = await _syncService.GetSyncLogsAsync(1, 5);
         var dataSources = await _syncService.GetDataSourcesAsync();
         var publicationTrend = await _trendService.GetPublicationTrendAsync(trendFilter);
         var topKeywords = await _trendService.GetTopKeywordsAsync(trendFilter);
@@ -47,8 +47,8 @@ public class AdminDashboardService : IAdminDashboardService
             TotalBookmarks = await _statistics.CountBookmarksAsync(),
             TotalFollows = await _statistics.CountFollowsAsync(),
             UsersByRole = await GetUsersByRoleAsync(),
-            LastSync = syncLogs.FirstOrDefault(),
-            RecentSyncLogs = syncLogs.ToList(),
+            LastSync = syncLogs.Items.FirstOrDefault(),
+            RecentSyncLogs = syncLogs.Items.ToList(),
             DataSources = dataSources.ToList(),
             PublicationTrend = publicationTrend.ToList(),
             TopKeywords = topKeywords.ToList()

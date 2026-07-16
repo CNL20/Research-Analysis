@@ -24,12 +24,18 @@ public class SyncLogRepository : ISyncLogRepository
         return _context.SyncLogs.FirstOrDefaultAsync(l => l.Id == id);
     }
 
-    public async Task<IReadOnlyList<SyncLog>> GetRecentAsync(int limit = 50)
+    public async Task<(IReadOnlyList<SyncLog> Items, int TotalCount)> GetRecentAsync(int page = 1, int pageSize = 20)
     {
-        return await _context.SyncLogs
+        var query = _context.SyncLogs;
+        var totalCount = await query.CountAsync();
+
+        var items = await query
             .OrderByDescending(l => l.StartedAt)
-            .Take(limit)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
+
+        return (items, totalCount);
     }
 
     public void Update(SyncLog log)
