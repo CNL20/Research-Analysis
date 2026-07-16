@@ -23,10 +23,11 @@ public class BookmarksController : ControllerBase
     /// Get all bookmarks for the current user.
     /// </summary>
     [HttpGet]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<BookmarkDto>>>> GetBookmarks()
+    public async Task<ActionResult<ApiResponse<PagedResult<BookmarkDto>>>> GetBookmarks(
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
     {
-        var result = await _bookmarkService.GetUserBookmarksAsync(GetUserId());
-        return Ok(ApiResponse<IReadOnlyList<BookmarkDto>>.SuccessResponse(result));
+        var result = await _bookmarkService.GetUserBookmarksAsync(GetUserId(), page, pageSize);
+        return Ok(ApiResponse<PagedResult<BookmarkDto>>.SuccessResponse(result));
     }
 
     /// <summary>

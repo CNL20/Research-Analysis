@@ -94,7 +94,7 @@ public class BookmarkServiceTests
     }
 
     [Fact]
-    public async Task GetUserBookmarksAsync_ShouldReturnListOfPapers()
+    public async Task GetUserBookmarksAsync_ShouldReturnPagedResult()
     {
         var userId = "user-123";
         var bookmarks = new List<Bookmark>
@@ -103,12 +103,13 @@ public class BookmarkServiceTests
             new Bookmark { Paper = new ResearchPaper { Id = 2, Title = "Paper 2" } }
         };
         
-        _mockBookmarkRepo.Setup(x => x.GetUserBookmarksAsync(userId)).ReturnsAsync(bookmarks);
+        _mockBookmarkRepo.Setup(x => x.GetUserBookmarksAsync(userId, It.IsAny<int>(), It.IsAny<int>())).ReturnsAsync((bookmarks, 2));
 
-        var result = await _bookmarkService.GetUserBookmarksAsync(userId);
+        var result = await _bookmarkService.GetUserBookmarksAsync(userId, 1, 10);
 
         result.Should().NotBeNull();
-        result.Should().HaveCount(2);
-        result.First().Title.Should().Be("Paper 1");
+        result.Items.Should().HaveCount(2);
+        result.TotalCount.Should().Be(2);
+        result.Items.First().Title.Should().Be("Paper 1");
     }
 }

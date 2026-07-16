@@ -11,13 +11,19 @@ public class BookmarkRepository : GenericRepository<Bookmark>, IBookmarkReposito
     {
     }
 
-    public async Task<IEnumerable<Bookmark>> GetUserBookmarksAsync(string userId)
+    public async Task<(IEnumerable<Bookmark> Items, int TotalCount)> GetUserBookmarksAsync(string userId, int page = 1, int pageSize = 10)
     {
-        return await _dbSet
+        var query = _dbSet.Where(b => b.UserId == userId);
+        var totalCount = await query.CountAsync();
+
+        var items = await query
             .Include(b => b.Paper).ThenInclude(p => p.Journal)
-            .Where(b => b.UserId == userId)
             .OrderByDescending(b => b.SavedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
+
+        return (items, totalCount);
     }
 
     public async Task<Bookmark?> GetBookmarkAsync(string userId, int paperId)
