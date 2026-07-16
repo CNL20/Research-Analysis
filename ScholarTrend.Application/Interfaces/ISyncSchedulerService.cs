@@ -1,4 +1,5 @@
 using ScholarTrend.Application.DTOs.Sync;
+using ScholarTrend.Application.DTOs.Common;
 
 namespace ScholarTrend.Application.Interfaces;
 
@@ -7,7 +8,7 @@ public interface ISyncSchedulerService
     Task<SyncScheduleDto> GetScheduleConfigAsync();
     Task<SyncScheduleDto> UpdateScheduleConfigAsync(SyncScheduleConfigRequest request);
     Task<ManualSyncResultDto> TriggerManualSyncAsync(string adminUserId, ManualSyncRequest? request = null);
-    Task<List<SyncJobInfoDto>> GetJobHistoryAsync(int limit = 50);
+    Task<PagedResult<SyncJobInfoDto>> GetJobHistoryAsync(int page = 1, int pageSize = 20);
 
     /// <summary>
     /// Returns the list of search queries the scheduler currently considers active

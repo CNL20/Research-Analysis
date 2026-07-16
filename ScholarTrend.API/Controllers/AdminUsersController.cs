@@ -24,11 +24,11 @@ public class AdminUsersController : ControllerBase
     /// List all users with optional filters. Admin only.
     /// </summary>
     [HttpGet]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<UserListItemDto>>>> GetUsers(
+    public async Task<ActionResult<ApiResponse<PagedResult<UserListItemDto>>>> GetUsers(
         [FromQuery] UserFilterRequest filter)
     {
         var users = await _userService.GetUsersAsync(filter);
-        return Ok(ApiResponse<IReadOnlyList<UserListItemDto>>.SuccessResponse(users));
+        return Ok(ApiResponse<PagedResult<UserListItemDto>>.SuccessResponse(users));
     }
 
     /// <summary>

@@ -20,17 +20,19 @@ public class FollowsController : ControllerBase
     }
 
     [HttpGet("topics")]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<FollowItemDto>>>> GetFollowedTopics()
+    public async Task<ActionResult<ApiResponse<PagedResult<FollowItemDto>>>> GetFollowedTopics(
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
     {
-        var result = await _followService.GetFollowedTopicsAsync(GetUserId());
-        return Ok(ApiResponse<IReadOnlyList<FollowItemDto>>.SuccessResponse(result));
+        var result = await _followService.GetFollowedTopicsAsync(GetUserId(), page, pageSize);
+        return Ok(ApiResponse<PagedResult<FollowItemDto>>.SuccessResponse(result));
     }
 
     [HttpGet("journals")]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<FollowItemDto>>>> GetFollowedJournals()
+    public async Task<ActionResult<ApiResponse<PagedResult<FollowItemDto>>>> GetFollowedJournals(
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
     {
-        var result = await _followService.GetFollowedJournalsAsync(GetUserId());
-        return Ok(ApiResponse<IReadOnlyList<FollowItemDto>>.SuccessResponse(result));
+        var result = await _followService.GetFollowedJournalsAsync(GetUserId(), page, pageSize);
+        return Ok(ApiResponse<PagedResult<FollowItemDto>>.SuccessResponse(result));
     }
 
     [HttpPost("topics/{topicId:int}")]
@@ -90,17 +92,19 @@ public class FollowsController : ControllerBase
     }
 
     [HttpGet("authors")]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<FollowItemDto>>>> GetFollowedAuthors()
+    public async Task<ActionResult<ApiResponse<PagedResult<FollowItemDto>>>> GetFollowedAuthors(
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
     {
-        var result = await _followService.GetFollowedAuthorsAsync(GetUserId());
-        return Ok(ApiResponse<IReadOnlyList<FollowItemDto>>.SuccessResponse(result));
+        var result = await _followService.GetFollowedAuthorsAsync(GetUserId(), page, pageSize);
+        return Ok(ApiResponse<PagedResult<FollowItemDto>>.SuccessResponse(result));
     }
 
     [HttpGet("papers")]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<FollowItemDto>>>> GetFollowedPapers()
+    public async Task<ActionResult<ApiResponse<PagedResult<FollowItemDto>>>> GetFollowedPapers(
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
     {
-        var result = await _followService.GetFollowedPapersAsync(GetUserId());
-        return Ok(ApiResponse<IReadOnlyList<FollowItemDto>>.SuccessResponse(result));
+        var result = await _followService.GetFollowedPapersAsync(GetUserId(), page, pageSize);
+        return Ok(ApiResponse<PagedResult<FollowItemDto>>.SuccessResponse(result));
     }
 
     [HttpPost("authors/{authorId:int}")]
@@ -157,6 +161,13 @@ public class FollowsController : ControllerBase
         {
             return NotFound(ApiResponse<object>.FailResponse(ex.Message));
         }
+    }
+
+    [HttpGet("counts")]
+    public async Task<ActionResult<ApiResponse<FollowCountsDto>>> GetFollowCounts()
+    {
+        var result = await _followService.GetFollowCountsAsync(GetUserId());
+        return Ok(ApiResponse<FollowCountsDto>.SuccessResponse(result));
     }
 
     private string GetUserId()

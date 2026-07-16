@@ -1,4 +1,5 @@
 using ScholarTrend.Application.DTOs.Follows;
+using ScholarTrend.Application.DTOs.Common;
 using ScholarTrend.Application.Interfaces;
 using ScholarTrend.Domain.Entities;
 
@@ -13,10 +14,10 @@ public class FollowService : IFollowService
         _unitOfWork = unitOfWork;
     }
 
-    public async Task<IReadOnlyList<FollowItemDto>> GetFollowedTopicsAsync(string userId)
+    public async Task<PagedResult<FollowItemDto>> GetFollowedTopicsAsync(string userId, int page = 1, int pageSize = 10)
     {
-        var follows = await _unitOfWork.Follows.GetUserFollowedTopicsAsync(userId);
-        return follows.Select(f => new FollowItemDto
+        var (follows, totalCount) = await _unitOfWork.Follows.GetUserFollowedTopicsAsync(userId, page, pageSize);
+        var items = follows.Select(f => new FollowItemDto
         {
             Id = f.Id,
             TargetId = f.TopicId,
@@ -24,12 +25,20 @@ public class FollowService : IFollowService
             Type = "topic",
             FollowedAt = f.FollowedAt
         }).ToList();
+
+        return new PagedResult<FollowItemDto>
+        {
+            Items = items,
+            TotalCount = totalCount,
+            Page = page,
+            PageSize = pageSize
+        };
     }
 
-    public async Task<IReadOnlyList<FollowItemDto>> GetFollowedJournalsAsync(string userId)
+    public async Task<PagedResult<FollowItemDto>> GetFollowedJournalsAsync(string userId, int page = 1, int pageSize = 10)
     {
-        var follows = await _unitOfWork.Follows.GetUserFollowedJournalsAsync(userId);
-        return follows.Select(f => new FollowItemDto
+        var (follows, totalCount) = await _unitOfWork.Follows.GetUserFollowedJournalsAsync(userId, page, pageSize);
+        var items = follows.Select(f => new FollowItemDto
         {
             Id = f.Id,
             TargetId = f.JournalId,
@@ -37,6 +46,14 @@ public class FollowService : IFollowService
             Type = "journal",
             FollowedAt = f.FollowedAt
         }).ToList();
+
+        return new PagedResult<FollowItemDto>
+        {
+            Items = items,
+            TotalCount = totalCount,
+            Page = page,
+            PageSize = pageSize
+        };
     }
 
     public async Task<FollowItemDto> FollowTopicAsync(string userId, int topicId)
@@ -131,10 +148,10 @@ public class FollowService : IFollowService
         await _unitOfWork.SaveChangesAsync();
     }
 
-    public async Task<IReadOnlyList<FollowItemDto>> GetFollowedAuthorsAsync(string userId)
+    public async Task<PagedResult<FollowItemDto>> GetFollowedAuthorsAsync(string userId, int page = 1, int pageSize = 10)
     {
-        var follows = await _unitOfWork.Follows.GetUserFollowedAuthorsAsync(userId);
-        return follows.Select(f => new FollowItemDto
+        var (follows, totalCount) = await _unitOfWork.Follows.GetUserFollowedAuthorsAsync(userId, page, pageSize);
+        var items = follows.Select(f => new FollowItemDto
         {
             Id = f.Id,
             TargetId = f.AuthorId,
@@ -142,12 +159,20 @@ public class FollowService : IFollowService
             Type = "author",
             FollowedAt = f.FollowedAt
         }).ToList();
+
+        return new PagedResult<FollowItemDto>
+        {
+            Items = items,
+            TotalCount = totalCount,
+            Page = page,
+            PageSize = pageSize
+        };
     }
 
-    public async Task<IReadOnlyList<FollowItemDto>> GetFollowedPapersAsync(string userId)
+    public async Task<PagedResult<FollowItemDto>> GetFollowedPapersAsync(string userId, int page = 1, int pageSize = 10)
     {
-        var follows = await _unitOfWork.Follows.GetUserFollowedPapersAsync(userId);
-        return follows.Select(f => new FollowItemDto
+        var (follows, totalCount) = await _unitOfWork.Follows.GetUserFollowedPapersAsync(userId, page, pageSize);
+        var items = follows.Select(f => new FollowItemDto
         {
             Id = f.Id,
             TargetId = f.PaperId,
@@ -155,6 +180,30 @@ public class FollowService : IFollowService
             Type = "paper",
             FollowedAt = f.FollowedAt
         }).ToList();
+
+        return new PagedResult<FollowItemDto>
+        {
+            Items = items,
+            TotalCount = totalCount,
+            Page = page,
+            PageSize = pageSize
+        };
+    }
+
+    public async Task<FollowCountsDto> GetFollowCountsAsync(string userId)
+    {
+        var topics = await _unitOfWork.Follows.GetUserFollowedTopicsAsync(userId, 1, 1);
+        var authors = await _unitOfWork.Follows.GetUserFollowedAuthorsAsync(userId, 1, 1);
+        var journals = await _unitOfWork.Follows.GetUserFollowedJournalsAsync(userId, 1, 1);
+        var papers = await _unitOfWork.Follows.GetUserFollowedPapersAsync(userId, 1, 1);
+
+        return new FollowCountsDto
+        {
+            TopicsCount = topics.TotalCount,
+            AuthorsCount = authors.TotalCount,
+            JournalsCount = journals.TotalCount,
+            PapersCount = papers.TotalCount
+        };
     }
 
     public async Task<FollowItemDto> FollowAuthorAsync(string userId, int authorId)

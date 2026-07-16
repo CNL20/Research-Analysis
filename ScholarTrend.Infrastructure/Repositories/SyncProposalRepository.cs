@@ -27,14 +27,21 @@ public class SyncProposalRepository : ISyncProposalRepository
             .FirstOrDefaultAsync(p => p.Id == id);
     }
 
-    public async Task<IReadOnlyList<SyncProposal>> GetPendingProposalsAsync(int limit = 50)
+    public async Task<(IReadOnlyList<SyncProposal> Items, int TotalCount)> GetPendingProposalsAsync(int page = 1, int pageSize = 20)
     {
-        return await _context.SyncProposals
+        var query = _context.SyncProposals
+            .Where(p => p.Status == SyncProposalStatus.Pending || p.Status == SyncProposalStatus.PartiallyApproved);
+
+        var totalCount = await query.CountAsync();
+
+        var items = await query
             .Include(p => p.PendingPapers)
-            .Where(p => p.Status == SyncProposalStatus.Pending || p.Status == SyncProposalStatus.PartiallyApproved)
             .OrderByDescending(p => p.CreatedAt)
-            .Take(limit)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
+
+        return (items, totalCount);
     }
 
     public void Update(SyncProposal proposal)

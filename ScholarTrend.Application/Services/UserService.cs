@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using ScholarTrend.Application.DTOs.Auth;
+using ScholarTrend.Application.DTOs.Common;
+using Microsoft.EntityFrameworkCore;
 using ScholarTrend.Application.Interfaces;
 using ScholarTrend.Domain.Entities;
 
@@ -16,7 +18,7 @@ public class UserService : IUserService
         _roleManager = roleManager;
     }
 
-    public async Task<IReadOnlyList<UserListItemDto>> GetUsersAsync(UserFilterRequest? filter = null)
+    public async Task<PagedResult<UserListItemDto>> GetUsersAsync(UserFilterRequest? filter = null)
     {
         var query = _userManager.Users.AsQueryable();
 
@@ -27,30 +29,43 @@ public class UserService : IUserService
 
         if (!string.IsNullOrWhiteSpace(filter?.Search))
         {
-            var search = filter.Search.Trim();
+            var search = filter.Search.Trim().ToLower();
             query = query.Where(u =>
-                u.FullName.Contains(search) ||
-                (u.Email != null && u.Email.Contains(search)));
+                u.FullName.ToLower().Contains(search) ||
+                (u.Email != null && u.Email.ToLower().Contains(search)));
         }
 
-        var users = query
-            .OrderByDescending(u => u.CreatedAt)
-            .ToList();
+        if (!string.IsNullOrWhiteSpace(filter?.Role))
+        {
+            var usersInRole = await _userManager.GetUsersInRoleAsync(filter.Role);
+            var roleUserIds = usersInRole.Select(u => u.Id).ToList();
+            query = query.Where(u => roleUserIds.Contains(u.Id));
+        }
 
-        var result = new List<UserListItemDto>();
+        var totalCount = await query.CountAsync();
+        var page = filter?.Page ?? 1;
+        var pageSize = filter?.PageSize ?? 20;
+
+        var users = await query
+            .OrderByDescending(u => u.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        var items = new List<UserListItemDto>();
         foreach (var user in users)
         {
             var roles = await _userManager.GetRolesAsync(user);
-            if (!string.IsNullOrWhiteSpace(filter?.Role) &&
-                !roles.Contains(filter.Role, StringComparer.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            result.Add(MapToListItem(user, roles));
+            items.Add(MapToListItem(user, roles));
         }
 
-        return result;
+        return new PagedResult<UserListItemDto>
+        {
+            Items = items,
+            TotalCount = totalCount,
+            Page = page,
+            PageSize = pageSize
+        };
     }
 
     public async Task<UserListItemDto> GetUserByIdAsync(string userId)

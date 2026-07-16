@@ -38,40 +38,64 @@ public class FollowRepository : IFollowRepository
             .FirstOrDefaultAsync(f => f.UserId == userId && f.PaperId == paperId);
     }
 
-    public async Task<IReadOnlyList<FollowedTopic>> GetUserFollowedTopicsAsync(string userId)
+    public async Task<(IReadOnlyList<FollowedTopic> Items, int TotalCount)> GetUserFollowedTopicsAsync(string userId, int page = 1, int pageSize = 10)
     {
-        return await _context.FollowedTopics
+        var query = _context.FollowedTopics.Where(f => f.UserId == userId);
+        var totalCount = await query.CountAsync();
+
+        var items = await query
             .Include(f => f.Topic)
-            .Where(f => f.UserId == userId)
             .OrderByDescending(f => f.FollowedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
+
+        return (items, totalCount);
     }
 
-    public async Task<IReadOnlyList<FollowedJournal>> GetUserFollowedJournalsAsync(string userId)
+    public async Task<(IReadOnlyList<FollowedJournal> Items, int TotalCount)> GetUserFollowedJournalsAsync(string userId, int page = 1, int pageSize = 10)
     {
-        return await _context.FollowedJournals
+        var query = _context.FollowedJournals.Where(f => f.UserId == userId);
+        var totalCount = await query.CountAsync();
+
+        var items = await query
             .Include(f => f.Journal)
-            .Where(f => f.UserId == userId)
             .OrderByDescending(f => f.FollowedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
+
+        return (items, totalCount);
     }
 
-    public async Task<IReadOnlyList<FollowedAuthor>> GetUserFollowedAuthorsAsync(string userId)
+    public async Task<(IReadOnlyList<FollowedAuthor> Items, int TotalCount)> GetUserFollowedAuthorsAsync(string userId, int page = 1, int pageSize = 10)
     {
-        return await _context.FollowedAuthors
+        var query = _context.FollowedAuthors.Where(f => f.UserId == userId);
+        var totalCount = await query.CountAsync();
+
+        var items = await query
             .Include(f => f.Author)
-            .Where(f => f.UserId == userId)
             .OrderByDescending(f => f.FollowedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
+
+        return (items, totalCount);
     }
 
-    public async Task<IReadOnlyList<FollowedPaper>> GetUserFollowedPapersAsync(string userId)
+    public async Task<(IReadOnlyList<FollowedPaper> Items, int TotalCount)> GetUserFollowedPapersAsync(string userId, int page = 1, int pageSize = 10)
     {
-        return await _context.FollowedPapers
+        var query = _context.FollowedPapers.Where(f => f.UserId == userId);
+        var totalCount = await query.CountAsync();
+
+        var items = await query
             .Include(f => f.Paper)
-            .Where(f => f.UserId == userId)
             .OrderByDescending(f => f.FollowedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
+
+        return (items, totalCount);
     }
 
     public async Task AddTopicAsync(FollowedTopic follow)

@@ -23,10 +23,11 @@ public class AdminSyncController : ControllerBase
     }
 
     [HttpGet("pending")]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<SyncProposalListItemDto>>>> GetPendingProposals([FromQuery] int limit = 50)
+    public async Task<ActionResult<ApiResponse<PagedResult<SyncProposalListItemDto>>>> GetPendingProposals(
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
-        var result = await _syncService.GetPendingProposalsAsync(limit);
-        return Ok(ApiResponse<IReadOnlyList<SyncProposalListItemDto>>.SuccessResponse(result));
+        var result = await _syncService.GetPendingProposalsAsync(page, pageSize);
+        return Ok(ApiResponse<PagedResult<SyncProposalListItemDto>>.SuccessResponse(result));
     }
 
     [HttpGet("pending/{id:int}")]
@@ -76,10 +77,11 @@ public class AdminSyncController : ControllerBase
     }
 
     [HttpGet("logs")]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<SyncLogDto>>>> GetLogs([FromQuery] int limit = 50)
+    public async Task<ActionResult<ApiResponse<PagedResult<SyncLogDto>>>> GetLogs(
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
-        var result = await _syncService.GetSyncLogsAsync(limit);
-        return Ok(ApiResponse<IReadOnlyList<SyncLogDto>>.SuccessResponse(result));
+        var result = await _syncService.GetSyncLogsAsync(page, pageSize);
+        return Ok(ApiResponse<PagedResult<SyncLogDto>>.SuccessResponse(result));
     }
 
     [HttpGet("data-sources")]
@@ -142,13 +144,15 @@ public class AdminSyncController : ControllerBase
     {
         var sources = await _syncService.GetDataSourcesAsync();
         var sourceStatuses = sources.Select(s => _syncService.GetSyncLockStatus(s.Name)!).ToList();
-        var recentSyncs = await _syncService.GetSyncLogsAsync(10);
+        
+        // For the overview dashboard, fetch only the first page with 10 items
+        var recentSyncsPaged = await _syncService.GetSyncLogsAsync(1, 10);
 
         var status = new SyncStatusOverviewDto
         {
             IsAnySyncRunning = sourceStatuses.Any(s => s.IsLocked),
             Sources = sourceStatuses,
-            RecentSyncs = recentSyncs.ToList()
+            RecentSyncs = recentSyncsPaged.Items.ToList()
         };
 
         return Ok(ApiResponse<SyncStatusOverviewDto>.SuccessResponse(status));
@@ -172,10 +176,11 @@ public class AdminSyncController : ControllerBase
     /// Get sync job history from Hangfire.
     /// </summary>
     [HttpGet("schedule/history")]
-    public async Task<ActionResult<ApiResponse<List<SyncJobInfoDto>>>> GetJobHistory([FromQuery] int limit = 50)
+    public async Task<ActionResult<ApiResponse<PagedResult<SyncJobInfoDto>>>> GetJobHistory(
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
-        var history = await _syncSchedulerService.GetJobHistoryAsync(limit);
-        return Ok(ApiResponse<List<SyncJobInfoDto>>.SuccessResponse(history));
+        var history = await _syncSchedulerService.GetJobHistoryAsync(page, pageSize);
+        return Ok(ApiResponse<PagedResult<SyncJobInfoDto>>.SuccessResponse(history));
     }
 
     #endregion

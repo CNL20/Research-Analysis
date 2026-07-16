@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using ScholarTrend.Application.DTOs.Common;
 using ScholarTrend.Application.DTOs.Sync;
 using ScholarTrend.Application.Interfaces;
 using ScholarTrend.Application.Interfaces.External;
@@ -370,10 +371,19 @@ public class SyncService : ISyncService
         }
     }
 
-    public async Task<IReadOnlyList<SyncProposalListItemDto>> GetPendingProposalsAsync(int limit = 50)
+    public async Task<PagedResult<SyncProposalListItemDto>> GetPendingProposalsAsync(int page = 1, int pageSize = 20)
     {
-        var proposals = await _unitOfWork.SyncProposals.GetPendingProposalsAsync(limit);
-        return proposals.Select(MapProposalToListItem).ToList();
+        var (proposals, totalCount) = await _unitOfWork.SyncProposals.GetPendingProposalsAsync(page, pageSize);
+
+        var items = proposals.Select(MapProposalToListItem).ToList();
+
+        return new PagedResult<SyncProposalListItemDto>
+        {
+            Items = items,
+            TotalCount = totalCount,
+            Page = page,
+            PageSize = pageSize
+        };
     }
 
     public async Task<SyncProposalDto> GetPendingProposalByIdAsync(int id)
@@ -494,10 +504,19 @@ public class SyncService : ISyncService
         };
     }
 
-    public async Task<IReadOnlyList<SyncLogDto>> GetSyncLogsAsync(int limit = 50)
+    public async Task<PagedResult<SyncLogDto>> GetSyncLogsAsync(int page = 1, int pageSize = 20)
     {
-        var logs = await _unitOfWork.SyncLogs.GetRecentAsync(limit);
-        return logs.Select(MapLogToDto).ToList();
+        var (logs, totalCount) = await _unitOfWork.SyncLogs.GetRecentAsync(page, pageSize);
+
+        var items = logs.Select(MapLogToDto).ToList();
+
+        return new PagedResult<SyncLogDto>
+        {
+            Items = items,
+            TotalCount = totalCount,
+            Page = page,
+            PageSize = pageSize
+        };
     }
 
     public async Task<IReadOnlyList<ApiDataSourceDto>> GetDataSourcesAsync()

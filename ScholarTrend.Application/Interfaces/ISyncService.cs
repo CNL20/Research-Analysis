@@ -1,4 +1,5 @@
 using ScholarTrend.Application.DTOs.Sync;
+using ScholarTrend.Application.DTOs.Common;
 
 namespace ScholarTrend.Application.Interfaces;
 
@@ -25,12 +26,12 @@ public interface ISyncService
         List<string>? searchQueries = null,
         int? paperLimit = null);
 
-    Task<IReadOnlyList<SyncProposalListItemDto>> GetPendingProposalsAsync(int limit = 50);
+    Task<PagedResult<SyncProposalListItemDto>> GetPendingProposalsAsync(int page = 1, int pageSize = 20);
     Task<SyncProposalDto> GetPendingProposalByIdAsync(int id);
     Task<ApproveSyncResultDto> ApprovePendingSyncAsync(int proposalId, string adminUserId, ApproveSyncRequest request);
     Task<ApproveSyncResultDto> RejectPendingSyncAsync(int proposalId, string adminUserId);
 
-    Task<IReadOnlyList<SyncLogDto>> GetSyncLogsAsync(int limit = 50);
+    Task<PagedResult<SyncLogDto>> GetSyncLogsAsync(int page = 1, int pageSize = 20);
     Task<IReadOnlyList<ApiDataSourceDto>> GetDataSourcesAsync();
     Task<ApiDataSourceDto> UpdateDataSourceAsync(int id, UpdateApiDataSourceRequest request);
     

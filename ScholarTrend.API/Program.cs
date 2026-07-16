@@ -28,6 +28,8 @@ using ScholarTrend.Application.DTOs.Common;
 using ScholarTrend.Application.Options;
 using Microsoft.AspNetCore.Http.Features;
 using System.Text;
+using System.Text;
+using HangfireBasicAuthenticationFilter;
 
 // PostgreSQL requires UTC for timestamptz; allow legacy DateTime from seed/import code paths.
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
@@ -133,7 +135,7 @@ builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 
 // Extration Jobs
-builder.Services.AddScoped<IAiExtractionService, GeminiExtractionService>();
+builder.Services.AddScoped<IAiExtractionService, GroqExtractionService>();
 builder.Services.AddScoped<IAdminDashboardService, AdminDashboardService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<ISyncService, SyncService>();
@@ -166,7 +168,7 @@ builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Emai
 // Đăng ký Email Service vào DI Container
 builder.Services.AddHttpClient<IEmailService, EmailService>();
 builder.Services.AddScoped<IPaperAggregationService, PaperAggregationService>();
-builder.Services.AddHttpClient<IAiExtractionService, GeminiExtractionService>();
+builder.Services.AddHttpClient<IAiExtractionService, GroqExtractionService>();
 builder.Services.AddScoped<IPdfAnalysisService, GeminiPdfAnalysisService>();
 
 builder.Services.AddHttpClient<ISemanticScholarClient, SemanticScholarClient>();
@@ -258,8 +260,21 @@ app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Hangfire Dashboard (dev only)
-app.UseHangfireDashboard("/hangfire");
+// Hangfire Dashboard
+var hangfireUsername = builder.Configuration["Hangfire:Username"];
+var hangfirePassword = builder.Configuration["Hangfire:Password"];
+
+app.UseHangfireDashboard("/hangfire", new DashboardOptions
+{
+    Authorization = new[]
+    {
+        new HangfireCustomBasicAuthenticationFilter
+        {
+            User = hangfireUsername,
+            Pass = hangfirePassword
+        }
+    }
+});
 
 // ============ HANGFIRE RECURRING JOB ============
 // Configure sync schedule from appsettings.json

@@ -1,4 +1,5 @@
 using ScholarTrend.Application.DTOs.Bookmarks;
+using ScholarTrend.Application.DTOs.Common;
 using ScholarTrend.Application.Interfaces;
 using ScholarTrend.Domain.Entities;
 
@@ -13,10 +14,11 @@ public class BookmarkService : IBookmarkService
         _unitOfWork = unitOfWork;
     }
 
-    public async Task<IReadOnlyList<BookmarkDto>> GetUserBookmarksAsync(string userId)
+    public async Task<PagedResult<BookmarkDto>> GetUserBookmarksAsync(string userId, int page = 1, int pageSize = 10)
     {
-        var bookmarks = await _unitOfWork.Bookmarks.GetUserBookmarksAsync(userId);
-        return bookmarks.Select(b => new BookmarkDto
+        var (bookmarks, totalCount) = await _unitOfWork.Bookmarks.GetUserBookmarksAsync(userId, page, pageSize);
+        
+        var items = bookmarks.Select(b => new BookmarkDto
         {
             Id = b.Id,
             PaperId = b.PaperId,
@@ -26,6 +28,14 @@ public class BookmarkService : IBookmarkService
             JournalName = b.Paper.Journal?.Name,
             SavedAt = b.SavedAt
         }).ToList();
+
+        return new PagedResult<BookmarkDto>
+        {
+            Items = items,
+            TotalCount = totalCount,
+            Page = page,
+            PageSize = pageSize
+        };
     }
 
     public async Task<BookmarkDto> AddBookmarkAsync(string userId, int paperId)
