@@ -25,17 +25,11 @@ public class ResearchGapAnalysisJob
     {
         _logger.LogInformation("Generating research gaps for topic {TopicId}...", topicId);
 
-        using var scope = _scopeFactory.CreateScope();
-        var researchGapService = scope.ServiceProvider.GetRequiredService<IResearchGapService>();
-
         try
         {
-            var report = await researchGapService.GenerateGapReportAsync(topicId, ct);
-            _logger.LogInformation(
-                "Generated {GapCount} research gaps for topic {TopicId}. Coverage: {Coverage}%",
-                report.Gaps.Count,
-                topicId,
-                report.Coverage.CoveragePercentage.ToString("F2"));
+            // RegenerateGapsAsync deletes existing gaps for the topic first to avoid duplicates
+            // when this job runs on a schedule.
+            await RegenerateGapsAsync(topicId, ct);
         }
         catch (Exception ex)
         {
@@ -49,7 +43,6 @@ public class ResearchGapAnalysisJob
 
         using var scope = _scopeFactory.CreateScope();
         var topicRepo = scope.ServiceProvider.GetRequiredService<IResearchTopicRepository>();
-        var researchGapService = scope.ServiceProvider.GetRequiredService<IResearchGapService>();
 
         var topics = await topicRepo.GetAllAsync();
 
@@ -59,20 +52,20 @@ public class ResearchGapAnalysisJob
 
             try
             {
-                _logger.LogInformation("Generating research gaps for topic {TopicId} ({TopicName})...", 
+                _logger.LogInformation("Regenerating research gaps for topic {TopicId} ({TopicName})...",
                     topic.Id, topic.TopicName);
 
-                var report = await researchGapService.GenerateGapReportAsync(topic.Id, ct);
-                
+                // RegenerateGapsAsync handles deletion of existing gaps + generation in one place,
+                // preventing the duplicate-gap problem that occurred when this job ran repeatedly.
+                await RegenerateGapsAsync(topic.Id, ct);
+
                 _logger.LogInformation(
-                    "Generated {GapCount} research gaps for topic {TopicId}. Coverage: {Coverage}%",
-                    report.Gaps.Count,
-                    topic.Id,
-                    report.Coverage.CoveragePercentage.ToString("F2"));
+                    "Regenerated research gaps for topic {TopicId} ({TopicName}).",
+                    topic.Id, topic.TopicName);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error generating research gaps for topic {TopicId}", topic.Id);
+                _logger.LogError(ex, "Error regenerating research gaps for topic {TopicId}", topic.Id);
             }
         }
 

@@ -22,6 +22,10 @@ public class ResearchGapDto
     public int Confidence { get; set; }
     public string ConfidenceLevel { get; set; } = string.Empty;
     public List<ResearchGapEvidenceDto> Evidences { get; set; } = [];
+
+    // Used internally by the AI service to communicate which Paper IDs back this gap.
+    // Not serialized in API responses.
+    public List<int> SupportingPaperIds { get; set; } = [];
 }
 
 public class ResearchGapDetailDto : ResearchGapDto

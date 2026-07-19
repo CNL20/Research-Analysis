@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using ScholarTrend.Application.DTOs.GapAnalysis;
 using ScholarTrend.Application.DTOs.TopicInsights;
 using ScholarTrend.Application.Interfaces.External;
+using ScholarTrend.Domain.Entities;
 
 namespace ScholarTrend.Infrastructure.ExternalApis;
 
@@ -186,10 +187,17 @@ Return ONLY a valid JSON object matching this structure:
         List<PaperAnalysisDto> analyses,
         CancellationToken cancellationToken = default)
     {
+        // Build paper context so AI can reference real paper IDs
+        var paperContext = analyses.Take(50).Select((a, idx) =>
+            $"[Paper {idx + 1}] ID={a.PaperId}, Title=\"{a.Title}\", Method=\"{a.Method}\", Dataset=\"{a.Dataset}\", Year={a.Year}").ToList();
+
         var prompt = $@"
 You are an expert academic researcher analyzing research gaps in the field of '{topicName}'.
 
 Based on the following evidence from {analyses.Count} papers:
+
+PAPER CONTEXT (use these Paper IDs when listing supporting_paper_ids):
+{string.Join("\n", paperContext)}
 
 METHODS TRENDS:
 {JsonSerializer.Serialize(patterns.Methods)}
@@ -203,24 +211,41 @@ LIMITATION PATTERNS:
 GAP TIMELINE:
 {JsonSerializer.Serialize(timeline.Timeline)}
 
-Identify exactly 5-7 research gaps with the following structure:
-- gap_type: Dataset Gap | Method Gap | Evaluation Gap | Application Gap | Geographic Gap | Temporal Gap | Contradiction Gap
-- title: Concise gap title
-- description: Detailed explanation
-- suggested_direction: What research should address this gap
-- confidence: 0-100 (higher if supported by multiple papers)
-- evidence_count: Number of papers supporting this gap
+Identify exactly 5-7 DISTINCT and NON-OVERLAPPING research gaps. Each gap MUST be unique in its core theme. Avoid creating multiple gaps about the same underlying issue.
+
+For each gap, return:
+- gap_type: MUST be EXACTLY one of these values (no other text):
+  * ""Dataset Gap""
+  * ""Method Gap""
+  * ""Evaluation Gap""
+  * ""Application Gap""
+  * ""Geographic Gap""
+  * ""Temporal Gap""
+  * ""Contradiction Gap""
+- title: Concise gap title (max 200 chars)
+- description: Detailed explanation citing specific papers/methods when relevant (min 100 chars)
+- suggested_direction: Concrete, actionable research direction that would address this gap. Must NOT be empty. (min 80 chars)
+- confidence: integer 0-100 (higher if supported by multiple papers)
+- supporting_paper_ids: array of Paper IDs from the PAPER CONTEXT above that support this gap. Must reference real IDs from PAPER CONTEXT.
+- evidence_count: integer equal to the number of supporting_paper_ids (or number of papers supporting this gap).
+
+CRITICAL RULES:
+1. gap_type MUST be exactly one of the 7 values listed above.
+2. suggested_direction MUST be a non-empty concrete recommendation (e.g., ""Conduct user studies with diverse populations to evaluate X"").
+3. Each gap must target a DIFFERENT research dimension. Do not create multiple ""dataset"" or ""evaluation"" gaps with overlapping themes.
+4. Limit to 5-7 total gaps. Quality over quantity.
 
 Return ONLY a valid JSON object:
 {{
   ""gaps"": [
     {{
       ""title"": ""Gap Title"",
-      ""description"": ""Description of the gap"",
+      ""description"": ""Description of the gap citing specific papers/methods"",
       ""gap_type"": ""Dataset Gap"",
-      ""suggested_direction"": ""Suggested research direction"",
+      ""suggested_direction"": ""Concrete actionable research direction"",
       ""confidence"": 85,
-      ""evidence_count"": 12
+      ""supporting_paper_ids"": [1, 5, 12],
+      ""evidence_count"": 3
     }}
   ]
 }}";
@@ -233,8 +258,23 @@ Return ONLY a valid JSON object:
             using var jsonDoc = JsonDocument.Parse(textResult);
             if (jsonDoc.RootElement.TryGetProperty("gaps", out var gapsElement))
             {
-                var gaps = JsonSerializer.Deserialize<List<ResearchGapDto>>(gapsElement.GetRawText(), 
+                var gaps = JsonSerializer.Deserialize<List<ResearchGapDto>>(gapsElement.GetRawText(),
                     new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<ResearchGapDto>();
+
+                // Normalize gap_type and provide defaults for missing fields
+                foreach (var gap in gaps)
+                {
+                    gap.GapType = NormalizeGapType(gap.GapType);
+                    gap.SuggestedDirection = string.IsNullOrWhiteSpace(gap.SuggestedDirection)
+                        ? $"Further research is needed to investigate {gap.Title.ToLowerInvariant()}."
+                        : gap.SuggestedDirection;
+                    if (gap.Confidence <= 0) gap.Confidence = 50;
+                    if (gap.Confidence > 100) gap.Confidence = 100;
+                }
+
+                // Deduplicate gaps by gap_type + similar title to avoid AI generating overlapping gaps
+                gaps = DeduplicateGaps(gaps);
+
                 return gaps;
             }
             return new List<ResearchGapDto>();
@@ -244,6 +284,94 @@ Return ONLY a valid JSON object:
             _logger.LogError(ex, "Failed to parse Groq research gap generation result.");
             return new List<ResearchGapDto>();
         }
+    }
+
+    private static string NormalizeGapType(string? rawType)
+    {
+        if (string.IsNullOrWhiteSpace(rawType)) return GapTypes.Dataset;
+
+        var cleaned = rawType.Trim();
+        // Map common variations to canonical values
+        var mappings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["dataset"] = GapTypes.Dataset,
+            ["data"] = GapTypes.Dataset,
+            ["method"] = GapTypes.Method,
+            ["methodology"] = GapTypes.Method,
+            ["algorithm"] = GapTypes.Method,
+            ["evaluation"] = GapTypes.Evaluation,
+            ["metric"] = GapTypes.Evaluation,
+            ["benchmark"] = GapTypes.Evaluation,
+            ["application"] = GapTypes.Application,
+            ["practical"] = GapTypes.Application,
+            ["real-world"] = GapTypes.Application,
+            ["geographic"] = GapTypes.Geographic,
+            ["geographical"] = GapTypes.Geographic,
+            ["regional"] = GapTypes.Geographic,
+            ["temporal"] = GapTypes.Temporal,
+            ["time"] = GapTypes.Temporal,
+            ["contradiction"] = GapTypes.Contradiction,
+            ["conflict"] = GapTypes.Contradiction,
+            ["disagreement"] = GapTypes.Contradiction
+        };
+
+        var key = cleaned.ToLowerInvariant().Replace(" gap", "").Trim();
+        return mappings.TryGetValue(key, out var mapped) ? mapped : cleaned;
+    }
+
+    private static List<ResearchGapDto> DeduplicateGaps(List<ResearchGapDto> gaps)
+    {
+        if (gaps.Count <= 1) return gaps;
+
+        // Group by gap_type, keep the highest-confidence gap per type if titles are similar
+        var deduped = new List<ResearchGapDto>();
+        var seenSignatures = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Sort by confidence desc so we keep the strongest gap per cluster
+        var ordered = gaps.OrderByDescending(g => g.Confidence).ToList();
+
+        foreach (var gap in ordered)
+        {
+            // Build a signature: normalized title words (first 4 words) + gap_type
+            var titleWords = (gap.Title ?? string.Empty)
+                .ToLowerInvariant()
+                .Split(new[] { ' ', ',', '.', ':', ';', '-' }, StringSplitOptions.RemoveEmptyEntries)
+                .Where(w => w.Length > 3)
+                .Take(4)
+                .OrderBy(w => w)
+                .ToList();
+
+            var signature = $"{gap.GapType}|{string.Join("_", titleWords)}";
+
+            // If exact signature seen, skip
+            if (seenSignatures.Contains(signature)) continue;
+
+            // Check overlap with any existing deduped gap of same type
+            var isDuplicate = deduped.Any(existing =>
+                existing.GapType.Equals(gap.GapType, StringComparison.OrdinalIgnoreCase) &&
+                TitleOverlap(existing.Title, gap.Title) > 0.6);
+
+            if (!isDuplicate)
+            {
+                deduped.Add(gap);
+                seenSignatures.Add(signature);
+            }
+        }
+
+        return deduped;
+    }
+
+    private static double TitleOverlap(string a, string b)
+    {
+        if (string.IsNullOrWhiteSpace(a) || string.IsNullOrWhiteSpace(b)) return 0;
+        var wordsA = a.ToLowerInvariant().Split(new[] { ' ', ',', '.', ':', ';', '-' }, StringSplitOptions.RemoveEmptyEntries)
+            .Where(w => w.Length > 3).ToHashSet();
+        var wordsB = b.ToLowerInvariant().Split(new[] { ' ', ',', '.', ':', ';', '-' }, StringSplitOptions.RemoveEmptyEntries)
+            .Where(w => w.Length > 3).ToHashSet();
+        if (!wordsA.Any() || !wordsB.Any()) return 0;
+        var intersect = wordsA.Intersect(wordsB).Count();
+        var union = wordsA.Union(wordsB).Count();
+        return union == 0 ? 0 : (double)intersect / union;
     }
 
     public async Task<AiPaperExtractionDto> InferLimitationsAndFutureWorkAsync(

@@ -198,6 +198,15 @@ builder.Services.AddScoped<ITrendAnalysisService, TrendAnalysisService>();
 builder.Services.AddScoped<IResearchGapService, ResearchGapService>();
 builder.Services.AddScoped<ICoverageReportService, CoverageReportService>();
 
+// New Research Gap Analysis Repositories (required for the services above)
+builder.Services.AddScoped<IPaperQualityRepository, PaperQualityRepository>();
+builder.Services.AddScoped<IPaperAnalysisRepository, PaperAnalysisRepository>();
+builder.Services.AddScoped<IAnalysisJobRepository, AnalysisJobRepository>();
+builder.Services.AddScoped<IPatternRepository, PatternRepository>();
+builder.Services.AddScoped<IResearchGapRepository, ResearchGapRepository>();
+builder.Services.AddScoped<IGapTimelineRepository, GapTimelineRepository>();
+builder.Services.AddScoped<ICoverageReportRepository, CoverageReportRepository>();
+
 builder.Services.AddMemoryCache();
 
 builder.Services.AddValidatorsFromAssemblyContaining<RegisterRequestValidator>();
