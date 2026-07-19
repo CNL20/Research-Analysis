@@ -21,7 +21,7 @@ public class GeminiPdfAnalysisService : IPdfAnalysisService
     private readonly IAiExtractionService _aiExtractionService;
     private readonly ILogger<GeminiPdfAnalysisService> _logger;
 
-    private const int MaxTextChars = 80000;
+    private const int MaxTextChars = 150000;
 
     public GeminiPdfAnalysisService(
         IPaperPdfFileRepository pdfFileRepo,
@@ -187,9 +187,14 @@ public class GeminiPdfAnalysisService : IPdfAnalysisService
         pdfFile = await _pdfFileRepo.GetByResearchPaperIdAsync(researchPaperId);
 
         // Analyze with Gemini
-        _logger.LogInformation("Sending PDF text to Gemini for paper {Id}. Text length: {Len}",
+        _logger.LogInformation("Sending PDF text to AI for paper {Id}. Text length: {Len}",
             researchPaperId, pdfFile?.ExtractedText?.Length ?? 0);
-        var extraction = await _aiExtractionService.ExtractFromAbstractAsync(pdfFile!.ExtractedText!, cancellationToken);
+        
+        // Extract sections from text
+        var extractedSections = ExtractSections(pdfFile!.ExtractedText!);
+        
+        // Use ExtractFromFullTextAsync for PDF content (more detailed extraction)
+        var extraction = await _aiExtractionService.ExtractFromFullTextAsync(pdfFile.ExtractedText!, cancellationToken);
 
         if (extraction == null)
         {
@@ -198,6 +203,41 @@ public class GeminiPdfAnalysisService : IPdfAnalysisService
             _pdfFileRepo.Update(pdfFile);
             await _pdfFileRepo.SaveChangesAsync();
             return null;
+        }
+
+        // If sections were found, merge them into extraction
+        if (!string.IsNullOrEmpty(extractedSections["Discussion"]))
+        {
+            extraction.Discussions ??= [];
+            extraction.Discussions.Insert(0, extractedSections["Discussion"]);
+        }
+        if (!string.IsNullOrEmpty(extractedSections["Conclusion"]))
+        {
+            extraction.Conclusions ??= [];
+            extraction.Conclusions.Insert(0, extractedSections["Conclusion"]);
+        }
+
+        // Infer limitations and future work if extraction returned empty
+        var hasLimitations = extraction.Limitations.Count > 0;
+        var hasFutureWork = extraction.FutureWork.Count > 0;
+
+        if (!hasLimitations || !hasFutureWork)
+        {
+            _logger.LogInformation("Extraction returned empty limitations ({L}) or future_work ({F}) for paper {Id}. Triggering AI inference.",
+                extraction.Limitations.Count, extraction.FutureWork.Count, researchPaperId);
+
+            var inference = await _aiExtractionService.InferLimitationsAndFutureWorkAsync(
+                paper.Title,
+                pdfFile.ExtractedText ?? paper.Abstract ?? string.Empty,
+                extraction.Methods,
+                extraction.Datasets,
+                cancellationToken);
+
+            if (!hasLimitations && inference.Limitations.Count > 0)
+                extraction.Limitations = inference.Limitations;
+
+            if (!hasFutureWork && inference.FutureWork.Count > 0)
+                extraction.FutureWork = inference.FutureWork;
         }
 
         // Cache result
@@ -298,5 +338,80 @@ public class GeminiPdfAnalysisService : IPdfAnalysisService
         if (lower.Contains("arxiv.org")) return PaperDownloadStatus.AccessTypes.ArXiv;
         if (lower.Contains("openaccess") || lower.Contains("doi.org")) return PaperDownloadStatus.AccessTypes.OpenAccess;
         return PaperDownloadStatus.AccessTypes.Publisher;
+    }
+
+    /// <summary>
+    /// Extracts sections from PDF text by identifying section headers.
+    /// </summary>
+    public static Dictionary<string, string> ExtractSections(string text)
+    {
+        var sections = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Discussion"] = "",
+            ["Conclusion"] = "",
+            ["Future Work"] = "",
+            ["Limitations"] = ""
+        };
+
+        var lines = text.Split('\n');
+        var currentSection = "";
+        var currentContent = new List<string>();
+
+        foreach (var line in lines)
+        {
+            var trimmedLine = line.Trim();
+            var isHeader = false;
+
+            foreach (var sectionName in sections.Keys)
+            {
+                if (IsSectionHeader(trimmedLine, sectionName))
+                {
+                    if (!string.IsNullOrEmpty(currentSection) && currentContent.Any())
+                    {
+                        sections[currentSection] = string.Join(" ", currentContent).Trim();
+                    }
+                    currentSection = sectionName;
+                    currentContent = new List<string>();
+                    isHeader = true;
+                    break;
+                }
+            }
+
+            if (!isHeader && !string.IsNullOrEmpty(currentSection))
+            {
+                if (!string.IsNullOrWhiteSpace(trimmedLine))
+                {
+                    currentContent.Add(trimmedLine);
+                }
+            }
+        }
+
+        if (!string.IsNullOrEmpty(currentSection) && currentContent.Any())
+        {
+            sections[currentSection] = string.Join(" ", currentContent).Trim();
+        }
+
+        return sections;
+    }
+
+    private static bool IsSectionHeader(string line, string sectionName)
+    {
+        var normalizedLine = line.ToLowerInvariant().Replace(" ", "").Replace("_", "");
+        var normalizedSection = sectionName.ToLowerInvariant().Replace(" ", "").Replace("_", "");
+
+        if (normalizedLine == normalizedSection) return true;
+        if (normalizedLine == normalizedSection + ":") return true;
+
+        var patterns = new[]
+        {
+            $"^{normalizedSection}$",
+            $"^{normalizedSection}:?$",
+            $"\\d+\\.?\\s*{normalizedSection}:?",
+            $"[IVX]+\\.?\\s*{normalizedSection}:?",
+            $"section\\s*{normalizedSection}:?"
+        };
+
+        return patterns.Any(p => 
+            System.Text.RegularExpressions.Regex.IsMatch(line, p, System.Text.RegularExpressions.RegexOptions.IgnoreCase));
     }
 }

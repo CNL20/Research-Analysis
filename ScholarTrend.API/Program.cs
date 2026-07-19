@@ -149,6 +149,7 @@ builder.Services.AddScoped<EnrichPaperSourcesJob>();
 builder.Services.AddScoped<RecalculateKeywordTrendsJob>();
 builder.Services.AddScoped<IUserFileRepository, UserFileRepository>();
 builder.Services.AddScoped<IPaperPdfFileRepository, PaperPdfFileRepository>();
+builder.Services.AddScoped<IPaperQualityRepository, PaperQualityRepository>();
 builder.Services.AddSingleton<IPaperPdfChannel, PaperPdfChannel>();
 builder.Services.AddScoped<IPaperPdfEnqueuer, PaperPdfDownloadService>();
 builder.Services.AddScoped<IPaperPdfProcessor, PaperPdfDownloadService>();
@@ -182,6 +183,20 @@ builder.Services.AddScoped<ISyncSchedulerService, SyncSchedulerService>();
 builder.Services.AddScoped<ISyncJob, SyncJob>();
 builder.Services.AddScoped<TopicInsightExtractionJob>();
 builder.Services.AddScoped<TopicInsightAggregationJob>();
+
+// New Research Gap Analysis Jobs
+builder.Services.AddScoped<PaperQualityAssessmentJob>();
+builder.Services.AddScoped<PaperAnalysisExtractionJob>();
+builder.Services.AddScoped<PatternMiningJob>();
+builder.Services.AddScoped<ResearchGapAnalysisJob>();
+
+// New Research Gap Analysis Services
+builder.Services.AddScoped<IPaperQualityService, PaperQualityService>();
+builder.Services.AddScoped<IPaperAnalysisService, PaperAnalysisService>();
+builder.Services.AddScoped<IPatternMiningService, PatternMiningService>();
+builder.Services.AddScoped<ITrendAnalysisService, TrendAnalysisService>();
+builder.Services.AddScoped<IResearchGapService, ResearchGapService>();
+builder.Services.AddScoped<ICoverageReportService, CoverageReportService>();
 
 builder.Services.AddMemoryCache();
 

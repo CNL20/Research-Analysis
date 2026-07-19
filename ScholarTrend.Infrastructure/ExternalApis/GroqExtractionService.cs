@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using ScholarTrend.Application.DTOs.GapAnalysis;
 using ScholarTrend.Application.DTOs.TopicInsights;
 using ScholarTrend.Application.Interfaces.External;
 
@@ -101,7 +102,13 @@ Analyze the following text from an academic paper.
 Identify:
 1. 'methods': Key methodologies, architectures, or algorithms proposed or used.
 2. 'datasets': Datasets or benchmarks used in the evaluation.
-3. 'future_works': Limitations, future works, or open challenges mentioned.
+3. 'limitations': Explicit limitations or weaknesses mentioned in the paper.
+4. 'future_work': Explicit future work or next steps mentioned in the paper.
+5. 'discussions': Key discussion points and their implications.
+6. 'conclusions': Main conclusions drawn from the research.
+7. 'research_problem': The main research problem or question addressed.
+8. 'metric': Evaluation metrics used to measure performance.
+9. 'contribution': The main contribution of the paper.
 
 Text:
 {abstractText}
@@ -110,7 +117,13 @@ Return ONLY a valid JSON object matching this structure:
 {{
   ""methods"": [""method 1"", ""method 2""],
   ""datasets"": [""dataset 1""],
-  ""future_works"": [""future direction 1""]
+  ""limitations"": [""limitation 1""],
+  ""future_work"": [""future direction 1""],
+  ""discussions"": [""discussion point 1""],
+  ""conclusions"": [""conclusion 1""],
+  ""research_problem"": ""problem statement"",
+  ""metric"": ""evaluation metric"",
+  ""contribution"": ""main contribution""
 }}";
 
         var textResult = await CallGroqApiAsync(prompt, cancellationToken);
@@ -124,6 +137,157 @@ Return ONLY a valid JSON object matching this structure:
         {
             _logger.LogError(ex, "Failed to parse Groq extraction result.");
             return null;
+        }
+    }
+
+    public async Task<AiPaperExtractionDto?> ExtractFromFullTextAsync(string fullText, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(fullText))
+            return null;
+
+        var prompt = $@"
+Analyze the following text from an academic paper (possibly from Discussion, Conclusion, or Future Work sections).
+Extract structured information with high precision.
+
+Text:
+{fullText}
+
+Return ONLY a valid JSON object matching this structure:
+{{
+  ""methods"": [""method 1"", ""method 2""],
+  ""datasets"": [""dataset 1""],
+  ""limitations"": [""limitation 1""],
+  ""future_work"": [""future direction 1""],
+  ""discussions"": [""discussion point 1""],
+  ""conclusions"": [""conclusion 1""],
+  ""research_problem"": ""problem statement"",
+  ""metric"": ""evaluation metric"",
+  ""contribution"": ""main contribution""
+}}";
+
+        var textResult = await CallGroqApiAsync(prompt, cancellationToken);
+        if (string.IsNullOrWhiteSpace(textResult)) return null;
+
+        try
+        {
+            return JsonSerializer.Deserialize<AiPaperExtractionDto>(textResult, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to parse Groq full text extraction result.");
+            return null;
+        }
+    }
+
+    public async Task<List<ResearchGapDto>> GenerateResearchGapsAsync(
+        string topicName,
+        PatternMiningResultDto patterns,
+        GapTimelineDto timeline,
+        List<PaperAnalysisDto> analyses,
+        CancellationToken cancellationToken = default)
+    {
+        var prompt = $@"
+You are an expert academic researcher analyzing research gaps in the field of '{topicName}'.
+
+Based on the following evidence from {analyses.Count} papers:
+
+METHODS TRENDS:
+{JsonSerializer.Serialize(patterns.Methods)}
+
+DATASET TRENDS:
+{JsonSerializer.Serialize(patterns.Datasets)}
+
+LIMITATION PATTERNS:
+{JsonSerializer.Serialize(patterns.Limitations)}
+
+GAP TIMELINE:
+{JsonSerializer.Serialize(timeline.Timeline)}
+
+Identify exactly 5-7 research gaps with the following structure:
+- gap_type: Dataset Gap | Method Gap | Evaluation Gap | Application Gap | Geographic Gap | Temporal Gap | Contradiction Gap
+- title: Concise gap title
+- description: Detailed explanation
+- suggested_direction: What research should address this gap
+- confidence: 0-100 (higher if supported by multiple papers)
+- evidence_count: Number of papers supporting this gap
+
+Return ONLY a valid JSON object:
+{{
+  ""gaps"": [
+    {{
+      ""title"": ""Gap Title"",
+      ""description"": ""Description of the gap"",
+      ""gap_type"": ""Dataset Gap"",
+      ""suggested_direction"": ""Suggested research direction"",
+      ""confidence"": 85,
+      ""evidence_count"": 12
+    }}
+  ]
+}}";
+
+        var textResult = await CallGroqApiAsync(prompt, cancellationToken);
+        if (string.IsNullOrWhiteSpace(textResult)) return new List<ResearchGapDto>();
+
+        try
+        {
+            using var jsonDoc = JsonDocument.Parse(textResult);
+            if (jsonDoc.RootElement.TryGetProperty("gaps", out var gapsElement))
+            {
+                var gaps = JsonSerializer.Deserialize<List<ResearchGapDto>>(gapsElement.GetRawText(), 
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<ResearchGapDto>();
+                return gaps;
+            }
+            return new List<ResearchGapDto>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to parse Groq research gap generation result.");
+            return new List<ResearchGapDto>();
+        }
+    }
+
+    public async Task<AiPaperExtractionDto> InferLimitationsAndFutureWorkAsync(
+        string paperTitle,
+        string abstractText,
+        List<string> methods,
+        List<string> datasets,
+        CancellationToken cancellationToken = default)
+    {
+        var methodsStr = methods.Any() ? string.Join(", ", methods) : "unknown";
+        var datasetsStr = datasets.Any() ? string.Join(", ", datasets) : "unknown";
+
+        var prompt = $@"
+You are analyzing an academic paper to identify its limitations and potential future research directions.
+Do NOT simply repeat what's in the abstract. You must critically analyze and infer beyond what is explicitly stated.
+
+Paper Title: {paperTitle}
+Abstract: {abstractText}
+Methods Used: {methodsStr}
+Datasets Used: {datasetsStr}
+
+Based on the paper's methodology, experimental setup, and contribution, infer:
+1. 'limitations': Potential weaknesses, constraints, or areas the paper could improve (e.g., narrow evaluation, missing baselines, scalability issues). Each limitation should be insightful, not generic.
+2. 'future_work': Concrete and actionable future research directions that could build upon this work. Must be specific to this paper's domain and contribution.
+
+Return ONLY a valid JSON object matching this structure (add [AI Inferred] suffix to each item to mark as inferred):
+{{
+  ""limitations"": [""Limitation 1 [AI Inferred]"", ""Limitation 2 [AI Inferred]""],
+  ""future_work"": [""Future direction 1 [AI Inferred]"", ""Future direction 2 [AI Inferred]""]
+}}";
+
+        var textResult = await CallGroqApiAsync(prompt, cancellationToken);
+        if (string.IsNullOrWhiteSpace(textResult))
+            return new AiPaperExtractionDto { Limitations = [], FutureWork = [] };
+
+        try
+        {
+            return JsonSerializer.Deserialize<AiPaperExtractionDto>(textResult, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+                   ?? new AiPaperExtractionDto { Limitations = [], FutureWork = [] };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to parse Groq inference result.");
+            return new AiPaperExtractionDto { Limitations = [], FutureWork = [] };
         }
     }
 

@@ -15,4 +15,19 @@ public class AiPaperExtractionDto
 
     [JsonPropertyName("future_work")]
     public List<string> FutureWork { get; set; } = [];
+
+    [JsonPropertyName("discussions")]
+    public List<string> Discussions { get; set; } = [];
+
+    [JsonPropertyName("conclusions")]
+    public List<string> Conclusions { get; set; } = [];
+
+    [JsonPropertyName("research_problem")]
+    public string? ResearchProblem { get; set; }
+
+    [JsonPropertyName("metric")]
+    public string? Metric { get; set; }
+
+    [JsonPropertyName("contribution")]
+    public string? Contribution { get; set; }
 }
