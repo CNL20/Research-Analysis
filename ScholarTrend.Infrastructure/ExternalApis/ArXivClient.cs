@@ -22,14 +22,15 @@ public class ArXivClient : IArXivClient
         _searchQuery = configuration["ExternalApis:ArXiv:SearchQuery"] ?? "artificial intelligence";
 
         var baseUrl = configuration["ExternalApis:ArXiv:BaseUrl"] ?? "https://export.arxiv.org/api/query";
-        _httpClient.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/");
+        // ArXiv API rejects trailing slash before "?" — use raw URL and prefix url with "query?"
+        _httpClient.BaseAddress = new Uri(baseUrl.TrimEnd('/'));
         _httpClient.Timeout = TimeSpan.FromSeconds(30);
     }
 
     public async Task<IReadOnlyList<ExternalPaperDto>> SearchPapersAsync(string query, int limit = 20)
     {
         var searchTerm = string.IsNullOrWhiteSpace(query) ? _searchQuery : query;
-        var url = $"?search_query=all:{Uri.EscapeDataString(searchTerm)}&start=0&max_results={limit}&sortBy=submittedDate&sortOrder=descending";
+        var url = $"query?search_query=all:{Uri.EscapeDataString(searchTerm)}&start=0&max_results={limit}&sortBy=submittedDate&sortOrder=descending";
 
         for (var attempt = 1; attempt <= 3; attempt++)
         {
@@ -37,6 +38,12 @@ public class ArXivClient : IArXivClient
             {
                 var response = await _httpClient.GetStringAsync(url);
                 return ParseAtomFeed(response);
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+            {
+                _logger.LogWarning("ArXiv rate limited (429). Waiting 30s before retry (attempt {Attempt})", attempt);
+                if (attempt >= 3) break;
+                await Task.Delay(TimeSpan.FromSeconds(30));
             }
             catch (Exception ex) when (attempt < 3)
             {
@@ -61,7 +68,7 @@ public class ArXivClient : IArXivClient
             return MetadataMapper.NotFound("arxiv", "DOI is required.");
         }
 
-        var url = $"?search_query=doi:{Uri.EscapeDataString(normalizedDoi)}&start=0&max_results=1";
+        var url = $"query?search_query=doi:{Uri.EscapeDataString(normalizedDoi)}&start=0&max_results=1";
 
         try
         {

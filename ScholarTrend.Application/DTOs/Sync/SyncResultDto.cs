@@ -9,6 +9,7 @@ public class SyncResultDto
     public int PapersFetched { get; set; }
     public int PapersAdded { get; set; }
     public int PapersUpdated { get; set; }
+    public int PapersSkippedDuplicates { get; set; }
     public string Status { get; set; } = string.Empty;
     public string? Message { get; set; }
 }
