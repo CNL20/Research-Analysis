@@ -758,16 +758,11 @@ public class SyncService : ISyncService
             return;
         }
 
-        // Chỉ tải khi paper là từ nguồn cho phép tải
-        var accessType = external.PdfAccessType;
-        if (accessType is not (PaperDownloadStatus.AccessTypes.ArXiv
-                              or PaperDownloadStatus.AccessTypes.OpenAccess))
-        {
-            _logger.LogInformation(
-                "Paper {PaperId} from {Source}: PDF URL available but access type is '{AccessType}' — skipping download",
-                researchPaperId, external.Source, accessType ?? "<null>");
-            return;
-        }
+        // Tải TẤT CẢ papers có PDF URL, kể cả Publisher/Closed — không filter theo access type.
+        // Lý do: admin đã approve nghĩa là đã đồng ý; PDF download service sẽ tự skip nếu URL fail.
+        _logger.LogInformation(
+            "Enqueueing PDF download for paper {PaperId} from {Source} (accessType={AccessType})",
+            researchPaperId, external.Source, external.PdfAccessType ?? "<null>");
 
         try
         {

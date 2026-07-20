@@ -67,6 +67,37 @@ public class LocalPaperFileStorage : IPaperFileStorage
             _logger.LogWarning(ex, "Failed to delete PDF at {Path}", relativePath);
         }
     }
+
+    public Task<Stream?> OpenReadAsync(string relativePath, CancellationToken ct)
+    {
+        var abs = ResolveAbsolutePath(relativePath);
+        if (!File.Exists(abs))
+        {
+            return Task.FromResult<Stream?>(null);
+        }
+
+        Stream stream = new FileStream(
+            abs,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            bufferSize: 81920,
+            useAsync: true);
+
+        return Task.FromResult<Stream?>(stream);
+    }
+
+    public async Task<byte[]?> ReadAllBytesAsync(string relativePath, CancellationToken ct)
+    {
+        var abs = ResolveAbsolutePath(relativePath);
+        if (!File.Exists(abs))
+        {
+            _logger.LogInformation("PDF not found on disk: {Path}", abs);
+            return null;
+        }
+
+        return await File.ReadAllBytesAsync(abs, ct);
+    }
 }
 
 public class StorageSettings

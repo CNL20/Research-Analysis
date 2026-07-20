@@ -7,6 +7,7 @@ using ScholarTrend.Application.DTOs.Papers;
 using ScholarTrend.Application.DTOs.TopicInsights;
 using ScholarTrend.Application.Interfaces;
 using ScholarTrend.Application.Interfaces.External;
+using ScholarTrend.Application.Interfaces.Repositories;
 using ScholarTrend.Domain.Constants;
 
 namespace ScholarTrend.API.Controllers;
@@ -19,15 +20,24 @@ public class PapersController : ControllerBase
     private readonly IPaperService _paperService;
     private readonly IPaperAggregationService _paperAggregationService;
     private readonly IPdfAnalysisService _pdfAnalysisService;
+    private readonly IPaperPdfFileRepository _paperPdfFileRepository;
+    private readonly IPaperFileStorageProvider _paperFileStorageProvider;
+    private readonly ILogger<PapersController> _logger;
 
     public PapersController(
         IPaperService paperService,
         IPaperAggregationService paperAggregationService,
-        IPdfAnalysisService pdfAnalysisService)
+        IPdfAnalysisService pdfAnalysisService,
+        IPaperPdfFileRepository paperPdfFileRepository,
+        IPaperFileStorageProvider paperFileStorageProvider,
+        ILogger<PapersController> logger)
     {
         _paperService = paperService;
         _paperAggregationService = paperAggregationService;
         _pdfAnalysisService = pdfAnalysisService;
+        _paperPdfFileRepository = paperPdfFileRepository;
+        _paperFileStorageProvider = paperFileStorageProvider;
+        _logger = logger;
     }
 
     /// <summary>
@@ -203,6 +213,47 @@ public class PapersController : ControllerBase
     {
         var result = await _paperService.GetSearchHistoryAsync(GetUserId(), limit);
         return Ok(ApiResponse<IReadOnlyList<SearchHistoryDto>>.SuccessResponse(result));
+    }
+
+    /// <summary>
+    /// Tải PDF file của một bài báo. Proxy qua backend (không trả URL B2 trực tiếp vì bucket private).
+    /// Trả 404 nếu paper không có PDF (chưa tải về, hoặc tải thất bại).
+    /// </summary>
+    [HttpGet("{id:int}/pdf")]
+    public async Task<IActionResult> DownloadPdf(int id, CancellationToken ct)
+    {
+        var pdfRecord = await _paperPdfFileRepository.GetByResearchPaperIdAsync(id);
+        if (pdfRecord is null)
+        {
+            return NotFound(ApiResponse<object>.FailResponse("PDF not available for this paper."));
+        }
+
+        if (pdfRecord.Status != PaperDownloadStatus.Ready)
+        {
+            return NotFound(ApiResponse<object>.FailResponse(
+                $"PDF is not ready (current status: {pdfRecord.Status}). Please try again later."));
+        }
+
+        Stream? stream;
+        try
+        {
+            var storage = _paperFileStorageProvider.GetActiveStorage();
+            stream = await storage.OpenReadAsync(pdfRecord.LocalRelativePath, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to open PDF stream for paper {Id}", id);
+            return StatusCode(500, ApiResponse<object>.FailResponse("Failed to retrieve PDF."));
+        }
+
+        if (stream is null)
+        {
+            return NotFound(ApiResponse<object>.FailResponse("PDF file not found in storage."));
+        }
+
+        var contentType = pdfRecord.ContentType ?? "application/pdf";
+        var fileName = $"paper-{id}.pdf";
+        return File(stream, contentType, fileName);
     }
 
     private string GetUserId()

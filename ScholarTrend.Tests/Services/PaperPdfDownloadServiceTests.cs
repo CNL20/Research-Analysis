@@ -15,6 +15,7 @@ public class PaperPdfDownloadServiceTests
     private readonly Mock<IUnitOfWork> _mockUow;
     private readonly Mock<IPaperPdfFileRepository> _mockRepo;
     private readonly Mock<IPaperFileStorage> _mockStorage;
+    private readonly Mock<IPaperFileStorageProvider> _mockStorageProvider;
     private readonly Mock<IDocumentDownloader> _mockDownloader;
     private readonly Mock<IPaperPdfChannel> _mockChannel;
     private readonly Mock<ILogger<PaperPdfDownloadService>> _mockLogger;
@@ -25,6 +26,7 @@ public class PaperPdfDownloadServiceTests
         _mockUow = new Mock<IUnitOfWork>();
         _mockRepo = new Mock<IPaperPdfFileRepository>();
         _mockStorage = new Mock<IPaperFileStorage>();
+        _mockStorageProvider = new Mock<IPaperFileStorageProvider>();
         _mockDownloader = new Mock<IDocumentDownloader>();
         _mockChannel = new Mock<IPaperPdfChannel>();
         _mockLogger = new Mock<ILogger<PaperPdfDownloadService>>();
@@ -40,8 +42,10 @@ public class PaperPdfDownloadServiceTests
         _mockChannel.SetupGet(c => c.Writer).Returns(realChannel.Writer);
         _mockChannel.SetupGet(c => c.Reader).Returns(realChannel.Reader);
 
+        _mockStorageProvider.SetupGet(p => p.GetActiveStorage()).Returns(_mockStorage.Object);
+
         _service = new PaperPdfDownloadService(
-            _mockUow.Object, _mockStorage.Object, _mockDownloader.Object, _mockChannel.Object, _mockLogger.Object);
+            _mockUow.Object, _mockStorageProvider.Object, _mockDownloader.Object, _mockChannel.Object, _mockLogger.Object);
     }
 
     private static byte[] MakePdfBytes(int extraSize = 0)

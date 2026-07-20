@@ -5,6 +5,7 @@ using Hangfire.PostgreSql;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using ScholarTrend.API.Filters;
@@ -20,6 +21,7 @@ using ScholarTrend.Infrastructure.ExternalApis;
 using ScholarTrend.Infrastructure.HostedServices;
 using ScholarTrend.Infrastructure.Jobs;
 using ScholarTrend.Infrastructure.Persistence.Repositories;
+using ScholarTrend.Infrastructure.Pdf;
 using ScholarTrend.Infrastructure.Repositories;
 using ScholarTrend.Infrastructure.Services;
 using ScholarTrend.Infrastructure.Storage;
@@ -155,7 +157,28 @@ builder.Services.AddScoped<IPaperQualityRepository, PaperQualityRepository>();
 builder.Services.AddSingleton<IPaperPdfChannel, PaperPdfChannel>();
 builder.Services.AddScoped<IPaperPdfEnqueuer, PaperPdfDownloadService>();
 builder.Services.AddScoped<IPaperPdfProcessor, PaperPdfDownloadService>();
+
+// IPaperFileStorage: đăng ký CẢ HAI implementations qua interface + qua concrete type.
+//
+// Lý do:
+//   - PaperFileStorageProvider inject concrete types (LocalPaperFileStorage, B2PaperFileStorage).
+//   - PdfStorageMigrationService inject IEnumerable<IPaperFileStorage>.
+//   - IPaperFileStorage (single-resolve) không cần thiết vì tất cả consumer đã chuyển sang dùng provider.
+//
+// Cần 3 dòng AddScoped riêng biệt:
+//   1. AddScoped<LocalPaperFileStorage>()           — để PaperFileStorageProvider resolve.
+//   2. AddScoped<B2PaperFileStorage>()              — để PaperFileStorageProvider resolve.
+//   3. AddScoped<IPaperFileStorage, ...>() x2         — để IEnumerable<IPaperFileStorage> có cả 2 instances.
+builder.Services.AddScoped<LocalPaperFileStorage>();
+builder.Services.AddScoped<B2PaperFileStorage>();
 builder.Services.AddScoped<IPaperFileStorage, LocalPaperFileStorage>();
+builder.Services.AddScoped<IPaperFileStorage, B2PaperFileStorage>();
+builder.Services.AddScoped<IPaperFileStorageProvider, PaperFileStorageProvider>();
+builder.Services.AddScoped<PdfStorageMigrationService>();
+builder.Services.AddScoped<PdfStorageStatusService>();
+builder.Services.AddScoped<PdfTextExtractionService>();
+builder.Services.AddSingleton<IPaperTextExtractor, PdfPigTextExtractor>();
+
 builder.Services.AddHostedService<PaperPdfDownloadWorker>();
 builder.Services.AddHostedService<PaperPdfStartupRecovery>();
 builder.Services.Configure<StorageSettings>(builder.Configuration.GetSection("FileUpload"));
@@ -203,6 +226,7 @@ builder.Services.AddHttpClient<IEmailService, EmailService>();
 builder.Services.AddScoped<IPaperAggregationService, PaperAggregationService>();
 builder.Services.AddHttpClient<IAiExtractionService, GroqExtractionService>();
 builder.Services.AddScoped<IPdfAnalysisService, GeminiPdfAnalysisService>();
+builder.Services.AddScoped<IPaperPdfDownloadOrchestrator, PaperPdfDownloadOrchestrator>();
 
 builder.Services.AddHttpClient<ISemanticScholarClient, SemanticScholarClient>();
 builder.Services.AddHttpClient<IOpenAlexClient, OpenAlexClient>();
