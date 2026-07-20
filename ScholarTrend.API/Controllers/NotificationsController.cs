@@ -22,16 +22,17 @@ public class NotificationsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<ApiResponse<IReadOnlyList<NotificationDto>>>> GetNotifications(
         [FromQuery] bool? isRead,
-        [FromQuery] int limit = 20)
+        [FromQuery] int limit = 20,
+        [FromQuery] string? type = null)
     {
-        var result = await _notificationService.GetNotificationsAsync(GetUserId(), isRead, limit);
+        var result = await _notificationService.GetNotificationsAsync(GetUserId(), isRead, limit, type);
         return Ok(ApiResponse<IReadOnlyList<NotificationDto>>.SuccessResponse(result));
     }
 
     [HttpGet("unread-count")]
-    public async Task<ActionResult<ApiResponse<object>>> GetUnreadCount()
+    public async Task<ActionResult<ApiResponse<object>>> GetUnreadCount([FromQuery] string? type = null)
     {
-        var count = await _notificationService.GetUnreadCountAsync(GetUserId());
+        var count = await _notificationService.GetUnreadCountAsync(GetUserId(), type);
         return Ok(ApiResponse<object>.SuccessResponse(new { count }));
     }
 

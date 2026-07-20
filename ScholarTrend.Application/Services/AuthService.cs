@@ -12,6 +12,7 @@ using ScholarTrend.Application.Interfaces.Repositories;
 using ScholarTrend.Domain.Entities;
 using ScholarTrend.Domain.Enums;
 using Google.Apis.Auth;
+using Microsoft.EntityFrameworkCore;
 
 namespace ScholarTrend.Application.Services;
 
@@ -165,6 +166,8 @@ public class AuthService : IAuthService
         user.LastLoginAt = DateTime.UtcNow;
         await _userManager.UpdateAsync(user);
 
+        await CheckSubscriptionExpirationAsync(user.Id);
+
         return await BuildAuthResponseAsync(user);
     }
 
@@ -224,6 +227,8 @@ public class AuthService : IAuthService
             await _userManager.UpdateAsync(user);
         }
 
+        await CheckSubscriptionExpirationAsync(user.Id);
+
         return await BuildAuthResponseAsync(user);
     }
 
@@ -243,15 +248,26 @@ public class AuthService : IAuthService
 
     public async Task<UserProfileDto> GetProfileAsync(string userId)
     {
-        var user = await _userManager.FindByIdAsync(userId);
+        var user = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+            _userManager.Users.Include(u => u.Subscriptions).ThenInclude(s => s.Plan), 
+            u => u.Id == userId);
+
         if (user == null)
         {
             throw new InvalidOperationException("User not found.");
         }
 
         var roles = await _userManager.GetRolesAsync(user);
+        var activeSub = user.Subscriptions.FirstOrDefault(s => s.Status == "Active");
 
-        return MapToProfile(user, roles);
+        var profile = MapToProfile(user, roles);
+        if (activeSub != null)
+        {
+            profile.CurrentPlanName = activeSub.Plan?.Name;
+            profile.SubscriptionEndDate = activeSub.EndDate;
+        }
+
+        return profile;
     }
 
     public async Task<UserProfileDto> UpdateProfileAsync(string userId, UpdateProfileRequest request)
@@ -462,5 +478,36 @@ public class AuthService : IAuthService
         }
 
         return true;
+    }
+
+    private async Task CheckSubscriptionExpirationAsync(string userId)
+    {
+        var activeSub = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+            _unitOfWork.Context.Set<Subscription>().Include(s => s.Plan),
+            s => s.UserId == userId && s.Status == "Active");
+
+        if (activeSub != null)
+        {
+            var daysRemaining = (activeSub.EndDate - DateTime.UtcNow).TotalDays;
+            if (daysRemaining > 0 && daysRemaining <= 3)
+            {
+                var recentAlert = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AnyAsync(
+                    _unitOfWork.Context.Set<Notification>(),
+                    n => n.UserId == userId && n.Title == "Gói đăng ký sắp hết hạn" && n.CreatedAt >= DateTime.UtcNow.AddHours(-24));
+
+                if (!recentAlert)
+                {
+                    await _unitOfWork.Notifications.AddAsync(new Notification
+                    {
+                        UserId = userId,
+                        Title = "Gói đăng ký sắp hết hạn",
+                        Message = $"Gói {activeSub.Plan?.Name} của bạn chỉ còn chưa tới 3 ngày sử dụng. Vui lòng gia hạn để không bị gián đoạn.",
+                        TargetUrl = "/pricing",
+                        CreatedAt = DateTime.UtcNow
+                    });
+                    await _unitOfWork.SaveChangesAsync();
+                }
+            }
+        }
     }
 }

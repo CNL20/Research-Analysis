@@ -3,6 +3,7 @@ using ScholarTrend.Application.Interfaces;
 using ScholarTrend.Application.Interfaces.External;
 using ScholarTrend.Application.Interfaces.Services;
 using ScholarTrend.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
 
 namespace ScholarTrend.Application.Services;
 
@@ -95,5 +96,25 @@ public class PaymentService : IPaymentService
         }
 
         return false;
+    }
+
+    public async Task<List<TransactionHistoryDto>> GetUserTransactionHistoryAsync(string userId)
+    {
+        return await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
+            _unitOfWork.Context.Set<PaymentTransaction>()
+                .Include(p => p.Plan)
+                .Where(t => t.UserId == userId)
+                .OrderByDescending(t => t.CreatedAt)
+                .Select(t => new TransactionHistoryDto
+                {
+                    TransactionId = t.Id,
+                    PlanName = t.Plan != null ? t.Plan.Name : "Unknown",
+                    Amount = t.Amount,
+                    Currency = t.Currency,
+                    Status = t.Status,
+                    CreatedAt = t.CreatedAt,
+                    CompletedAt = t.CompletedAt
+                })
+        );
     }
 }
