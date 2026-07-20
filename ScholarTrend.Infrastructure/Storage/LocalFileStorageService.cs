@@ -59,6 +59,14 @@ public class LocalFileStorageService : IFileStorageService
         return Task.CompletedTask;
     }
 
+    public string GetSignedUrl(string userId, string storedFileName, int expirationMinutes = 60)
+    {
+        // Local storage: trả về relative path, caller (controller) sẽ build URL thật.
+        // Đây là no-op cho local; controller sẽ tự xử lý qua /api/Files/{fileId}/download.
+        var fullPath = Path.Combine(GetUserDirectory(userId), storedFileName);
+        return fullPath;
+    }
+
     private string GetUserDirectory(string userId)
     {
         var safeUserId = string.Concat(userId.Split(Path.GetInvalidFileNameChars()));

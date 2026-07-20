@@ -30,6 +30,8 @@ using Microsoft.AspNetCore.Http.Features;
 using System.Text;
 using System.Text;
 using HangfireBasicAuthenticationFilter;
+using Amazon.S3;
+using Amazon.Runtime;
 
 // PostgreSQL requires UTC for timestamptz; allow legacy DateTime from seed/import code paths.
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
@@ -124,7 +126,7 @@ builder.Services.AddScoped<ITrendRepository, TrendRepository>();
 builder.Services.AddScoped<IStatisticsRepository, StatisticsRepository>();
 builder.Services.AddScoped<ITrendService, TrendService>();
 builder.Services.AddScoped<IFollowService, FollowService>();
-builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
+builder.Services.AddScoped<IFileStorageService, BackblazeB2StorageService>();
 builder.Services.AddScoped<IFileService, FileService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
@@ -158,6 +160,36 @@ builder.Services.AddHostedService<PaperPdfDownloadWorker>();
 builder.Services.AddHostedService<PaperPdfStartupRecovery>();
 builder.Services.Configure<StorageSettings>(builder.Configuration.GetSection("FileUpload"));
 builder.Services.Configure<FileUploadSettings>(builder.Configuration.GetSection("FileUpload"));
+builder.Services.Configure<BackblazeB2Settings>(builder.Configuration.GetSection("FileUpload:B2"));
+
+// Đăng ký IAmazonS3 client cho Backblaze B2 (S3-compatible)
+builder.Services.AddSingleton<IAmazonS3>(sp =>
+{
+    var settings = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<BackblazeB2Settings>>().Value;
+
+    if (string.IsNullOrWhiteSpace(settings.Endpoint) ||
+        string.IsNullOrWhiteSpace(settings.AccessKey) ||
+        string.IsNullOrWhiteSpace(settings.SecretKey))
+    {
+        // Fallback: trả về client null để tránh crash startup; service sẽ báo lỗi rõ khi dùng.
+        return new AmazonS3Client(new BasicAWSCredentials("placeholder", "placeholder"),
+            new AmazonS3Config
+            {
+                ServiceURL = "https://s3.us-east-005.backblazeb2.com",
+                ForcePathStyle = true
+            });
+    }
+
+    var credentials = new BasicAWSCredentials(settings.AccessKey, settings.SecretKey);
+    var config = new AmazonS3Config
+    {
+        ServiceURL = settings.Endpoint,
+        ForcePathStyle = true,
+        UseHttp = false,
+        SignatureVersion = "4"
+    };
+    return new AmazonS3Client(credentials, config);
+});
 builder.Services.Configure<FormOptions>(options =>
 {
     options.MultipartBodyLengthLimit = 20 * 1024 * 1024;
