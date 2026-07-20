@@ -22,6 +22,20 @@ public interface IUnitOfWork : IDisposable
     ISyncProposalRepository SyncProposals { get; }
     IPendingPaperRepository PendingPapers { get; }
     IPaperPdfFileRepository PaperPdfFiles { get; }
+    
+    // Paper Analysis & Quality
+    IPaperQualityRepository PaperQualities { get; }
+    IPaperAnalysisRepository PaperAnalyses { get; }
+    IAnalysisJobRepository AnalysisJobs { get; }
+    
+    // Pattern Mining
+    IPatternRepository Patterns { get; }
+    
+    // Research Gap
+    IResearchGapRepository ResearchGaps { get; }
+    IGapTimelineRepository GapTimelines { get; }
+    ICoverageReportRepository CoverageReports { get; }
+    
     Task<int> SaveChangesAsync();
 
     Task<bool> BeginTransactionAsync();

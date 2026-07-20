@@ -98,14 +98,39 @@ public class SyncSchedulerService : ISyncSchedulerService
             var searchQuery = request?.SearchQuery;
             int? paperLimit = request?.PaperLimit;
 
-            _logger.LogInformation("Manual sync triggered by {UserId} for source: {Source}, query: '{Query}', limit: {Limit}",
-                adminUserId, request?.SourceName ?? "all", searchQuery ?? "default", paperLimit?.ToString() ?? "default");
+            // Manual sync with no query → run a SINGLE default query (the source's own configured one).
+            // This avoids the surprise of running ALL 10 schedule queries when admin forgets to pass a query.
+            // Multi-query fan-out is reserved for the scheduled (Automatic) sync in SyncJob.
+            List<string>? queriesForRun = null;
+            if (!string.IsNullOrWhiteSpace(searchQuery))
+            {
+                queriesForRun = [searchQuery];
+            }
+            else
+            {
+                var sourceName = request?.SourceName;
+                var defaultQuery = sourceName switch
+                {
+                    "SemanticScholar" => _configuration["ExternalApis:SemanticScholar:SearchQuery"] ?? "artificial intelligence",
+                    "OpenAlex" => _configuration["ExternalApis:OpenAlex:SearchQuery"] ?? "machine learning",
+                    "ArXiv" => _configuration["ExternalApis:ArXiv:SearchQuery"] ?? "artificial intelligence",
+                    "Crossref" => _configuration["ExternalApis:Crossref:SearchQuery"] ?? "artificial intelligence",
+                    _ => "artificial intelligence"
+                };
+                queriesForRun = [defaultQuery];
+                _logger.LogInformation(
+                    "Manual sync without query → using single default query '{Query}' for source '{Source}'",
+                    defaultQuery, sourceName ?? "all");
+            }
+
+            _logger.LogInformation("Manual sync triggered by {UserId} for source: {Source}, queries: {QueryCount}, limit: {Limit}",
+                adminUserId, request?.SourceName ?? "all", queriesForRun.Count, paperLimit?.ToString() ?? "default");
 
             var multiResult = await _syncService.RunSyncAsync(
                 sourceName: request?.SourceName,
                 syncType: syncType,
                 triggeredBy: adminUserId,
-                searchQueries: !string.IsNullOrWhiteSpace(searchQuery) ? new List<string> { searchQuery } : null,
+                searchQueries: queriesForRun,
                 paperLimit: paperLimit);
 
             // "Success" means at least one result completed AND nothing failed.

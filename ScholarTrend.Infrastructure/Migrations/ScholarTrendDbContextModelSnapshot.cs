@@ -154,6 +154,45 @@ namespace ScholarTrend.Infrastructure.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.AnalysisJob", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AnalysisType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("FinishedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<int>("PaperId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PaperId");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("AnalysisJobs");
+                });
+
             modelBuilder.Entity("ScholarTrend.Domain.Entities.ApiDataSource", b =>
                 {
                     b.Property<int>("Id")
@@ -238,6 +277,86 @@ namespace ScholarTrend.Infrastructure.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("Bookmarks");
+                });
+
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.CoverageReport", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AbstractAnalyzedPapers")
+                        .HasColumnType("integer");
+
+                    b.Property<double>("AbstractCoveragePercentage")
+                        .HasColumnType("double precision");
+
+                    b.Property<double>("CoveragePercentage")
+                        .HasColumnType("double precision");
+
+                    b.Property<double>("FullTextCoveragePercentage")
+                        .HasColumnType("double precision");
+
+                    b.Property<DateTime>("GeneratedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<int>("IgnoredPapers")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MetadataOnlyPapers")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PdfAnalyzedPapers")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TopicId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TotalPapers")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TopicId");
+
+                    b.ToTable("CoverageReports");
+                });
+
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.DatasetPattern", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("DatasetName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<double>("GrowthRate")
+                        .HasColumnType("double precision");
+
+                    b.Property<DateTime>("MinedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<int>("PaperCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TopicId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TopicId", "DatasetName", "Year");
+
+                    b.ToTable("DatasetPatterns");
                 });
 
             modelBuilder.Entity("ScholarTrend.Domain.Entities.FollowedAuthor", b =>
@@ -352,6 +471,57 @@ namespace ScholarTrend.Infrastructure.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("FollowedTopics");
+                });
+
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.GapTimeline", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("GapTitle")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("GapType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<double>("GrowthRate")
+                        .HasColumnType("double precision");
+
+                    b.Property<bool>("IsResolved")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("PaperCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ResolvedInYear")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TopicId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("TrackedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("Trend")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TopicId", "Year", "GapType");
+
+                    b.ToTable("GapTimelines");
                 });
 
             modelBuilder.Entity("ScholarTrend.Domain.Entities.Invoice", b =>
@@ -535,6 +705,75 @@ namespace ScholarTrend.Infrastructure.Migrations
                     b.ToTable("KeywordTrends");
                 });
 
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.LimitationPattern", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<double>("GrowthRate")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("LimitationText")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("MinedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<int>("PaperCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TopicId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TopicId", "LimitationText", "Year");
+
+                    b.ToTable("LimitationPatterns");
+                });
+
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.MethodPattern", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<double>("GrowthRate")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("MethodName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("MinedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<int>("PaperCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TopicId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TopicId", "MethodName", "Year");
+
+                    b.ToTable("MethodPatterns");
+                });
+
             modelBuilder.Entity("ScholarTrend.Domain.Entities.Notification", b =>
                 {
                     b.Property<int>("Id")
@@ -602,6 +841,83 @@ namespace ScholarTrend.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("NotificationSettings");
+                });
+
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.PaperAnalysis", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AnalysisLevel")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("AnalysisSource")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("ConclusionsJson")
+                        .HasColumnType("text");
+
+                    b.Property<int>("Confidence")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Contribution")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("Dataset")
+                        .HasColumnType("text");
+
+                    b.Property<string>("DatasetsJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("DiscussionsJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("EvidenceSentence")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FutureWorkJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("KeywordsJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("LimitationsJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Method")
+                        .HasColumnType("text");
+
+                    b.Property<string>("MethodsJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Metric")
+                        .HasColumnType("text");
+
+                    b.Property<int>("PaperId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ResearchProblem")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PaperId")
+                        .IsUnique();
+
+                    b.ToTable("PaperAnalyses");
                 });
 
             modelBuilder.Entity("ScholarTrend.Domain.Entities.PaperAuthor", b =>
@@ -720,6 +1036,68 @@ namespace ScholarTrend.Infrastructure.Migrations
                     b.HasIndex("Status");
 
                     b.ToTable("PaperPdfFiles");
+                });
+
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.PaperQuality", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AbstractLength")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("AnalysisLevel")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("AssessedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<int>("AuthorCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("CitationCount")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("HasAbstract")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("HasDoi")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("HasFullText")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("HasJournal")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("HasKeywords")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("HasPdf")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("PaperId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("QualityGrade")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<int>("QualityScore")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PaperId")
+                        .IsUnique();
+
+                    b.ToTable("PaperQualities");
                 });
 
             modelBuilder.Entity("ScholarTrend.Domain.Entities.PaperSource", b =>
@@ -1061,6 +1439,114 @@ namespace ScholarTrend.Infrastructure.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("RefreshTokens");
+                });
+
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.ResearchGap", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Confidence")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ConfidenceLevel")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("EvidenceCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("GapType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("GeneratedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<bool>("IsValidated")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("SuggestedDirection")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("TopicId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("ValidatedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GapType");
+
+                    b.HasIndex("TopicId");
+
+                    b.ToTable("ResearchGaps");
+                });
+
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.ResearchGapEvidence", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Confidence")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("EvidenceSentence")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("EvidenceType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<bool>("IsValidated")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("PageContext")
+                        .HasColumnType("text");
+
+                    b.Property<int>("PaperId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ResearchGapId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SectionSource")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("ValidationStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PaperId");
+
+                    b.HasIndex("ResearchGapId");
+
+                    b.ToTable("ResearchGapEvidences");
                 });
 
             modelBuilder.Entity("ScholarTrend.Domain.Entities.ResearchPaper", b =>
@@ -1714,6 +2200,17 @@ namespace ScholarTrend.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.AnalysisJob", b =>
+                {
+                    b.HasOne("ScholarTrend.Domain.Entities.ResearchPaper", "Paper")
+                        .WithMany()
+                        .HasForeignKey("PaperId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Paper");
+                });
+
             modelBuilder.Entity("ScholarTrend.Domain.Entities.Bookmark", b =>
                 {
                     b.HasOne("ScholarTrend.Domain.Entities.ResearchPaper", "Paper")
@@ -1731,6 +2228,28 @@ namespace ScholarTrend.Infrastructure.Migrations
                     b.Navigation("Paper");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.CoverageReport", b =>
+                {
+                    b.HasOne("ScholarTrend.Domain.Entities.ResearchTopic", "Topic")
+                        .WithMany()
+                        .HasForeignKey("TopicId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Topic");
+                });
+
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.DatasetPattern", b =>
+                {
+                    b.HasOne("ScholarTrend.Domain.Entities.ResearchTopic", "Topic")
+                        .WithMany()
+                        .HasForeignKey("TopicId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Topic");
                 });
 
             modelBuilder.Entity("ScholarTrend.Domain.Entities.FollowedAuthor", b =>
@@ -1809,6 +2328,17 @@ namespace ScholarTrend.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.GapTimeline", b =>
+                {
+                    b.HasOne("ScholarTrend.Domain.Entities.ResearchTopic", "Topic")
+                        .WithMany()
+                        .HasForeignKey("TopicId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Topic");
+                });
+
             modelBuilder.Entity("ScholarTrend.Domain.Entities.Invoice", b =>
                 {
                     b.HasOne("ScholarTrend.Domain.Entities.PaymentTransaction", "Transaction")
@@ -1850,6 +2380,28 @@ namespace ScholarTrend.Infrastructure.Migrations
                     b.Navigation("Keyword");
                 });
 
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.LimitationPattern", b =>
+                {
+                    b.HasOne("ScholarTrend.Domain.Entities.ResearchTopic", "Topic")
+                        .WithMany()
+                        .HasForeignKey("TopicId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Topic");
+                });
+
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.MethodPattern", b =>
+                {
+                    b.HasOne("ScholarTrend.Domain.Entities.ResearchTopic", "Topic")
+                        .WithMany()
+                        .HasForeignKey("TopicId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Topic");
+                });
+
             modelBuilder.Entity("ScholarTrend.Domain.Entities.Notification", b =>
                 {
                     b.HasOne("ScholarTrend.Domain.Entities.User", "User")
@@ -1870,6 +2422,17 @@ namespace ScholarTrend.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.PaperAnalysis", b =>
+                {
+                    b.HasOne("ScholarTrend.Domain.Entities.ResearchPaper", "Paper")
+                        .WithMany()
+                        .HasForeignKey("PaperId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Paper");
                 });
 
             modelBuilder.Entity("ScholarTrend.Domain.Entities.PaperAuthor", b =>
@@ -1919,6 +2482,17 @@ namespace ScholarTrend.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("ResearchPaper");
+                });
+
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.PaperQuality", b =>
+                {
+                    b.HasOne("ScholarTrend.Domain.Entities.ResearchPaper", "Paper")
+                        .WithMany()
+                        .HasForeignKey("PaperId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Paper");
                 });
 
             modelBuilder.Entity("ScholarTrend.Domain.Entities.PaperSource", b =>
@@ -2015,6 +2589,36 @@ namespace ScholarTrend.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.ResearchGap", b =>
+                {
+                    b.HasOne("ScholarTrend.Domain.Entities.ResearchTopic", "Topic")
+                        .WithMany()
+                        .HasForeignKey("TopicId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Topic");
+                });
+
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.ResearchGapEvidence", b =>
+                {
+                    b.HasOne("ScholarTrend.Domain.Entities.ResearchPaper", "Paper")
+                        .WithMany()
+                        .HasForeignKey("PaperId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ScholarTrend.Domain.Entities.ResearchGap", "ResearchGap")
+                        .WithMany("Evidences")
+                        .HasForeignKey("ResearchGapId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Paper");
+
+                    b.Navigation("ResearchGap");
                 });
 
             modelBuilder.Entity("ScholarTrend.Domain.Entities.ResearchPaper", b =>
@@ -2148,6 +2752,11 @@ namespace ScholarTrend.Infrastructure.Migrations
                     b.Navigation("KeywordTrends");
 
                     b.Navigation("PaperKeywords");
+                });
+
+            modelBuilder.Entity("ScholarTrend.Domain.Entities.ResearchGap", b =>
+                {
+                    b.Navigation("Evidences");
                 });
 
             modelBuilder.Entity("ScholarTrend.Domain.Entities.ResearchPaper", b =>

@@ -71,6 +71,31 @@ public class ScholarTrendDbContext : IdentityDbContext<User>
 
     #endregion
 
+    #region Paper Analysis & Quality
+
+    public DbSet<PaperQuality> PaperQualities => Set<PaperQuality>();
+    public DbSet<PaperAnalysis> PaperAnalyses => Set<PaperAnalysis>();
+    public DbSet<AnalysisJob> AnalysisJobs => Set<AnalysisJob>();
+
+    #endregion
+
+    #region Pattern Mining
+
+    public DbSet<MethodPattern> MethodPatterns => Set<MethodPattern>();
+    public DbSet<DatasetPattern> DatasetPatterns => Set<DatasetPattern>();
+    public DbSet<LimitationPattern> LimitationPatterns => Set<LimitationPattern>();
+
+    #endregion
+
+    #region Research Gap
+
+    public DbSet<ResearchGap> ResearchGaps => Set<ResearchGap>();
+    public DbSet<ResearchGapEvidence> ResearchGapEvidences => Set<ResearchGapEvidence>();
+    public DbSet<GapTimeline> GapTimelines => Set<GapTimeline>();
+    public DbSet<CoverageReport> CoverageReports => Set<CoverageReport>();
+
+    #endregion
+
     #region Payment
 
     public DbSet<PaymentTransaction> PaymentTransactions => Set<PaymentTransaction>();

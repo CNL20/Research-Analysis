@@ -2,8 +2,10 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using ScholarTrend.Application.DTOs.GapAnalysis;
 using ScholarTrend.Application.DTOs.TopicInsights;
 using ScholarTrend.Application.Interfaces.External;
+using ScholarTrend.Domain.Entities;
 
 namespace ScholarTrend.Infrastructure.ExternalApis;
 
@@ -101,7 +103,13 @@ Analyze the following text from an academic paper.
 Identify:
 1. 'methods': Key methodologies, architectures, or algorithms proposed or used.
 2. 'datasets': Datasets or benchmarks used in the evaluation.
-3. 'future_works': Limitations, future works, or open challenges mentioned.
+3. 'limitations': Explicit limitations or weaknesses mentioned in the paper.
+4. 'future_work': Explicit future work or next steps mentioned in the paper.
+5. 'discussions': Key discussion points and their implications.
+6. 'conclusions': Main conclusions drawn from the research.
+7. 'research_problem': The main research problem or question addressed.
+8. 'metric': Evaluation metrics used to measure performance.
+9. 'contribution': The main contribution of the paper.
 
 Text:
 {abstractText}
@@ -110,7 +118,13 @@ Return ONLY a valid JSON object matching this structure:
 {{
   ""methods"": [""method 1"", ""method 2""],
   ""datasets"": [""dataset 1""],
-  ""future_works"": [""future direction 1""]
+  ""limitations"": [""limitation 1""],
+  ""future_work"": [""future direction 1""],
+  ""discussions"": [""discussion point 1""],
+  ""conclusions"": [""conclusion 1""],
+  ""research_problem"": ""problem statement"",
+  ""metric"": ""evaluation metric"",
+  ""contribution"": ""main contribution""
 }}";
 
         var textResult = await CallGroqApiAsync(prompt, cancellationToken);
@@ -124,6 +138,284 @@ Return ONLY a valid JSON object matching this structure:
         {
             _logger.LogError(ex, "Failed to parse Groq extraction result.");
             return null;
+        }
+    }
+
+    public async Task<AiPaperExtractionDto?> ExtractFromFullTextAsync(string fullText, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(fullText))
+            return null;
+
+        var prompt = $@"
+Analyze the following text from an academic paper (possibly from Discussion, Conclusion, or Future Work sections).
+Extract structured information with high precision.
+
+Text:
+{fullText}
+
+Return ONLY a valid JSON object matching this structure:
+{{
+  ""methods"": [""method 1"", ""method 2""],
+  ""datasets"": [""dataset 1""],
+  ""limitations"": [""limitation 1""],
+  ""future_work"": [""future direction 1""],
+  ""discussions"": [""discussion point 1""],
+  ""conclusions"": [""conclusion 1""],
+  ""research_problem"": ""problem statement"",
+  ""metric"": ""evaluation metric"",
+  ""contribution"": ""main contribution""
+}}";
+
+        var textResult = await CallGroqApiAsync(prompt, cancellationToken);
+        if (string.IsNullOrWhiteSpace(textResult)) return null;
+
+        try
+        {
+            return JsonSerializer.Deserialize<AiPaperExtractionDto>(textResult, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to parse Groq full text extraction result.");
+            return null;
+        }
+    }
+
+    public async Task<List<ResearchGapDto>> GenerateResearchGapsAsync(
+        string topicName,
+        PatternMiningResultDto patterns,
+        GapTimelineDto timeline,
+        List<PaperAnalysisDto> analyses,
+        CancellationToken cancellationToken = default)
+    {
+        // Build paper context so AI can reference real paper IDs
+        var paperContext = analyses.Take(50).Select((a, idx) =>
+            $"[Paper {idx + 1}] ID={a.PaperId}, Title=\"{a.Title}\", Method=\"{a.Method}\", Dataset=\"{a.Dataset}\", Year={a.Year}").ToList();
+
+        var prompt = $@"
+You are an expert academic researcher analyzing research gaps in the field of '{topicName}'.
+
+Based on the following evidence from {analyses.Count} papers:
+
+PAPER CONTEXT (use these Paper IDs when listing supporting_paper_ids):
+{string.Join("\n", paperContext)}
+
+METHODS TRENDS:
+{JsonSerializer.Serialize(patterns.Methods)}
+
+DATASET TRENDS:
+{JsonSerializer.Serialize(patterns.Datasets)}
+
+LIMITATION PATTERNS:
+{JsonSerializer.Serialize(patterns.Limitations)}
+
+GAP TIMELINE:
+{JsonSerializer.Serialize(timeline.Timeline)}
+
+Identify exactly 5-7 DISTINCT and NON-OVERLAPPING research gaps. Each gap MUST be unique in its core theme. Avoid creating multiple gaps about the same underlying issue.
+
+For each gap, return:
+- gap_type: MUST be EXACTLY one of these values (no other text):
+  * ""Dataset Gap""
+  * ""Method Gap""
+  * ""Evaluation Gap""
+  * ""Application Gap""
+  * ""Geographic Gap""
+  * ""Temporal Gap""
+  * ""Contradiction Gap""
+- title: Concise gap title (max 200 chars)
+- description: Detailed explanation citing specific papers/methods when relevant (min 100 chars)
+- suggested_direction: Concrete, actionable research direction that would address this gap. Must NOT be empty. (min 80 chars)
+- confidence: integer 0-100 (higher if supported by multiple papers)
+- supporting_paper_ids: array of Paper IDs from the PAPER CONTEXT above that support this gap. Must reference real IDs from PAPER CONTEXT.
+- evidence_count: integer equal to the number of supporting_paper_ids (or number of papers supporting this gap).
+
+CRITICAL RULES:
+1. gap_type MUST be exactly one of the 7 values listed above.
+2. suggested_direction MUST be a non-empty concrete recommendation (e.g., ""Conduct user studies with diverse populations to evaluate X"").
+3. Each gap must target a DIFFERENT research dimension. Do not create multiple ""dataset"" or ""evaluation"" gaps with overlapping themes.
+4. Limit to 5-7 total gaps. Quality over quantity.
+
+Return ONLY a valid JSON object:
+{{
+  ""gaps"": [
+    {{
+      ""title"": ""Gap Title"",
+      ""description"": ""Description of the gap citing specific papers/methods"",
+      ""gap_type"": ""Dataset Gap"",
+      ""suggested_direction"": ""Concrete actionable research direction"",
+      ""confidence"": 85,
+      ""supporting_paper_ids"": [1, 5, 12],
+      ""evidence_count"": 3
+    }}
+  ]
+}}";
+
+        var textResult = await CallGroqApiAsync(prompt, cancellationToken);
+        if (string.IsNullOrWhiteSpace(textResult)) return new List<ResearchGapDto>();
+
+        try
+        {
+            using var jsonDoc = JsonDocument.Parse(textResult);
+            if (jsonDoc.RootElement.TryGetProperty("gaps", out var gapsElement))
+            {
+                var gaps = JsonSerializer.Deserialize<List<ResearchGapDto>>(gapsElement.GetRawText(),
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<ResearchGapDto>();
+
+                // Normalize gap_type and provide defaults for missing fields
+                foreach (var gap in gaps)
+                {
+                    gap.GapType = NormalizeGapType(gap.GapType);
+                    gap.SuggestedDirection = string.IsNullOrWhiteSpace(gap.SuggestedDirection)
+                        ? $"Further research is needed to investigate {gap.Title.ToLowerInvariant()}."
+                        : gap.SuggestedDirection;
+                    if (gap.Confidence <= 0) gap.Confidence = 50;
+                    if (gap.Confidence > 100) gap.Confidence = 100;
+                }
+
+                // Deduplicate gaps by gap_type + similar title to avoid AI generating overlapping gaps
+                gaps = DeduplicateGaps(gaps);
+
+                return gaps;
+            }
+            return new List<ResearchGapDto>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to parse Groq research gap generation result.");
+            return new List<ResearchGapDto>();
+        }
+    }
+
+    private static string NormalizeGapType(string? rawType)
+    {
+        if (string.IsNullOrWhiteSpace(rawType)) return GapTypes.Dataset;
+
+        var cleaned = rawType.Trim();
+        // Map common variations to canonical values
+        var mappings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["dataset"] = GapTypes.Dataset,
+            ["data"] = GapTypes.Dataset,
+            ["method"] = GapTypes.Method,
+            ["methodology"] = GapTypes.Method,
+            ["algorithm"] = GapTypes.Method,
+            ["evaluation"] = GapTypes.Evaluation,
+            ["metric"] = GapTypes.Evaluation,
+            ["benchmark"] = GapTypes.Evaluation,
+            ["application"] = GapTypes.Application,
+            ["practical"] = GapTypes.Application,
+            ["real-world"] = GapTypes.Application,
+            ["geographic"] = GapTypes.Geographic,
+            ["geographical"] = GapTypes.Geographic,
+            ["regional"] = GapTypes.Geographic,
+            ["temporal"] = GapTypes.Temporal,
+            ["time"] = GapTypes.Temporal,
+            ["contradiction"] = GapTypes.Contradiction,
+            ["conflict"] = GapTypes.Contradiction,
+            ["disagreement"] = GapTypes.Contradiction
+        };
+
+        var key = cleaned.ToLowerInvariant().Replace(" gap", "").Trim();
+        return mappings.TryGetValue(key, out var mapped) ? mapped : cleaned;
+    }
+
+    private static List<ResearchGapDto> DeduplicateGaps(List<ResearchGapDto> gaps)
+    {
+        if (gaps.Count <= 1) return gaps;
+
+        // Group by gap_type, keep the highest-confidence gap per type if titles are similar
+        var deduped = new List<ResearchGapDto>();
+        var seenSignatures = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Sort by confidence desc so we keep the strongest gap per cluster
+        var ordered = gaps.OrderByDescending(g => g.Confidence).ToList();
+
+        foreach (var gap in ordered)
+        {
+            // Build a signature: normalized title words (first 4 words) + gap_type
+            var titleWords = (gap.Title ?? string.Empty)
+                .ToLowerInvariant()
+                .Split(new[] { ' ', ',', '.', ':', ';', '-' }, StringSplitOptions.RemoveEmptyEntries)
+                .Where(w => w.Length > 3)
+                .Take(4)
+                .OrderBy(w => w)
+                .ToList();
+
+            var signature = $"{gap.GapType}|{string.Join("_", titleWords)}";
+
+            // If exact signature seen, skip
+            if (seenSignatures.Contains(signature)) continue;
+
+            // Check overlap with any existing deduped gap of same type
+            var isDuplicate = deduped.Any(existing =>
+                existing.GapType.Equals(gap.GapType, StringComparison.OrdinalIgnoreCase) &&
+                TitleOverlap(existing.Title, gap.Title) > 0.6);
+
+            if (!isDuplicate)
+            {
+                deduped.Add(gap);
+                seenSignatures.Add(signature);
+            }
+        }
+
+        return deduped;
+    }
+
+    private static double TitleOverlap(string a, string b)
+    {
+        if (string.IsNullOrWhiteSpace(a) || string.IsNullOrWhiteSpace(b)) return 0;
+        var wordsA = a.ToLowerInvariant().Split(new[] { ' ', ',', '.', ':', ';', '-' }, StringSplitOptions.RemoveEmptyEntries)
+            .Where(w => w.Length > 3).ToHashSet();
+        var wordsB = b.ToLowerInvariant().Split(new[] { ' ', ',', '.', ':', ';', '-' }, StringSplitOptions.RemoveEmptyEntries)
+            .Where(w => w.Length > 3).ToHashSet();
+        if (!wordsA.Any() || !wordsB.Any()) return 0;
+        var intersect = wordsA.Intersect(wordsB).Count();
+        var union = wordsA.Union(wordsB).Count();
+        return union == 0 ? 0 : (double)intersect / union;
+    }
+
+    public async Task<AiPaperExtractionDto> InferLimitationsAndFutureWorkAsync(
+        string paperTitle,
+        string abstractText,
+        List<string> methods,
+        List<string> datasets,
+        CancellationToken cancellationToken = default)
+    {
+        var methodsStr = methods.Any() ? string.Join(", ", methods) : "unknown";
+        var datasetsStr = datasets.Any() ? string.Join(", ", datasets) : "unknown";
+
+        var prompt = $@"
+You are analyzing an academic paper to identify its limitations and potential future research directions.
+Do NOT simply repeat what's in the abstract. You must critically analyze and infer beyond what is explicitly stated.
+
+Paper Title: {paperTitle}
+Abstract: {abstractText}
+Methods Used: {methodsStr}
+Datasets Used: {datasetsStr}
+
+Based on the paper's methodology, experimental setup, and contribution, infer:
+1. 'limitations': Potential weaknesses, constraints, or areas the paper could improve (e.g., narrow evaluation, missing baselines, scalability issues). Each limitation should be insightful, not generic.
+2. 'future_work': Concrete and actionable future research directions that could build upon this work. Must be specific to this paper's domain and contribution.
+
+Return ONLY a valid JSON object matching this structure (add [AI Inferred] suffix to each item to mark as inferred):
+{{
+  ""limitations"": [""Limitation 1 [AI Inferred]"", ""Limitation 2 [AI Inferred]""],
+  ""future_work"": [""Future direction 1 [AI Inferred]"", ""Future direction 2 [AI Inferred]""]
+}}";
+
+        var textResult = await CallGroqApiAsync(prompt, cancellationToken);
+        if (string.IsNullOrWhiteSpace(textResult))
+            return new AiPaperExtractionDto { Limitations = [], FutureWork = [] };
+
+        try
+        {
+            return JsonSerializer.Deserialize<AiPaperExtractionDto>(textResult, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+                   ?? new AiPaperExtractionDto { Limitations = [], FutureWork = [] };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to parse Groq inference result.");
+            return new AiPaperExtractionDto { Limitations = [], FutureWork = [] };
         }
     }
 

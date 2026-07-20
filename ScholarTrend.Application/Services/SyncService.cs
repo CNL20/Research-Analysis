@@ -160,6 +160,7 @@ public class SyncService : ISyncService
                     PapersFetched = 0,
                     PapersAdded = 0,
                     PapersUpdated = 0,
+                    PapersSkippedDuplicates = 0,
                     Status = "Failed",
                     Message = $"Source-level sync failed: {ex.Message}"
                 });
@@ -268,11 +269,13 @@ public class SyncService : ISyncService
             }
 
             var newPapersToAdd = new List<ExternalPaperDto>();
+            var duplicatesSkipped = 0;
 
             foreach (var external in externalPapers)
             {
                 if (await _unitOfWork.SyncProposals.IsPaperAlreadyQueuedOrStoredAsync(external.ExternalId, external.Source))
                 {
+                    duplicatesSkipped++;
                     continue;
                 }
 
@@ -295,8 +298,11 @@ public class SyncService : ISyncService
                     PapersFetched = log.PapersFetched,
                     PapersAdded = 0,
                     PapersUpdated = 0,
+                    PapersSkippedDuplicates = duplicatesSkipped,
                     Status = log.Status,
-                    Message = $"[{searchQuery}] No new papers found to sync."
+                    Message = duplicatesSkipped > 0
+                        ? $"[{searchQuery}] No new papers. All {duplicatesSkipped} fetched paper(s) already exist in DB or pending proposals."
+                        : $"[{searchQuery}] No papers fetched from {source.Name}."
                 };
             }
 
@@ -334,8 +340,9 @@ public class SyncService : ISyncService
                 PapersFetched = log.PapersFetched,
                 PapersAdded = newPapersToAdd.Count,
                 PapersUpdated = 0,
+                PapersSkippedDuplicates = duplicatesSkipped,
                 Status = log.Status,
-                Message = $"[{searchQuery}] {proposal.TotalFetched} paper(s) are awaiting admin approval."
+                Message = $"[{searchQuery}] {proposal.TotalFetched} new paper(s) queued for approval (skipped {duplicatesSkipped} duplicate(s))."
             };
         }
         catch (Exception ex)
@@ -365,6 +372,7 @@ public class SyncService : ISyncService
                 PapersFetched = log.PapersFetched,
                 PapersAdded = 0,
                 PapersUpdated = 0,
+                PapersSkippedDuplicates = 0,
                 Status = log.Status,
                 Message = $"[{searchQuery}] Sync failed: {ex.Message}"
             };

@@ -65,6 +65,12 @@ public class SemanticScholarClient : ISemanticScholarClient
                     };
                 }).Where(p => !string.IsNullOrWhiteSpace(p.ExternalId)).ToList();
             }
+            catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+            {
+                _logger.LogWarning("Semantic Scholar rate limited (429). Waiting 30s before retry (attempt {Attempt}/3)", attempt);
+                if (attempt >= 3) break;
+                await Task.Delay(TimeSpan.FromSeconds(30));
+            }
             catch (Exception ex) when (attempt < 3)
             {
                 _logger.LogWarning(ex, "Semantic Scholar request failed (attempt {Attempt})", attempt);

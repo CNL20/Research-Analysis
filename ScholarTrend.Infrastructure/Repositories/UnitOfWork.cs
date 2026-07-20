@@ -25,6 +25,13 @@ public class UnitOfWork : IUnitOfWork
     private ISyncProposalRepository? _syncProposals;
     private IPendingPaperRepository? _pendingPapers;
     private IPaperPdfFileRepository? _paperPdfFiles;
+    private IPaperQualityRepository? _paperQualities;
+    private IPaperAnalysisRepository? _paperAnalyses;
+    private IAnalysisJobRepository? _analysisJobs;
+    private IPatternRepository? _patterns;
+    private IResearchGapRepository? _researchGaps;
+    private IGapTimelineRepository? _gapTimelines;
+    private ICoverageReportRepository? _coverageReports;
     private Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? _transaction;
 
     public DbContext Context => _context;
@@ -47,6 +54,13 @@ public class UnitOfWork : IUnitOfWork
     public ISyncProposalRepository SyncProposals => _syncProposals ??= new SyncProposalRepository(_context);
     public IPendingPaperRepository PendingPapers => _pendingPapers ??= new PendingPaperRepository(_context);
     public IPaperPdfFileRepository PaperPdfFiles => _paperPdfFiles ??= new PaperPdfFileRepository(_context);
+    public IPaperQualityRepository PaperQualities => _paperQualities ??= new PaperQualityRepository(_context);
+    public IPaperAnalysisRepository PaperAnalyses => _paperAnalyses ??= new PaperAnalysisRepository(_context);
+    public IAnalysisJobRepository AnalysisJobs => _analysisJobs ??= new AnalysisJobRepository(_context);
+    public IPatternRepository Patterns => _patterns ??= new PatternRepository(_context);
+    public IResearchGapRepository ResearchGaps => _researchGaps ??= new ResearchGapRepository(_context);
+    public IGapTimelineRepository GapTimelines => _gapTimelines ??= new GapTimelineRepository(_context);
+    public ICoverageReportRepository CoverageReports => _coverageReports ??= new CoverageReportRepository(_context);
 
     public async Task<int> SaveChangesAsync()
     {
