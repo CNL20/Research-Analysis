@@ -17,15 +17,15 @@ public class NotificationService : INotificationService
         _userManager = userManager;
     }
 
-    public async Task<IReadOnlyList<NotificationDto>> GetNotificationsAsync(string userId, bool? isRead, int limit = 20)
+    public async Task<IReadOnlyList<NotificationDto>> GetNotificationsAsync(string userId, bool? isRead, int limit = 20, string? type = null)
     {
-        var notifications = await _unitOfWork.Notifications.GetUserNotificationsAsync(userId, isRead, limit);
+        var notifications = await _unitOfWork.Notifications.GetUserNotificationsAsync(userId, isRead, limit, type);
         return notifications.Select(MapToDto).ToList();
     }
 
-    public Task<int> GetUnreadCountAsync(string userId)
+    public Task<int> GetUnreadCountAsync(string userId, string? type = null)
     {
-        return _unitOfWork.Notifications.GetUnreadCountAsync(userId);
+        return _unitOfWork.Notifications.GetUnreadCountAsync(userId, type);
     }
 
     public async Task MarkAsReadAsync(string userId, int notificationId)
@@ -121,6 +121,7 @@ public class NotificationService : INotificationService
                 Title = "Papers pending sync approval",
                 Message = $"{pendingCount} new paper(s) are waiting for your approval before they are synced.",
                 TargetUrl = $"/admin/sync/pending/{proposalId}",
+                Type = "Admin",
                 CreatedAt = DateTime.UtcNow
             });
         }
@@ -162,6 +163,7 @@ public class NotificationService : INotificationService
                 Title = "Paper enrichment incomplete",
                 Message = message,
                 TargetUrl = $"/papers/{paperId}",
+                Type = "Admin",
                 CreatedAt = DateTime.UtcNow
             });
         }
@@ -186,6 +188,7 @@ public class NotificationService : INotificationService
                 Title = "Paper enrichment complete",
                 Message = message,
                 TargetUrl = $"/papers/{paperId}",
+                Type = "Admin",
                 CreatedAt = DateTime.UtcNow
             });
         }
@@ -256,6 +259,7 @@ public class NotificationService : INotificationService
             Message = notification.Message,
             TargetUrl = notification.TargetUrl,
             IsRead = notification.IsRead,
+            Type = notification.Type,
             CreatedAt = notification.CreatedAt,
             ReadAt = notification.ReadAt
         };

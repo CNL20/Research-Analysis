@@ -19,7 +19,7 @@ public class NotificationRepository : INotificationRepository
         await _context.Notifications.AddAsync(notification);
     }
 
-    public async Task<IReadOnlyList<Notification>> GetUserNotificationsAsync(string userId, bool? isRead, int limit)
+    public async Task<IReadOnlyList<Notification>> GetUserNotificationsAsync(string userId, bool? isRead, int limit, string? type = null)
     {
         var query = _context.Notifications
             .Where(n => n.UserId == userId);
@@ -29,15 +29,25 @@ public class NotificationRepository : INotificationRepository
             query = query.Where(n => n.IsRead == isRead.Value);
         }
 
+        if (!string.IsNullOrEmpty(type))
+        {
+            query = query.Where(n => n.Type == type);
+        }
+
         return await query
             .OrderByDescending(n => n.CreatedAt)
             .Take(limit)
             .ToListAsync();
     }
 
-    public Task<int> GetUnreadCountAsync(string userId)
+    public Task<int> GetUnreadCountAsync(string userId, string? type = null)
     {
-        return _context.Notifications.CountAsync(n => n.UserId == userId && !n.IsRead);
+        var query = _context.Notifications.Where(n => n.UserId == userId && !n.IsRead);
+        if (!string.IsNullOrEmpty(type))
+        {
+            query = query.Where(n => n.Type == type);
+        }
+        return query.CountAsync();
     }
 
     public Task<Notification?> GetByIdForUserAsync(int id, string userId)

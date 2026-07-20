@@ -1,4 +1,4 @@
-﻿namespace ScholarTrend.Domain.Entities;
+namespace ScholarTrend.Domain.Entities;
 public class Notification
 {
     public int Id { get; set; }
@@ -7,6 +7,7 @@ public class Notification
     public string Message { get; set; } = string.Empty;
     public string? TargetUrl { get; set; }
     public bool IsRead { get; set; } = false;
+    public string Type { get; set; } = "User";
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? ReadAt { get; set; }
     public User User { get; set; } = null!;

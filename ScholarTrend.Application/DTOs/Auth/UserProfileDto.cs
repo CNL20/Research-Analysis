@@ -10,4 +10,6 @@ public class UserProfileDto
     public DateTime CreatedAt { get; set; }
     public DateTime? LastLoginAt { get; set; }
     public List<string> Roles { get; set; } = [];
+    public string? CurrentPlanName { get; set; }
+    public DateTime? SubscriptionEndDate { get; set; }
 }

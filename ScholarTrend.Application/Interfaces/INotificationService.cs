@@ -4,8 +4,8 @@ namespace ScholarTrend.Application.Interfaces;
 
 public interface INotificationService
 {
-    Task<IReadOnlyList<NotificationDto>> GetNotificationsAsync(string userId, bool? isRead, int limit = 20);
-    Task<int> GetUnreadCountAsync(string userId);
+    Task<IReadOnlyList<NotificationDto>> GetNotificationsAsync(string userId, bool? isRead, int limit = 20, string? type = null);
+    Task<int> GetUnreadCountAsync(string userId, string? type = null);
     Task MarkAsReadAsync(string userId, int notificationId);
     Task MarkAllAsReadAsync(string userId);
     Task<NotificationSettingDto> GetSettingsAsync(string userId);

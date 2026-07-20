@@ -61,4 +61,18 @@ public class PaymentController : ControllerBase
         // Return 200 OK even on failure to acknowledge receipt (as per PayOS best practice)
         return Ok(new { success = false });
     }
+
+    [Authorize]
+    [HttpGet("history")]
+    public async Task<IActionResult> GetHistory()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Unauthorized();
+        }
+
+        var history = await _paymentService.GetUserTransactionHistoryAsync(userId);
+        return Ok(history);
+    }
 }
