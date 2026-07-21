@@ -120,7 +120,7 @@ public class NotificationService : INotificationService
                 UserId = admin.Id,
                 Title = "Papers pending sync approval",
                 Message = $"{pendingCount} new paper(s) are waiting for your approval before they are synced.",
-                TargetUrl = $"/admin/sync/pending/{proposalId}",
+                TargetUrl = $"/admin/api-config?pendingId={proposalId}",
                 Type = "Admin",
                 CreatedAt = DateTime.UtcNow
             });
