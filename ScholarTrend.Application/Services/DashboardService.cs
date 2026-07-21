@@ -29,8 +29,8 @@ public class DashboardService : IDashboardService
         var (bookmarks, bookmarksCount) = await _unitOfWork.Bookmarks.GetUserBookmarksAsync(userId, 1, 5);
         var (followedTopics, followedTopicsCount) = await _unitOfWork.Follows.GetUserFollowedTopicsAsync(userId, 1, 5);
         var (followedJournals, followedJournalsCount) = await _unitOfWork.Follows.GetUserFollowedJournalsAsync(userId, 1, 5);
-        var notifications = await _unitOfWork.Notifications.GetUserNotificationsAsync(userId, null, 5);
-        var unreadCount = await _unitOfWork.Notifications.GetUnreadCountAsync(userId);
+        var notifications = await _unitOfWork.Notifications.GetUserNotificationsAsync(userId, null, 5, "User");
+        var unreadCount = await _unitOfWork.Notifications.GetUnreadCountAsync(userId, "User");
         var topTopics = await _trendService.GetTopTopicsAsync(new DTOs.Trends.TrendFilterRequest { Top = 5 });
 
         return new PersonalDashboardDto
