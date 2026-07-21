@@ -10,6 +10,20 @@ public class GapAnalysisResultDto
     public int FailedPapers { get; set; }
     public double AnalysisProgress { get; set; }
     public List<PaperAnalysisDto> RecentAnalyses { get; set; } = [];
+
+    // Hybrid extraction statistics
+    public HybridExtractionStatsDto? HybridStats { get; set; }
+}
+
+public class HybridExtractionStatsDto
+{
+    public int HybridAnalyzedPapers { get; set; }
+    public int AbstractOnlyPapers { get; set; }
+    public int UsedDiscussionPapers { get; set; }
+    public int UsedConclusionPapers { get; set; }
+    public double AverageAbstractConfidence { get; set; }
+    public double AverageDiscussionConfidence { get; set; }
+    public double AverageOverallConfidence { get; set; }
 }
 
 public class PaperAnalysisDto
@@ -31,4 +45,12 @@ public class PaperAnalysisDto
     public string AnalysisLevel { get; set; } = string.Empty;
     public int Confidence { get; set; }
     public DateTime AnalyzedAt { get; set; }
+
+    // Hybrid extraction metadata
+    public string AnalysisSource { get; set; } = string.Empty;
+    public bool UsedDiscussion { get; set; }
+    public bool UsedConclusion { get; set; }
+    public int AbstractConfidence { get; set; }
+    public int DiscussionConfidence { get; set; }
+    public int ConclusionConfidence { get; set; }
 }

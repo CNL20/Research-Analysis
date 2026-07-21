@@ -180,6 +180,313 @@ Return ONLY a valid JSON object matching this structure:
         }
     }
 
+    public async Task<HybridExtractionResultDto?> ExtractHybridAsync(
+        string abstractText,
+        string? discussionSection,
+        string? conclusionSection,
+        string? introductionSection,
+        string? methodologySection,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(abstractText))
+            return null;
+
+        var result = new HybridExtractionResultDto();
+
+        // Stage 1: Extract from abstract (always)
+        var abstractExtraction = await ExtractFromAbstractAsync(abstractText, cancellationToken);
+        if (abstractExtraction == null)
+        {
+            _logger.LogWarning("Failed to extract from abstract");
+            return null;
+        }
+
+        result.PrimaryExtraction = abstractExtraction;
+        result.Metadata.UsedAbstract = true;
+        result.Metadata.ExtractionTimestamp = DateTime.UtcNow;
+
+        // Calculate abstract confidence
+        result.Metadata.ConfidenceBreakdown.AbstractConfidence = CalculateFieldConfidence(abstractExtraction);
+
+        // Estimate tokens used
+        result.Metadata.TotalTokensEstimate = EstimateTokens(abstractText);
+        if (!string.IsNullOrWhiteSpace(discussionSection))
+            result.Metadata.TotalTokensEstimate += EstimateTokens(discussionSection);
+        if (!string.IsNullOrWhiteSpace(conclusionSection))
+            result.Metadata.TotalTokensEstimate += EstimateTokens(conclusionSection);
+        if (!string.IsNullOrWhiteSpace(introductionSection))
+            result.Metadata.TotalTokensEstimate += EstimateTokens(introductionSection);
+        if (!string.IsNullOrWhiteSpace(methodologySection))
+            result.Metadata.TotalTokensEstimate += EstimateTokens(methodologySection);
+
+        // Stage 2: Identify missing fields
+        var missingFields = IdentifyMissingFields(abstractExtraction);
+        result.Metadata.MissingFields = missingFields;
+
+        if (missingFields.Count == 0)
+        {
+            // Abstract has all fields - use abstract only
+            result.MergedExtraction = abstractExtraction;
+            result.Metadata.ConfidenceBreakdown.OverallConfidence = result.Metadata.ConfidenceBreakdown.AbstractConfidence;
+            return result;
+        }
+
+        // Stage 3: Extract from targeted sections for missing fields
+        var sectionExtraction = await ExtractMissingFieldsAsync(
+            missingFields,
+            discussionSection,
+            conclusionSection,
+            introductionSection,
+            methodologySection,
+            cancellationToken);
+
+        if (sectionExtraction != null)
+        {
+            // Track which sections were used
+            if (!string.IsNullOrWhiteSpace(discussionSection) && sectionExtraction.Limitations.Any())
+            {
+                result.Metadata.UsedDiscussion = true;
+                result.Metadata.ConfidenceBreakdown.DiscussionConfidence = CalculateFieldConfidence(sectionExtraction);
+            }
+            if (!string.IsNullOrWhiteSpace(conclusionSection) && sectionExtraction.FutureWork.Any())
+            {
+                result.Metadata.UsedConclusion = true;
+                result.Metadata.ConfidenceBreakdown.ConclusionConfidence = CalculateFieldConfidence(sectionExtraction);
+            }
+            if (!string.IsNullOrWhiteSpace(introductionSection))
+                result.Metadata.UsedIntroduction = true;
+            if (!string.IsNullOrWhiteSpace(methodologySection))
+                result.Metadata.UsedMethodology = true;
+
+            // Store section extraction
+            result.SectionExtractions = new SectionExtractionsDto
+            {
+                Discussion = result.Metadata.UsedDiscussion ? sectionExtraction : null,
+                Conclusion = result.Metadata.UsedConclusion ? sectionExtraction : null,
+                Introduction = result.Metadata.UsedIntroduction ? abstractExtraction : null,
+                Methodology = result.Metadata.UsedMethodology ? abstractExtraction : null
+            };
+
+            // Stage 4: Merge results
+            result.MergedExtraction = MergeExtractions(abstractExtraction, sectionExtraction, missingFields);
+        }
+        else
+        {
+            // Fallback to abstract only if section extraction fails
+            result.MergedExtraction = abstractExtraction;
+        }
+
+        // Calculate overall confidence
+        result.Metadata.ConfidenceBreakdown.OverallConfidence = CalculateOverallConfidence(
+            result.Metadata.ConfidenceBreakdown.AbstractConfidence,
+            result.Metadata.ConfidenceBreakdown.DiscussionConfidence,
+            result.Metadata.ConfidenceBreakdown.ConclusionConfidence,
+            missingFields);
+
+        // Set field-level confidence
+        result.Metadata.ConfidenceBreakdown.FieldConfidence = new FieldConfidenceDto
+        {
+            MethodsConfidence = result.MergedExtraction.Methods.Any() ? 85 : 40,
+            DatasetsConfidence = result.MergedExtraction.Datasets.Any() ? 85 : 40,
+            LimitationsConfidence = result.MergedExtraction.Limitations.Any() ? 75 : 40,
+            FutureWorkConfidence = result.MergedExtraction.FutureWork.Any() ? 75 : 40
+        };
+
+        return result;
+    }
+
+    public async Task<AiPaperExtractionDto?> ExtractMissingFieldsAsync(
+        List<string> missingFields,
+        string? discussionSection,
+        string? conclusionSection,
+        string? introductionSection,
+        string? methodologySection,
+        CancellationToken cancellationToken = default)
+    {
+        if (!missingFields.Any())
+            return null;
+
+        // Build prompt based on what fields are missing and which sections are available
+        var sections = new List<string>();
+
+        if (missingFields.Contains("limitations") && !string.IsNullOrWhiteSpace(discussionSection))
+            sections.Add($"DISCUSSION SECTION:\n{discussionSection}");
+
+        if (missingFields.Contains("future_work") && !string.IsNullOrWhiteSpace(conclusionSection))
+            sections.Add($"CONCLUSION/FUTURE WORK SECTION:\n{conclusionSection}");
+
+        if (missingFields.Contains("datasets") && !string.IsNullOrWhiteSpace(methodologySection))
+            sections.Add($"METHODOLOGY SECTION:\n{methodologySection}");
+
+        if (missingFields.Contains("methods") && !string.IsNullOrWhiteSpace(methodologySection))
+            sections.Add($"METHODOLOGY SECTION:\n{methodologySection}");
+
+        if (missingFields.Contains("research_problem") && !string.IsNullOrWhiteSpace(introductionSection))
+            sections.Add($"INTRODUCTION SECTION:\n{introductionSection}");
+
+        if (!sections.Any())
+            return null;
+
+        var fieldsStr = string.Join(", ", missingFields.Select(f => $"'{f}'"));
+        var prompt = $@"
+Analyze the following sections from an academic paper to extract the MISSING fields: {fieldsStr}
+
+The abstract extraction already captured some information. Focus on extracting:
+- Limitations: Look for explicit mentions of weaknesses, constraints, scalability issues in Discussion section
+- Future Work: Look for authors' proposed next steps in Conclusion/Future Work section
+- Datasets: Look for dataset names, benchmarks, data collection details in Methodology section
+- Methods: Look for algorithm names, architecture details in Methodology section
+- Research Problem: Look for problem statement in Introduction section
+
+SECTIONS:
+{string.Join("\n\n", sections)}
+
+Return ONLY a valid JSON object with these fields (empty arrays if not found):
+{{
+  ""methods"": [""method 1"", ""method 2""],
+  ""datasets"": [""dataset 1""],
+  ""limitations"": [""limitation 1""],
+  ""future_work"": [""future direction 1""],
+  ""discussions"": [],
+  ""conclusions"": [],
+  ""research_problem"": ""problem statement"",
+  ""metric"": """",
+  ""contribution"": """"
+}}";
+
+        var textResult = await CallGroqApiAsync(prompt, cancellationToken);
+        if (string.IsNullOrWhiteSpace(textResult)) return null;
+
+        try
+        {
+            return JsonSerializer.Deserialize<AiPaperExtractionDto>(textResult,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to parse Groq missing fields extraction result.");
+            return null;
+        }
+    }
+
+    private List<string> IdentifyMissingFields(AiPaperExtractionDto extraction)
+    {
+        var missing = new List<string>();
+
+        if (!extraction.Methods.Any()) missing.Add("methods");
+        if (!extraction.Datasets.Any()) missing.Add("datasets");
+        if (!extraction.Limitations.Any()) missing.Add("limitations");
+        if (!extraction.FutureWork.Any()) missing.Add("future_work");
+        if (string.IsNullOrWhiteSpace(extraction.ResearchProblem)) missing.Add("research_problem");
+
+        return missing;
+    }
+
+    private AiPaperExtractionDto MergeExtractions(
+        AiPaperExtractionDto abstractResult,
+        AiPaperExtractionDto sectionResult,
+        List<string> missingFields)
+    {
+        var merged = new AiPaperExtractionDto
+        {
+            ResearchProblem = !string.IsNullOrWhiteSpace(abstractResult.ResearchProblem)
+                ? abstractResult.ResearchProblem
+                : sectionResult.ResearchProblem,
+            Metric = !string.IsNullOrWhiteSpace(abstractResult.Metric)
+                ? abstractResult.Metric
+                : sectionResult.Metric,
+            Contribution = !string.IsNullOrWhiteSpace(abstractResult.Contribution)
+                ? abstractResult.Contribution
+                : sectionResult.Contribution,
+            Discussions = abstractResult.Discussions,
+            Conclusions = abstractResult.Conclusions
+        };
+
+        // Merge methods - abstract first, then section (avoid duplicates)
+        merged.Methods = abstractResult.Methods.Concat(sectionResult.Methods)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        // Merge datasets - abstract first, then section
+        merged.Datasets = abstractResult.Datasets.Concat(sectionResult.Datasets)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        // For limitations and future work - section (Discussion/Conclusion) has higher priority
+        // since these are often not in abstract
+        if (missingFields.Contains("limitations"))
+        {
+            merged.Limitations = sectionResult.Limitations.Any()
+                ? sectionResult.Limitations.Concat(abstractResult.Limitations).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+                : abstractResult.Limitations;
+        }
+        else
+        {
+            merged.Limitations = abstractResult.Limitations;
+        }
+
+        if (missingFields.Contains("future_work"))
+        {
+            merged.FutureWork = sectionResult.FutureWork.Any()
+                ? sectionResult.FutureWork.Concat(abstractResult.FutureWork).Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+                : abstractResult.FutureWork;
+        }
+        else
+        {
+            merged.FutureWork = abstractResult.FutureWork;
+        }
+
+        return merged;
+    }
+
+    private int CalculateFieldConfidence(AiPaperExtractionDto extraction)
+    {
+        int score = 50;
+        if (extraction.Methods.Any()) score += 10;
+        if (extraction.Datasets.Any()) score += 10;
+        if (extraction.Limitations.Any()) score += 10;
+        if (extraction.FutureWork.Any()) score += 10;
+        if (!string.IsNullOrWhiteSpace(extraction.ResearchProblem)) score += 5;
+        if (!string.IsNullOrWhiteSpace(extraction.Metric)) score += 5;
+        return Math.Min(score, 100);
+    }
+
+    private int CalculateOverallConfidence(int abstractConfidence, int discussionConfidence, int conclusionConfidence, List<string> missingFields)
+    {
+        if (!missingFields.Any())
+            return abstractConfidence;
+
+        double totalWeight = 0;
+        double weightedSum = 0;
+
+        // Abstract contributes to all fields
+        totalWeight += 1.0;
+        weightedSum += abstractConfidence;
+
+        // Discussion helps with limitations
+        if (missingFields.Contains("limitations") && discussionConfidence > 0)
+        {
+            totalWeight += 0.5;
+            weightedSum += discussionConfidence * 0.5;
+        }
+
+        // Conclusion helps with future work
+        if (missingFields.Contains("future_work") && conclusionConfidence > 0)
+        {
+            totalWeight += 0.5;
+            weightedSum += conclusionConfidence * 0.5;
+        }
+
+        return (int)Math.Min(100, weightedSum / totalWeight * 1.1);
+    }
+
+    private int EstimateTokens(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return 0;
+        return text.Length / 4;
+    }
+
     public async Task<List<ResearchGapDto>> GenerateResearchGapsAsync(
         string topicName,
         PatternMiningResultDto patterns,

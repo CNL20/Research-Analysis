@@ -16,6 +16,30 @@ public interface IAiExtractionService
     Task<AiPaperExtractionDto?> ExtractFromFullTextAsync(string fullText, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// HYBRID EXTRACTION: First extracts from abstract, then conditionally extracts from targeted sections
+    /// based on which fields are missing. This approach balances accuracy with cost efficiency.
+    /// For committee defense: provides transparent, traceable evidence from multiple sources.
+    /// </summary>
+    Task<HybridExtractionResultDto?> ExtractHybridAsync(
+        string abstractText,
+        string? discussionSection,
+        string? conclusionSection,
+        string? introductionSection,
+        string? methodologySection,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Extracts missing fields from targeted sections. Used when abstract extraction is incomplete.
+    /// </summary>
+    Task<AiPaperExtractionDto?> ExtractMissingFieldsAsync(
+        List<string> missingFields,
+        string? discussionSection,
+        string? conclusionSection,
+        string? introductionSection,
+        string? methodologySection,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Infers limitations and future work when extraction returns empty results.
     /// Uses paper title, abstract, methods, and datasets to critically analyze and generate insights.
     /// </summary>

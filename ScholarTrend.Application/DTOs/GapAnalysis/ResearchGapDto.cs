@@ -9,6 +9,9 @@ public class ResearchGapReportDto
     public PatternMiningResultDto Patterns { get; set; } = new();
     public GapTimelineDto Timeline { get; set; } = new();
     public DateTime GeneratedAt { get; set; }
+
+    // Hybrid extraction metadata for the report
+    public HybridExtractionStatsDto? HybridStats { get; set; }
 }
 
 public class ResearchGapDto
@@ -23,9 +26,27 @@ public class ResearchGapDto
     public string ConfidenceLevel { get; set; } = string.Empty;
     public List<ResearchGapEvidenceDto> Evidences { get; set; } = [];
 
+    // Confidence breakdown by source
+    public EvidenceConfidenceBreakdownDto? ConfidenceBreakdown { get; set; }
+
     // Used internally by the AI service to communicate which Paper IDs back this gap.
     // Not serialized in API responses.
     public List<int> SupportingPaperIds { get; set; } = [];
+}
+
+public class EvidenceConfidenceBreakdownDto
+{
+    public int AbstractEvidenceCount { get; set; }
+    public int DiscussionEvidenceCount { get; set; }
+    public int ConclusionEvidenceCount { get; set; }
+    public int FutureWorkEvidenceCount { get; set; }
+
+    public double AbstractContribution { get; set; }
+    public double DiscussionContribution { get; set; }
+    public double ConclusionContribution { get; set; }
+    public double FutureWorkContribution { get; set; }
+
+    public string MostReliableSource { get; set; } = string.Empty;
 }
 
 public class ResearchGapDetailDto : ResearchGapDto
@@ -46,6 +67,11 @@ public class ResearchGapEvidenceDto
     public string EvidenceType { get; set; } = string.Empty;
     public string SectionSource { get; set; } = string.Empty;
     public int Confidence { get; set; }
+
+    // Extended metadata for hybrid extraction
+    public string? CitationContext { get; set; }
+    public int? AbstractConfidence { get; set; }
+    public int? DiscussionConfidence { get; set; }
 }
 
 public class RelatedPaperDto

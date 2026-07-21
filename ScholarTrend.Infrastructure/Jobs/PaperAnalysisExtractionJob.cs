@@ -1,8 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using ScholarTrend.Application.DTOs.Pdf;
+using ScholarTrend.Application.DTOs.TopicInsights;
 using ScholarTrend.Application.Interfaces.External;
 using ScholarTrend.Application.Interfaces.Repositories;
+using ScholarTrend.Application.Services;
 using ScholarTrend.Domain.Entities;
 using ScholarTrend.Infrastructure.Data;
 using System.Text.Json;
@@ -26,7 +29,7 @@ public class PaperAnalysisExtractionJob
 
     public async Task RunExtractionAsync(CancellationToken ct = default)
     {
-        _logger.LogInformation("Starting paper analysis extraction job...");
+        _logger.LogInformation("Starting paper analysis extraction job (Hybrid mode)...");
 
         using var scope = _scopeFactory.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ScholarTrendDbContext>();
@@ -45,16 +48,21 @@ public class PaperAnalysisExtractionJob
 
     public async Task ExtractForTopicAsync(int topicId, CancellationToken ct = default)
     {
-        _logger.LogInformation("Extracting analysis for topic {TopicId}...", topicId);
+        _logger.LogInformation("Extracting analysis for topic {TopicId} (Hybrid mode)...", topicId);
 
         using var scope = _scopeFactory.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ScholarTrendDbContext>();
         var aiService = scope.ServiceProvider.GetRequiredService<IAiExtractionService>();
         var paperRepo = scope.ServiceProvider.GetRequiredService<IResearchPaperRepository>();
+        var pdfTextService = scope.ServiceProvider.GetRequiredService<PdfTextExtractionService>();
+        var sectionExtractor = new SectionExtractor();
 
         var papers = await paperRepo.GetPapersByTopicAsync(topicId, BatchSize);
         var processed = 0;
         var failed = 0;
+        var skippedNoAbstract = 0;
+        var hybridUsed = 0;
+        var abstractOnlyUsed = 0;
 
         foreach (var paper in papers)
         {
@@ -71,13 +79,52 @@ public class PaperAnalysisExtractionJob
                 if (string.IsNullOrWhiteSpace(paper.Abstract))
                 {
                     _logger.LogWarning("Paper {PaperId} has no abstract, skipping", paper.Id);
+                    skippedNoAbstract++;
                     continue;
                 }
 
-                var extraction = await aiService.ExtractFromAbstractAsync(paper.Abstract, ct);
-                if (extraction == null)
+                // Get full text from parsed PDF (if available)
+                string? fullText = null;
+                bool hasPdf = false;
+
+                try
                 {
-                    _logger.LogWarning("Failed to extract from paper {PaperId}", paper.Id);
+                    var pdfResult = await pdfTextService.ExtractForPaperAsync(paper.Id, forceReExtract: false, ct);
+                    if (pdfResult.Status == "Extracted" && !string.IsNullOrWhiteSpace(pdfResult.ExtractedText))
+                    {
+                        fullText = pdfResult.ExtractedText;
+                        hasPdf = true;
+                        _logger.LogDebug("Paper {PaperId}: Using parsed PDF text ({Chars} chars)", paper.Id, fullText.Length);
+                    }
+                    else
+                    {
+                        _logger.LogDebug("Paper {PaperId}: No parsed PDF text available", paper.Id);
+                    }
+                }
+                catch (Exception pdfEx)
+                {
+                    _logger.LogWarning(pdfEx, "Failed to get PDF text for paper {PaperId}, will use abstract only", paper.Id);
+                }
+
+                // Extract sections from full text
+                ExtractedSectionsDto? sections = null;
+                if (!string.IsNullOrWhiteSpace(fullText))
+                {
+                    sections = sectionExtractor.ExtractRelevantSections(fullText);
+                }
+
+                // Perform hybrid extraction
+                var hybridResult = await aiService.ExtractHybridAsync(
+                    paper.Abstract,
+                    sections?.Discussion,
+                    sections?.Conclusion,
+                    sections?.Introduction,
+                    sections?.Methodology,
+                    ct);
+
+                if (hybridResult == null)
+                {
+                    _logger.LogWarning("Hybrid extraction failed for paper {PaperId}, falling back to abstract-only", paper.Id);
                     failed++;
                     continue;
                 }
@@ -85,32 +132,52 @@ public class PaperAnalysisExtractionJob
                 var quality = await context.PaperQualities
                     .FirstOrDefaultAsync(q => q.PaperId == paper.Id, ct);
 
+                var merged = hybridResult.MergedExtraction;
+
                 var analysis = new PaperAnalysis
                 {
                     PaperId = paper.Id,
-                    ResearchProblem = extraction.ResearchProblem,
-                    Method = extraction.Methods.FirstOrDefault(),
-                    Dataset = extraction.Datasets.FirstOrDefault(),
-                    Metric = extraction.Metric,
-                    Contribution = extraction.Contribution,
-                    MethodsJson = JsonSerializer.Serialize(extraction.Methods),
-                    DatasetsJson = JsonSerializer.Serialize(extraction.Datasets),
-                    LimitationsJson = JsonSerializer.Serialize(extraction.Limitations),
-                    FutureWorkJson = JsonSerializer.Serialize(extraction.FutureWork),
-                    DiscussionsJson = JsonSerializer.Serialize(extraction.Discussions),
-                    ConclusionsJson = JsonSerializer.Serialize(extraction.Conclusions),
-                    Confidence = CalculateConfidence(extraction),
-                    AnalysisLevel = quality?.HasPdf == true ? AnalysisLevels.Abstract : AnalysisLevels.Abstract,
-                    AnalysisSource = "Groq",
+                    ResearchProblem = merged.ResearchProblem,
+                    Method = merged.Methods.FirstOrDefault(),
+                    Dataset = merged.Datasets.FirstOrDefault(),
+                    Metric = merged.Metric,
+                    Contribution = merged.Contribution,
+                    MethodsJson = JsonSerializer.Serialize(merged.Methods),
+                    DatasetsJson = JsonSerializer.Serialize(merged.Datasets),
+                    LimitationsJson = JsonSerializer.Serialize(merged.Limitations),
+                    FutureWorkJson = JsonSerializer.Serialize(merged.FutureWork),
+                    DiscussionsJson = JsonSerializer.Serialize(merged.Discussions),
+                    ConclusionsJson = JsonSerializer.Serialize(merged.Conclusions),
+                    Confidence = hybridResult.Metadata.ConfidenceBreakdown.OverallConfidence,
+                    AnalysisLevel = hasPdf ? AnalysisLevels.FullText : AnalysisLevels.Abstract,
+                    AnalysisSource = (hybridResult.Metadata.UsedDiscussion || hybridResult.Metadata.UsedConclusion)
+                        ? ExtractionSource.Hybrid
+                        : ExtractionSource.AbstractOnly,
+                    UsedAbstract = hybridResult.Metadata.UsedAbstract,
+                    UsedDiscussion = hybridResult.Metadata.UsedDiscussion,
+                    UsedConclusion = hybridResult.Metadata.UsedConclusion,
+                    AbstractConfidence = hybridResult.Metadata.ConfidenceBreakdown.AbstractConfidence,
+                    DiscussionConfidence = hybridResult.Metadata.ConfidenceBreakdown.DiscussionConfidence,
+                    ConclusionConfidence = hybridResult.Metadata.ConfidenceBreakdown.ConclusionConfidence,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
+
+                // Store hybrid metadata as JSON
+                analysis.HybridMetadataJson = JsonSerializer.Serialize(hybridResult.Metadata);
 
                 await context.PaperAnalyses.AddAsync(analysis, ct);
                 await context.SaveChangesAsync(ct);
 
                 processed++;
-                _logger.LogInformation("Extracted analysis for paper {PaperId} ({Processed}/{BatchSize})", paper.Id, processed, BatchSize);
+                if (analysis.AnalysisSource == ExtractionSource.Hybrid)
+                    hybridUsed++;
+                else
+                    abstractOnlyUsed++;
+
+                _logger.LogInformation(
+                    "Extracted analysis for paper {PaperId} ({Processed}/{BatchSize}) - Source: {Source}, Confidence: {Confidence}",
+                    paper.Id, processed, BatchSize, analysis.AnalysisSource, analysis.Confidence);
 
                 await Task.Delay(DelayBetweenRequests, ct);
             }
@@ -121,19 +188,8 @@ public class PaperAnalysisExtractionJob
             }
         }
 
-        _logger.LogInformation("Completed extraction for topic {TopicId}: {Processed} processed, {Failed} failed", 
-            topicId, processed, failed);
-    }
-
-    private int CalculateConfidence(Application.DTOs.TopicInsights.AiPaperExtractionDto extraction)
-    {
-        int score = 50;
-        if (extraction.Methods.Any()) score += 10;
-        if (extraction.Datasets.Any()) score += 10;
-        if (extraction.Limitations.Any()) score += 10;
-        if (extraction.FutureWork.Any()) score += 10;
-        if (extraction.ResearchProblem != null) score += 5;
-        if (extraction.Metric != null) score += 5;
-        return Math.Min(score, 100);
+        _logger.LogInformation(
+            "Completed extraction for topic {TopicId}: {Processed} processed, {Failed} failed, {Skipped} skipped (no abstract). Hybrid: {Hybrid}, Abstract-only: {AbstractOnly}",
+            topicId, processed, failed, skippedNoAbstract, hybridUsed, abstractOnlyUsed);
     }
 }
