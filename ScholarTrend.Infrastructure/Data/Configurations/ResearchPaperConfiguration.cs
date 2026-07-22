@@ -87,5 +87,10 @@ public class ResearchPaperConfiguration : IEntityTypeConfiguration<ResearchPaper
             .WithOne(ps => ps.Paper)
             .HasForeignKey(ps => ps.PaperId)
             .OnDelete(DeleteBehavior.Cascade);
+            
+        builder.HasOne(p => p.Analysis)
+            .WithOne(a => a.Paper)
+            .HasForeignKey<PaperAnalysis>(a => a.PaperId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

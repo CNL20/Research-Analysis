@@ -57,7 +57,18 @@ public class PaperAnalysisExtractionJob
         var pdfTextService = scope.ServiceProvider.GetRequiredService<PdfTextExtractionService>();
         var sectionExtractor = new SectionExtractor();
 
-        var papers = await paperRepo.GetPapersByTopicAsync(topicId, BatchSize);
+        var allPapers = await paperRepo.GetPapersByTopicAsync(topicId, 0);
+        
+        // Find papers that don't have analysis yet
+        var existingAnalysisPaperIds = await context.PaperAnalyses
+            .Where(a => allPapers.Select(p => p.Id).Contains(a.PaperId))
+            .Select(a => a.PaperId)
+            .ToListAsync(ct);
+
+        var papers = allPapers
+            .Where(p => !existingAnalysisPaperIds.Contains(p.Id))
+            .Take(BatchSize)
+            .ToList();
         var processed = 0;
         var failed = 0;
         var skippedNoAbstract = 0;

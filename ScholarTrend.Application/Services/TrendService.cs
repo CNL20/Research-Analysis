@@ -52,7 +52,11 @@ public class TrendService : ITrendService
     {
         var criteria = NormalizeCriteria(filter);
         var trends = await _trendRepository.GetKeywordTrendsAsync(criteria);
-        return GroupKeywordTrends(trends);
+        var topItems = BuildTopItems(
+            trends.Select(t => (t.KeywordId, t.Keyword.Name, t.Year, t.Month, t.PaperCount, t.CitationCount, t.GrowthRate, t.TrendingScore)),
+            criteria.Top);
+        var topIds = topItems.Select(t => t.Id).ToHashSet();
+        return GroupKeywordTrends(trends.Where(t => topIds.Contains(t.KeywordId)).ToList());
     }
 
     public Task<IReadOnlyList<TopTrendItemDto>> GetTopKeywordsAsync(TrendFilterRequest? filter = null)
@@ -65,7 +69,11 @@ public class TrendService : ITrendService
     {
         var criteria = NormalizeCriteria(filter);
         var trends = await _trendRepository.GetTopicTrendsAsync(criteria);
-        return GroupTopicTrends(trends);
+        var topItems = BuildTopItems(
+            trends.Select(t => (t.TopicId, t.Topic.TopicName, t.Year, t.Month, t.PaperCount, t.CitationCount, t.GrowthRate, t.TrendingScore)),
+            criteria.Top);
+        var topIds = topItems.Select(t => t.Id).ToHashSet();
+        return GroupTopicTrends(trends.Where(t => topIds.Contains(t.TopicId)).ToList());
     }
 
     public Task<IReadOnlyList<TopTrendItemDto>> GetTopTopicsAsync(TrendFilterRequest? filter = null)
@@ -78,7 +86,11 @@ public class TrendService : ITrendService
     {
         var criteria = NormalizeCriteria(filter);
         var trends = await _trendRepository.GetJournalTrendsAsync(criteria);
-        return GroupJournalTrends(trends);
+        var topItems = BuildTopItems(
+            trends.Select(t => (t.JournalId, t.Journal.Name, t.Year, t.Month, t.PaperCount, t.CitationCount, t.GrowthRate, t.TrendingScore)),
+            criteria.Top);
+        var topIds = topItems.Select(t => t.Id).ToHashSet();
+        return GroupJournalTrends(trends.Where(t => topIds.Contains(t.JournalId)).ToList());
     }
 
     public Task<IReadOnlyList<TopTrendItemDto>> GetTopJournalsAsync(TrendFilterRequest? filter = null)

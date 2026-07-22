@@ -107,6 +107,7 @@ public class ResearchPaperRepository : GenericRepository<ResearchPaper>, IResear
             .Include(p => p.PaperAuthors).ThenInclude(pa => pa.Author)
             .Include(p => p.PaperKeywords).ThenInclude(pk => pk.Keyword)
             .Include(p => p.PaperTopics).ThenInclude(pt => pt.Topic)
+            .Include(p => p.Analysis)
             .FirstOrDefaultAsync(p => p.Id == id && PaperStatusRules.Browsable.Contains(p.Status));
     }
 
