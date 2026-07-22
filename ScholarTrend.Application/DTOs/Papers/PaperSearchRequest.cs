@@ -4,6 +4,12 @@ public class PaperSearchRequest
 {
     public string? Query { get; set; }
     public string SearchType { get; set; } = "keyword";
+    /// <summary>
+    /// newest = newly imported/approved (CreatedAt DESC, then Id DESC);
+    /// citations = by citation count (default);
+    /// publish = by publication year/date.
+    /// </summary>
+    public string SortBy { get; set; } = "citations";
     public int? JournalId { get; set; }
     public int? TopicId { get; set; }
     public int? YearFrom { get; set; }

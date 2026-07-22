@@ -21,6 +21,8 @@ public class PendingPaper
     public string? SyncSearchQuery { get; set; }
     public string? JournalName { get; set; }
     public string KeywordsJson { get; set; } = "[]";
+    /// <summary>JSON array of topic labels from the external source (e.g. OpenAlex primary_topic).</summary>
+    public string TopicsJson { get; set; } = "[]";
 
     public SyncProposal SyncProposal { get; set; } = null!;
 }

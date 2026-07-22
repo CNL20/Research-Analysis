@@ -25,8 +25,27 @@ public class AiPaperExtractionDto
     [JsonPropertyName("research_problem")]
     public string? ResearchProblem { get; set; }
 
-    [JsonPropertyName("metric")]
+    [JsonIgnore]
     public string? Metric { get; set; }
+
+    [JsonPropertyName("metric")]
+    public System.Text.Json.JsonElement? MetricElement 
+    { 
+        get => null; 
+        set 
+        {
+            if (value.HasValue) 
+            {
+                var el = value.Value;
+                if (el.ValueKind == System.Text.Json.JsonValueKind.String) 
+                    Metric = el.GetString();
+                else if (el.ValueKind == System.Text.Json.JsonValueKind.Array) 
+                    Metric = string.Join(", ", el.EnumerateArray().Select(e => e.GetString()));
+                else 
+                    Metric = el.GetRawText();
+            }
+        }
+    }
 
     [JsonPropertyName("contribution")]
     public string? Contribution { get; set; }

@@ -29,6 +29,7 @@ public class SyncServicePdfEnqueueTests
     private readonly Mock<IArXivClient> _mockArXivClient;
     private readonly Mock<INotificationService> _mockNotificationService;
     private readonly Mock<IPaperPdfEnqueuer> _mockPaperPdfEnqueuer;
+    private readonly Mock<ITrendAggregationService> _mockTrendAggregation;
     private readonly Mock<IConfiguration> _mockConfig;
     private readonly Mock<ILogger<SyncService>> _mockLogger;
     private readonly SyncService _syncService;
@@ -44,6 +45,7 @@ public class SyncServicePdfEnqueueTests
         _mockArXivClient = new Mock<IArXivClient>();
         _mockNotificationService = new Mock<INotificationService>();
         _mockPaperPdfEnqueuer = new Mock<IPaperPdfEnqueuer>();
+        _mockTrendAggregation = new Mock<ITrendAggregationService>();
         _mockConfig = new Mock<IConfiguration>();
         _mockLogger = new Mock<ILogger<SyncService>>();
 
@@ -63,6 +65,7 @@ public class SyncServicePdfEnqueueTests
             _mockSemanticClient.Object, _mockOpenAlexClient.Object,
             _mockCrossrefClient.Object, _mockArXivClient.Object,
             _mockNotificationService.Object, _mockPaperPdfEnqueuer.Object,
+            _mockTrendAggregation.Object,
             _mockConfig.Object, _mockLogger.Object);
     }
 

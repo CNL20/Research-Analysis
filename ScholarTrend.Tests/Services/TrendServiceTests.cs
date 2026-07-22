@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Caching.Memory;
 using Moq;
 using ScholarTrend.Application.DTOs.Trends;
+using ScholarTrend.Application.Interfaces;
 using ScholarTrend.Application.Interfaces.Repositories;
 using ScholarTrend.Application.Services;
 using ScholarTrend.Domain.Entities;
@@ -12,13 +13,15 @@ public class TrendServiceTests
 {
     private readonly Mock<ITrendRepository> _mockTrendRepo;
     private readonly IMemoryCache _cache;
+    private readonly ITrendDashboardCacheInvalidator _cacheInvalidator;
     private readonly TrendService _trendService;
 
     public TrendServiceTests()
     {
         _mockTrendRepo = new Mock<ITrendRepository>();
         _cache = new MemoryCache(new MemoryCacheOptions());
-        _trendService = new TrendService(_mockTrendRepo.Object, _cache);
+        _cacheInvalidator = new TrendDashboardCacheInvalidator(_cache);
+        _trendService = new TrendService(_mockTrendRepo.Object, _cache, _cacheInvalidator);
     }
 
     [Fact]

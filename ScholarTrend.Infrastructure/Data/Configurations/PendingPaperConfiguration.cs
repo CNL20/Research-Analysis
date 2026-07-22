@@ -58,6 +58,10 @@ public class PendingPaperConfiguration : IEntityTypeConfiguration<PendingPaper>
             .IsRequired()
             .HasMaxLength(2000);
 
+        builder.Property(p => p.TopicsJson)
+            .IsRequired()
+            .HasMaxLength(2000);
+
         builder.HasIndex(p => new { p.ExternalId, p.ExternalSource });
         builder.HasIndex(p => p.Status);
     }

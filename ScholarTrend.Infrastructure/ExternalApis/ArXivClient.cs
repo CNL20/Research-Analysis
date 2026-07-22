@@ -137,6 +137,7 @@ public class ArXivClient : IArXivClient
                     Url = url,
                     AuthorNames = authors,
                     Keywords = ArxivCategoryMapper.MapCategories(categories).ToList(),
+                    Topics = ArxivCategoryMapper.MapCategories(categories).Take(5).ToList(),
                     PdfUrl = $"https://arxiv.org/pdf/{arxivId}.pdf",
                     PdfAccessType = PaperDownloadStatus.AccessTypes.ArXiv,
                     PdfLicense = "arXiv perpetual non-exclusive"

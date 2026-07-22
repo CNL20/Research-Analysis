@@ -19,14 +19,32 @@ public class ResearchPaperRepository : GenericRepository<ResearchPaper>, IResear
 
         var total = await query.CountAsync();
 
-        var ordered = criteria.SearchType.Equals("publish", StringComparison.OrdinalIgnoreCase)
-            ? query
+        var sortBy = (criteria.SortBy ?? "citations").Trim().ToLowerInvariant();
+        var ordered = sortBy switch
+        {
+            // Newest imported/approved: CreatedAt is set on approve; Id DESC as tie-breaker
+            // (Id alone is usually fine with identity columns, but CreatedAt is the real "when approved").
+            "newest" or "id" => query
+                .OrderByDescending(p => p.CreatedAt)
+                .ThenByDescending(p => p.Id),
+            "publish" => query
                 .OrderByDescending(p => p.PublicationYear)
                 .ThenByDescending(p => p.PublicationDate)
-                .ThenByDescending(p => p.CitationCount)
-            : query
+                .ThenByDescending(p => p.CitationCount),
+            _ => query
                 .OrderByDescending(p => p.CitationCount)
-                .ThenByDescending(p => p.PublicationYear);
+                .ThenByDescending(p => p.PublicationYear)
+        };
+
+        // Legacy: SearchType=publish also sorted by publish date when SortBy not overridden.
+        if (sortBy is not ("newest" or "id" or "publish")
+            && criteria.SearchType.Equals("publish", StringComparison.OrdinalIgnoreCase))
+        {
+            ordered = query
+                .OrderByDescending(p => p.PublicationYear)
+                .ThenByDescending(p => p.PublicationDate)
+                .ThenByDescending(p => p.CitationCount);
+        }
 
         var items = await ordered
             .Skip((criteria.Page - 1) * criteria.PageSize)
@@ -89,6 +107,7 @@ public class ResearchPaperRepository : GenericRepository<ResearchPaper>, IResear
             .Include(p => p.PaperAuthors).ThenInclude(pa => pa.Author)
             .Include(p => p.PaperKeywords).ThenInclude(pk => pk.Keyword)
             .Include(p => p.PaperTopics).ThenInclude(pt => pt.Topic)
+            .Include(p => p.Analysis)
             .FirstOrDefaultAsync(p => p.Id == id && PaperStatusRules.Browsable.Contains(p.Status));
     }
 

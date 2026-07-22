@@ -60,6 +60,12 @@ public static class PaperMapper
                 Id = pt.TopicId,
                 Name = pt.Topic.TopicName
             }).ToList(),
+            Limitations = paper.Analysis?.LimitationsJson != null 
+                ? System.Text.Json.JsonSerializer.Deserialize<List<string>>(paper.Analysis.LimitationsJson) ?? [] 
+                : [],
+            FutureWorks = paper.Analysis?.FutureWorkJson != null 
+                ? System.Text.Json.JsonSerializer.Deserialize<List<string>>(paper.Analysis.FutureWorkJson) ?? [] 
+                : [],
             IsBookmarked = isBookmarked
         };
     }

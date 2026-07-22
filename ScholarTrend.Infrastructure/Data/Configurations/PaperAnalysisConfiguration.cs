@@ -22,9 +22,6 @@ public class PaperAnalysisConfiguration : IEntityTypeConfiguration<PaperAnalysis
         builder.Property(x => x.ConclusionsJson).HasColumnType("text");
         builder.Property(x => x.KeywordsJson).HasColumnType("text");
 
-        builder.HasOne(x => x.Paper)
-            .WithMany()
-            .HasForeignKey(x => x.PaperId)
-            .OnDelete(DeleteBehavior.Cascade);
+
     }
 }

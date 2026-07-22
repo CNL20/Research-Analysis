@@ -144,6 +144,7 @@ public class PaperService : IPaperService
         {
             Query = request.Query,
             SearchType = request.SearchType,
+            SortBy = request.SortBy,
             JournalId = request.JournalId,
             TopicId = request.TopicId,
             YearFrom = request.YearFrom,

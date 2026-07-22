@@ -18,5 +18,7 @@ public class PaperDetailDto
     public List<AuthorBriefDto> Authors { get; set; } = [];
     public List<string> Keywords { get; set; } = [];
     public List<TopicBriefDto> Topics { get; set; } = [];
+    public List<string> Limitations { get; set; } = [];
+    public List<string> FutureWorks { get; set; } = [];
     public bool IsBookmarked { get; set; }
 }

@@ -29,6 +29,7 @@ public class SyncService : ISyncService
     private readonly IArXivClient _arXivClient;
     private readonly INotificationService _notificationService;
     private readonly IPaperPdfEnqueuer _paperPdfEnqueuer;
+    private readonly ITrendAggregationService _trendAggregationService;
     private readonly ILogger<SyncService> _logger;
     private readonly string _defaultSearchQuery;
     private readonly IReadOnlyList<string> _defaultSearchQueries;
@@ -44,6 +45,7 @@ public class SyncService : ISyncService
         IArXivClient arXivClient,
         INotificationService notificationService,
         IPaperPdfEnqueuer paperPdfEnqueuer,
+        ITrendAggregationService trendAggregationService,
         IConfiguration configuration,
         ILogger<SyncService> logger)
     {
@@ -55,6 +57,7 @@ public class SyncService : ISyncService
         _arXivClient = arXivClient;
         _notificationService = notificationService;
         _paperPdfEnqueuer = paperPdfEnqueuer;
+        _trendAggregationService = trendAggregationService;
         _logger = logger;
         _defaultSearchQuery = configuration["ExternalApis:SemanticScholar:SearchQuery"] ?? "artificial intelligence";
         _defaultSearchQueries = ReadDefaultSearchQueries(configuration);
@@ -462,6 +465,8 @@ public class SyncService : ISyncService
         _unitOfWork.SyncProposals.Update(proposal);
         await _unitOfWork.SaveChangesAsync();
 
+        _trendAggregationService.ScheduleRebuild();
+
         return new ApproveSyncResultDto
         {
             SyncProposalId = proposal.Id,
@@ -571,6 +576,7 @@ public class SyncService : ISyncService
             Url = external.Url,
             AuthorNamesJson = JsonSerializer.Serialize(external.AuthorNames),
             KeywordsJson = JsonSerializer.Serialize(external.Keywords),
+            TopicsJson = JsonSerializer.Serialize(external.Topics ?? []),
             SyncSearchQuery = searchQuery,
             JournalName = external.Journal,
             Status = PendingPaperStatus.Pending,
@@ -584,6 +590,7 @@ public class SyncService : ISyncService
     {
         var authors = DeserializeStringList(pending.AuthorNamesJson);
         var keywords = DeserializeStringList(pending.KeywordsJson);
+        var topics = DeserializeStringList(pending.TopicsJson);
 
         return new ExternalPaperDto
         {
@@ -598,6 +605,7 @@ public class SyncService : ISyncService
             Journal = pending.JournalName,
             AuthorNames = authors,
             Keywords = keywords,
+            Topics = topics,
             SyncSearchQuery = pending.SyncSearchQuery,
             PdfUrl = pending.PdfUrl,
             PdfAccessType = pending.PdfAccessType,
@@ -640,6 +648,7 @@ public class SyncService : ISyncService
     {
         var authors = DeserializeStringList(pending.AuthorNamesJson);
         var keywords = DeserializeStringList(pending.KeywordsJson);
+        var topics = DeserializeStringList(pending.TopicsJson);
 
         return new PendingPaperDto
         {
@@ -654,6 +663,7 @@ public class SyncService : ISyncService
             Url = pending.Url,
             Journal = pending.JournalName,
             Keywords = keywords,
+            Topics = topics,
             SyncSearchQuery = pending.SyncSearchQuery,
             Authors = authors,
             Status = pending.Status,
@@ -758,16 +768,11 @@ public class SyncService : ISyncService
             return;
         }
 
-        // Chỉ tải khi paper là từ nguồn cho phép tải
-        var accessType = external.PdfAccessType;
-        if (accessType is not (PaperDownloadStatus.AccessTypes.ArXiv
-                              or PaperDownloadStatus.AccessTypes.OpenAccess))
-        {
-            _logger.LogInformation(
-                "Paper {PaperId} from {Source}: PDF URL available but access type is '{AccessType}' — skipping download",
-                researchPaperId, external.Source, accessType ?? "<null>");
-            return;
-        }
+        // Tải TẤT CẢ papers có PDF URL, kể cả Publisher/Closed — không filter theo access type.
+        // Lý do: admin đã approve nghĩa là đã đồng ý; PDF download service sẽ tự skip nếu URL fail.
+        _logger.LogInformation(
+            "Enqueueing PDF download for paper {PaperId} from {Source} (accessType={AccessType})",
+            researchPaperId, external.Source, external.PdfAccessType ?? "<null>");
 
         try
         {

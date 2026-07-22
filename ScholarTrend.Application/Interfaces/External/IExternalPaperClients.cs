@@ -15,6 +15,8 @@ public class ExternalPaperDto
     public string? Journal { get; set; }
     public List<string> AuthorNames { get; set; } = [];
     public List<string> Keywords { get; set; } = [];
+    /// <summary>Topic labels from the source (OpenAlex primary_topic, S2 fields, etc.).</summary>
+    public List<string> Topics { get; set; } = [];
     public string? PdfUrl { get; set; }
     public string? PdfAccessType { get; set; }
     public string? PdfLicense { get; set; }

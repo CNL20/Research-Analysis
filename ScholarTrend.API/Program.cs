@@ -5,6 +5,7 @@ using Hangfire.PostgreSql;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using ScholarTrend.API.Filters;
@@ -20,6 +21,7 @@ using ScholarTrend.Infrastructure.ExternalApis;
 using ScholarTrend.Infrastructure.HostedServices;
 using ScholarTrend.Infrastructure.Jobs;
 using ScholarTrend.Infrastructure.Persistence.Repositories;
+using ScholarTrend.Infrastructure.Pdf;
 using ScholarTrend.Infrastructure.Repositories;
 using ScholarTrend.Infrastructure.Services;
 using ScholarTrend.Infrastructure.Storage;
@@ -28,8 +30,9 @@ using ScholarTrend.Application.DTOs.Common;
 using ScholarTrend.Application.Options;
 using Microsoft.AspNetCore.Http.Features;
 using System.Text;
-using System.Text;
 using HangfireBasicAuthenticationFilter;
+using Amazon.S3;
+using Amazon.Runtime;
 
 // PostgreSQL requires UTC for timestamptz; allow legacy DateTime from seed/import code paths.
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
@@ -123,8 +126,9 @@ builder.Services.AddScoped<IAuthorService, AuthorService>();
 builder.Services.AddScoped<ITrendRepository, TrendRepository>();
 builder.Services.AddScoped<IStatisticsRepository, StatisticsRepository>();
 builder.Services.AddScoped<ITrendService, TrendService>();
+builder.Services.AddSingleton<ITrendDashboardCacheInvalidator, TrendDashboardCacheInvalidator>();
 builder.Services.AddScoped<IFollowService, FollowService>();
-builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
+builder.Services.AddScoped<IFileStorageService, BackblazeB2StorageService>();
 builder.Services.AddScoped<IFileService, FileService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
@@ -143,21 +147,86 @@ builder.Services.AddScoped<IPaperImportRepository, PaperImportRepository>();
 builder.Services.AddScoped<IPaperKeywordLinkerService, PaperKeywordLinkerService>();
 builder.Services.AddScoped<IPaperAuthorLinkerService, PaperAuthorLinkerService>();
 builder.Services.AddScoped<IJournalResolver, JournalResolver>();
+builder.Services.AddScoped<ITopicResolver, TopicResolver>();
 builder.Services.AddScoped<IEnrichmentFetcher, EnrichmentFetcher>();
 builder.Services.AddScoped<IEnrichPaperSourcesEnqueuer, EnrichPaperSourcesEnqueuer>();
 builder.Services.AddScoped<EnrichPaperSourcesJob>();
-builder.Services.AddScoped<RecalculateKeywordTrendsJob>();
+builder.Services.AddScoped<ITrendAggregationService, TrendAggregationService>();
+builder.Services.AddScoped<RecalculateTrendsJob>();
 builder.Services.AddScoped<IUserFileRepository, UserFileRepository>();
 builder.Services.AddScoped<IPaperPdfFileRepository, PaperPdfFileRepository>();
 builder.Services.AddScoped<IPaperQualityRepository, PaperQualityRepository>();
 builder.Services.AddSingleton<IPaperPdfChannel, PaperPdfChannel>();
 builder.Services.AddScoped<IPaperPdfEnqueuer, PaperPdfDownloadService>();
-builder.Services.AddScoped<IPaperPdfProcessor, PaperPdfDownloadService>();
+
+// PdfProcessing: conditionally register processor based on config
+var pdfConfig = builder.Configuration.GetSection("PdfProcessing").Get<ScholarTrend.Application.Options.PdfProcessingSettings>();
+if (pdfConfig?.AutoParseAfterDownload == true)
+{
+    builder.Services.AddScoped<IPaperPdfProcessor, AutoParsePdfProcessor>();
+    Console.WriteLine("[PdfProcessing] AutoParsePdfProcessor registered (auto-parse enabled)");
+}
+else
+{
+    builder.Services.AddScoped<IPaperPdfProcessor, PaperPdfDownloadService>();
+    Console.WriteLine("[PdfProcessing] PaperPdfDownloadService registered (auto-parse disabled)");
+}
+
+// IPaperFileStorage: đăng ký CẢ HAI implementations qua interface + qua concrete type.
+//
+// Lý do:
+//   - PaperFileStorageProvider inject concrete types (LocalPaperFileStorage, B2PaperFileStorage).
+//   - PdfStorageMigrationService inject IEnumerable<IPaperFileStorage>.
+//   - IPaperFileStorage (single-resolve) không cần thiết vì tất cả consumer đã chuyển sang dùng provider.
+//
+// Cần 3 dòng AddScoped riêng biệt:
+//   1. AddScoped<LocalPaperFileStorage>()           — để PaperFileStorageProvider resolve.
+//   2. AddScoped<B2PaperFileStorage>()              — để PaperFileStorageProvider resolve.
+//   3. AddScoped<IPaperFileStorage, ...>() x2         — để IEnumerable<IPaperFileStorage> có cả 2 instances.
+builder.Services.AddScoped<LocalPaperFileStorage>();
+builder.Services.AddScoped<B2PaperFileStorage>();
 builder.Services.AddScoped<IPaperFileStorage, LocalPaperFileStorage>();
+builder.Services.AddScoped<IPaperFileStorage, B2PaperFileStorage>();
+builder.Services.AddScoped<IPaperFileStorageProvider, PaperFileStorageProvider>();
+builder.Services.AddScoped<PdfStorageMigrationService>();
+builder.Services.AddScoped<PdfStorageStatusService>();
+builder.Services.AddScoped<PdfTextExtractionService>();
+builder.Services.AddSingleton<IPaperTextExtractor, PdfPigTextExtractor>();
+
 builder.Services.AddHostedService<PaperPdfDownloadWorker>();
 builder.Services.AddHostedService<PaperPdfStartupRecovery>();
 builder.Services.Configure<StorageSettings>(builder.Configuration.GetSection("FileUpload"));
 builder.Services.Configure<FileUploadSettings>(builder.Configuration.GetSection("FileUpload"));
+builder.Services.Configure<BackblazeB2Settings>(builder.Configuration.GetSection("FileUpload:B2"));
+
+// Đăng ký IAmazonS3 client cho Backblaze B2 (S3-compatible)
+builder.Services.AddSingleton<IAmazonS3>(sp =>
+{
+    var settings = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<BackblazeB2Settings>>().Value;
+
+    if (string.IsNullOrWhiteSpace(settings.Endpoint) ||
+        string.IsNullOrWhiteSpace(settings.AccessKey) ||
+        string.IsNullOrWhiteSpace(settings.SecretKey))
+    {
+        // Fallback: trả về client null để tránh crash startup; service sẽ báo lỗi rõ khi dùng.
+        return new AmazonS3Client(new BasicAWSCredentials("placeholder", "placeholder"),
+            new AmazonS3Config
+            {
+                ServiceURL = "https://s3.us-east-005.backblazeb2.com",
+                ForcePathStyle = true
+            });
+    }
+
+    var credentials = new BasicAWSCredentials(settings.AccessKey, settings.SecretKey);
+    var config = new AmazonS3Config
+    {
+        ServiceURL = settings.Endpoint,
+        ForcePathStyle = true,
+        UseHttp = false,
+        SignatureVersion = "4"
+    };
+    return new AmazonS3Client(credentials, config);
+});
 builder.Services.Configure<FormOptions>(options =>
 {
     options.MultipartBodyLengthLimit = 20 * 1024 * 1024;
@@ -171,6 +240,7 @@ builder.Services.AddHttpClient<IEmailService, EmailService>();
 builder.Services.AddScoped<IPaperAggregationService, PaperAggregationService>();
 builder.Services.AddHttpClient<IAiExtractionService, GroqExtractionService>();
 builder.Services.AddScoped<IPdfAnalysisService, GeminiPdfAnalysisService>();
+builder.Services.AddScoped<IPaperPdfDownloadOrchestrator, PaperPdfDownloadOrchestrator>();
 
 builder.Services.AddHttpClient<ISemanticScholarClient, SemanticScholarClient>();
 builder.Services.AddHttpClient<IOpenAlexClient, OpenAlexClient>();
@@ -310,9 +380,21 @@ if (syncEnabled)
     RecurringJob.AddOrUpdate<ISyncJob>("daily-paper-sync", job => job.RunAsync(), syncCron);
     RecurringJob.AddOrUpdate<TopicInsightExtractionJob>("topic-insight-extraction", job => job.RunExtractionAsync(CancellationToken.None), "*/10 * * * *"); // Run every 10 mins
     RecurringJob.AddOrUpdate<TopicInsightAggregationJob>("topic-insight-aggregation", job => job.RunAggregationAsync(CancellationToken.None), "0 2 * * *"); // Run daily at 2 AM
-    RecurringJob.AddOrUpdate<RecalculateKeywordTrendsJob>("keyword-trend-recalc", job => job.RunAsync(CancellationToken.None), "0 3 * * *"); // Run daily at 3 AM
 }
 
+// Trend rebuild is independent of SyncSchedule:Enabled
+RecurringJob.AddOrUpdate<RecalculateTrendsJob>(
+    "trend-recalc",
+    job => job.RunAsync(CancellationToken.None),
+    "0 3 * * *"); // Daily 3 AM UTC
+RecurringJob.RemoveIfExists("keyword-trend-recalc");
+
 app.MapControllers();
+
+app.Lifetime.ApplicationStarted.Register(() =>
+{
+    using var scope = app.Services.CreateScope();
+    scope.ServiceProvider.GetRequiredService<ITrendAggregationService>().ScheduleEnsureBuilt();
+});
 
 app.Run();

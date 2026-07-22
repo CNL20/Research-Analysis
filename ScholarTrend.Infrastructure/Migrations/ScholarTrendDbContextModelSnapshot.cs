@@ -634,7 +634,9 @@ namespace ScholarTrend.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("JournalId");
+                    b.HasIndex("JournalId", "Year", "Month")
+                        .IsUnique()
+                        .HasDatabaseName("IX_JournalTrends_JournalId_Year_Month");
 
                     b.ToTable("JournalTrends");
                 });
@@ -700,7 +702,9 @@ namespace ScholarTrend.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("KeywordId");
+                    b.HasIndex("KeywordId", "Year", "Month")
+                        .IsUnique()
+                        .HasDatabaseName("IX_KeywordTrends_KeywordId_Year_Month");
 
                     b.ToTable("KeywordTrends");
                 });
@@ -855,6 +859,9 @@ namespace ScholarTrend.Infrastructure.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<int>("AbstractConfidence")
+                        .HasColumnType("integer");
+
                     b.Property<string>("AnalysisLevel")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -864,6 +871,9 @@ namespace ScholarTrend.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
+
+                    b.Property<int>("ConclusionConfidence")
+                        .HasColumnType("integer");
 
                     b.Property<string>("ConclusionsJson")
                         .HasColumnType("text");
@@ -883,6 +893,9 @@ namespace ScholarTrend.Infrastructure.Migrations
                     b.Property<string>("DatasetsJson")
                         .HasColumnType("text");
 
+                    b.Property<int>("DiscussionConfidence")
+                        .HasColumnType("integer");
+
                     b.Property<string>("DiscussionsJson")
                         .HasColumnType("text");
 
@@ -890,6 +903,9 @@ namespace ScholarTrend.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("FutureWorkJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("HybridMetadataJson")
                         .HasColumnType("text");
 
                     b.Property<string>("KeywordsJson")
@@ -915,6 +931,15 @@ namespace ScholarTrend.Infrastructure.Migrations
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp without time zone");
+
+                    b.Property<bool>("UsedAbstract")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("UsedConclusion")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("UsedDiscussion")
+                        .HasColumnType("boolean");
 
                     b.HasKey("Id");
 
@@ -1389,6 +1414,11 @@ namespace ScholarTrend.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
+
+                    b.Property<string>("TopicsJson")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
 
                     b.Property<string>("Url")
                         .HasMaxLength(500)
@@ -2006,7 +2036,9 @@ namespace ScholarTrend.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TopicId");
+                    b.HasIndex("TopicId", "Year", "Month")
+                        .IsUnique()
+                        .HasDatabaseName("IX_TopicTrends_TopicId_Year_Month");
 
                     b.ToTable("TopicTrends");
                 });

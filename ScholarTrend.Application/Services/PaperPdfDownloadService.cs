@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using System.Threading.Channels;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -14,27 +13,29 @@ namespace ScholarTrend.Application.Services;
 ///   - EnqueueAsync: tạo record PaperPdfFile (Queued) + đẩy ID vào IPaperPdfChannel
 ///   - ProcessAsync: tải file về /uploads/papers/ và retry nếu fail
 /// Channel được inject (Singleton) để cho phép HostedService (Singleton) đọc từ nó.
+///
+/// Validation (magic-bytes + size) dùng chung với PaperPdfDownloadOrchestrator qua
+/// PdfValidationHelper - đảm bảo cả 2 path download đều reject file không phải PDF.
 /// </summary>
 public class PaperPdfDownloadService : IPaperPdfEnqueuer, IPaperPdfProcessor
 {
     private const int MaxAttempts = 3;
-    private const long MaxFileBytes = 50L * 1024 * 1024; // 50 MB
 
     private readonly IUnitOfWork _unitOfWork;
-    private readonly IPaperFileStorage _storage;
+    private readonly IPaperFileStorageProvider _storageProvider;
     private readonly IDocumentDownloader _downloader;
     private readonly IPaperPdfChannel _channel;
     private readonly ILogger<PaperPdfDownloadService> _logger;
 
     public PaperPdfDownloadService(
         IUnitOfWork unitOfWork,
-        IPaperFileStorage storage,
+        IPaperFileStorageProvider storageProvider,
         IDocumentDownloader downloader,
         IPaperPdfChannel channel,
         ILogger<PaperPdfDownloadService> logger)
     {
         _unitOfWork = unitOfWork;
-        _storage = storage;
+        _storageProvider = storageProvider;
         _downloader = downloader;
         _channel = channel;
         _logger = logger;
@@ -79,7 +80,7 @@ public class PaperPdfDownloadService : IPaperPdfEnqueuer, IPaperPdfProcessor
         var sw = System.Diagnostics.Stopwatch.StartNew();
         try
         {
-            // 1. Validate URL
+            // 1. Validate URL safety (SSRF protection)
             if (!PdfUrlValidator.IsSafe(record.SourceUrl, out var urlError))
             {
                 _logger.LogInformation(
@@ -101,27 +102,22 @@ public class PaperPdfDownloadService : IPaperPdfEnqueuer, IPaperPdfProcessor
                 throw new HttpRequestException("Download failed (null response from downloader)");
             }
 
-            var bytes = doc.Bytes;
+            // 3. Validate đầy đủ (size + magic-bytes) — dùng chung với orchestrator
+            var validationError = PdfValidationHelper.ValidateDownloadedPdf(
+                record.SourceUrl, doc.Bytes, doc.ContentType);
 
-            // 3. Sanity check
-            if (bytes.Length > MaxFileBytes)
+            if (validationError != null)
             {
-                throw new InvalidDataException($"PDF exceeds {MaxFileBytes / 1024 / 1024} MB limit (got {bytes.Length:N0} bytes)");
+                throw new InvalidDataException(validationError);
             }
 
-            // Magic-bytes check (%PDF-)
-            if (bytes.Length < 4 || bytes[0] != 0x25 || bytes[1] != 0x50 || bytes[2] != 0x44 || bytes[3] != 0x46)
-            {
-                throw new InvalidDataException("Response is not a valid PDF (missing %PDF- magic header)");
-            }
-
-            // 4. Save to disk
-            await _storage.SaveBytesAsync(record.LocalRelativePath, bytes, ct);
-            var sha = Convert.ToHexString(SHA256.HashData(bytes));
+            // 4. Save to disk (via storage provider → resolves B2 or Local per config)
+            await _storageProvider.GetActiveStorage().SaveBytesAsync(record.LocalRelativePath, doc.Bytes, ct);
+            var sha = ComputeSha256(doc.Bytes);
 
             // 5. Update record
-            record.SizeBytes = bytes.Length;
-            record.ContentType = "application/pdf";
+            record.SizeBytes = doc.Bytes.Length;
+            record.ContentType = doc.ContentType ?? "application/pdf";
             record.Sha256 = sha;
             record.Status = PaperDownloadStatus.Ready;
             record.CompletedAt = DateTime.UtcNow;
@@ -129,7 +125,7 @@ public class PaperPdfDownloadService : IPaperPdfEnqueuer, IPaperPdfProcessor
 
             _logger.LogInformation(
                 "PDF download #{Id} completed in {Ms} ms ({Size:N0} bytes, sha256={Sha8})",
-                paperPdfFileId, sw.ElapsedMilliseconds, bytes.Length, sha[..8]);
+                paperPdfFileId, sw.ElapsedMilliseconds, doc.Bytes.Length, sha[..8]);
         }
         catch (Exception ex)
         {
@@ -159,6 +155,12 @@ public class PaperPdfDownloadService : IPaperPdfEnqueuer, IPaperPdfProcessor
                 await _unitOfWork.Context.SaveChangesAsync(ct);
             }
         }
+    }
+
+    private static string ComputeSha256(byte[] bytes)
+    {
+        var hash = System.Security.Cryptography.SHA256.HashData(bytes);
+        return Convert.ToHexString(hash).ToLowerInvariant();
     }
 }
 
