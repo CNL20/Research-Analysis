@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Mvc;
 using ScholarTrend.Application.DTOs.Aggregation;
 using ScholarTrend.Application.DTOs.Common;
 using ScholarTrend.Application.DTOs.Papers;
-using ScholarTrend.Application.DTOs.TopicInsights;
 using ScholarTrend.Application.Interfaces;
 using ScholarTrend.Application.Interfaces.External;
 using ScholarTrend.Application.Interfaces.Repositories;
@@ -76,6 +75,7 @@ public class PapersController : ControllerBase
 
     /// <summary>
     /// Search research papers by keyword, title, author, journal, publish year, or all fields with optional filters.
+    /// Use SortBy=newest (or id) with empty Query to list all browsable papers, newest approved/imported first.
     /// </summary>
     [HttpGet("search")]
     public async Task<ActionResult<ApiResponse<PagedResult<PaperListItemDto>>>> Search([FromQuery] PaperSearchRequest request)
@@ -120,7 +120,7 @@ public class PapersController : ControllerBase
     }
 
     /// <summary>
-    /// Analyze a paper using AI to extract limitations and future work from its PDF.
+    /// Analyze a paper using AI to extract limitations, gap-statements, and future work from its PDF.
     /// Reads the PDF directly for richer analysis. Falls back to "PDF không tồn tại" / "PDF gặp trục trặc".
     /// Only available to Researcher and Admin roles (premium feature).
     /// </summary>

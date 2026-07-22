@@ -2,6 +2,7 @@ using Microsoft.Extensions.Caching.Memory;
 using ScholarTrend.Application.DTOs.Trends;
 using ScholarTrend.Application.Interfaces;
 using ScholarTrend.Application.Interfaces.Repositories;
+using ScholarTrend.Application.Services.Keywords;
 using ScholarTrend.Domain.Entities;
 
 namespace ScholarTrend.Application.Services;
@@ -11,17 +12,22 @@ public class TrendService : ITrendService
     private static readonly TimeSpan CacheDuration = TimeSpan.FromHours(1);
     private readonly ITrendRepository _trendRepository;
     private readonly IMemoryCache _cache;
+    private readonly ITrendDashboardCacheInvalidator _cacheInvalidator;
 
-    public TrendService(ITrendRepository trendRepository, IMemoryCache cache)
+    public TrendService(
+        ITrendRepository trendRepository,
+        IMemoryCache cache,
+        ITrendDashboardCacheInvalidator cacheInvalidator)
     {
         _trendRepository = trendRepository;
         _cache = cache;
+        _cacheInvalidator = cacheInvalidator;
     }
 
     public Task<TrendDashboardDto> GetDashboardAsync(TrendFilterRequest? filter = null)
     {
         var criteria = NormalizeCriteria(filter);
-        var cacheKey = $"trends:dashboard:{BuildCacheKey(criteria)}";
+        var cacheKey = $"trends:dashboard:v{_cacheInvalidator.GetVersion()}:{BuildCacheKey(criteria)}";
 
         return _cache.GetOrCreateAsync(cacheKey, async entry =>
         {
@@ -161,9 +167,33 @@ public class TrendService : ITrendService
         var latestYear = trendList.Max(t => t.Year);
         var latestMonth = trendList.Where(t => t.Year == latestYear).Max(t => t.Month);
 
-        return trendList
-            .Where(t => t.Year == latestYear && t.Month == latestMonth)
+        // Prefer entities with real activity in-window; avoid ranking on empty calendar months.
+        var perEntity = trendList
+            .GroupBy(t => (t.Id, t.Name))
+            .Select(g =>
+            {
+                var active = g.Where(t => t.PaperCount > 0).ToList();
+                var pool = active.Count > 0 ? active : g.ToList();
+                return pool
+                    .OrderByDescending(t => t.TrendingScore)
+                    .ThenByDescending(t => t.PaperCount)
+                    .ThenByDescending(t => t.Year)
+                    .ThenByDescending(t => t.Month)
+                    .First();
+            })
+            .ToList();
+
+        var ranked = perEntity.Where(t => t.PaperCount > 0).ToList();
+        if (ranked.Count == 0)
+        {
+            ranked = perEntity
+                .Where(t => t.Year == latestYear && t.Month == latestMonth)
+                .ToList();
+        }
+
+        return ranked
             .OrderByDescending(t => t.TrendingScore)
+            .ThenByDescending(t => t.PaperCount)
             .ThenByDescending(t => t.GrowthRate)
             .Take(top)
             .Select(t => new TopTrendItemDto
@@ -255,13 +285,46 @@ public class TrendService : ITrendService
     private static TrendFilterCriteria NormalizeCriteria(TrendFilterRequest? filter)
     {
         filter ??= new TrendFilterRequest();
+        var window = TrendPeriod.GetRollingWindow();
+
+        // Default: rolling last 12 months. Explicit YearFrom/YearTo from client still win.
+        var yearFrom = filter.YearFrom ?? window.Start.Year;
+        var yearTo = filter.YearTo ?? window.End.Year;
+
+        int? monthFrom;
+        if (filter.MonthFrom.HasValue)
+        {
+            monthFrom = filter.MonthFrom;
+        }
+        else if (filter.YearFrom.HasValue)
+        {
+            monthFrom = 1;
+        }
+        else
+        {
+            monthFrom = window.Start.Month;
+        }
+
+        int? monthTo;
+        if (filter.MonthTo.HasValue)
+        {
+            monthTo = filter.MonthTo;
+        }
+        else if (filter.YearTo.HasValue)
+        {
+            monthTo = 12;
+        }
+        else
+        {
+            monthTo = window.End.Month;
+        }
 
         return new TrendFilterCriteria
         {
-            YearFrom = filter.YearFrom ?? 2025,
-            YearTo = filter.YearTo ?? 2026,
-            MonthFrom = filter.MonthFrom,
-            MonthTo = filter.MonthTo,
+            YearFrom = yearFrom,
+            YearTo = yearTo,
+            MonthFrom = monthFrom,
+            MonthTo = monthTo,
             KeywordId = filter.KeywordId,
             TopicId = filter.TopicId,
             JournalId = filter.JournalId,
@@ -271,6 +334,6 @@ public class TrendService : ITrendService
 
     private static string BuildCacheKey(TrendFilterCriteria criteria)
     {
-        return $"{criteria.YearFrom}-{criteria.MonthFrom}-{criteria.YearTo}-{criteria.MonthTo}-{criteria.Top}";
+        return $"{criteria.YearFrom}-{criteria.MonthFrom}-{criteria.YearTo}-{criteria.MonthTo}-{criteria.Top}-{criteria.KeywordId}-{criteria.TopicId}-{criteria.JournalId}";
     }
 }

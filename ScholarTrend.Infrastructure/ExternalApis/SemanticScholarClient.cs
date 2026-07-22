@@ -59,6 +59,7 @@ public class SemanticScholarClient : ISemanticScholarClient
                         AuthorNames = p.Authors?.Select(a => a.Name ?? "Unknown").ToList() ?? [],
                         Journal = p.Journal?.Name,
                         Keywords = MapFieldsOfStudy(p),
+                        Topics = MapFieldsOfStudy(p).Take(5).ToList(),
                         PdfUrl = pdfUrl,
                         PdfAccessType = pdfUrl is null ? null : PaperDownloadStatus.AccessTypes.OpenAccess,
                         PdfLicense = null
@@ -118,6 +119,7 @@ public class SemanticScholarClient : ISemanticScholarClient
                 Journal = paper.Journal?.Name,
                 AuthorNames = paper.Authors?.Select(a => a.Name ?? "Unknown").ToList() ?? [],
                 Keywords = MapFieldsOfStudy(paper),
+                Topics = MapFieldsOfStudy(paper).Take(5).ToList(),
                 PdfUrl = pdfUrl,
                 PdfAccessType = pdfUrl is null ? null : PaperDownloadStatus.AccessTypes.OpenAccess,
                 PdfLicense = null

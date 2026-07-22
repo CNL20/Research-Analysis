@@ -4,6 +4,7 @@ public class PaperSearchCriteria
 {
     public string? Query { get; set; }
     public string SearchType { get; set; } = "keyword";
+    public string SortBy { get; set; } = "citations";
     public int? JournalId { get; set; }
     public int? TopicId { get; set; }
     public int? YearFrom { get; set; }

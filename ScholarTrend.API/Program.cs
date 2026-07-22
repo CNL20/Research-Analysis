@@ -127,6 +127,7 @@ builder.Services.AddScoped<IAuthorService, AuthorService>();
 builder.Services.AddScoped<ITrendRepository, TrendRepository>();
 builder.Services.AddScoped<IStatisticsRepository, StatisticsRepository>();
 builder.Services.AddScoped<ITrendService, TrendService>();
+builder.Services.AddSingleton<ITrendDashboardCacheInvalidator, TrendDashboardCacheInvalidator>();
 builder.Services.AddScoped<IFollowService, FollowService>();
 builder.Services.AddScoped<IFileStorageService, BackblazeB2StorageService>();
 builder.Services.AddScoped<IFileService, FileService>();
@@ -147,10 +148,12 @@ builder.Services.AddScoped<IPaperImportRepository, PaperImportRepository>();
 builder.Services.AddScoped<IPaperKeywordLinkerService, PaperKeywordLinkerService>();
 builder.Services.AddScoped<IPaperAuthorLinkerService, PaperAuthorLinkerService>();
 builder.Services.AddScoped<IJournalResolver, JournalResolver>();
+builder.Services.AddScoped<ITopicResolver, TopicResolver>();
 builder.Services.AddScoped<IEnrichmentFetcher, EnrichmentFetcher>();
 builder.Services.AddScoped<IEnrichPaperSourcesEnqueuer, EnrichPaperSourcesEnqueuer>();
 builder.Services.AddScoped<EnrichPaperSourcesJob>();
-builder.Services.AddScoped<RecalculateKeywordTrendsJob>();
+builder.Services.AddScoped<ITrendAggregationService, TrendAggregationService>();
+builder.Services.AddScoped<RecalculateTrendsJob>();
 builder.Services.AddScoped<IUserFileRepository, UserFileRepository>();
 builder.Services.AddScoped<IPaperPdfFileRepository, PaperPdfFileRepository>();
 builder.Services.AddScoped<IPaperQualityRepository, PaperQualityRepository>();
@@ -366,9 +369,21 @@ if (syncEnabled)
     RecurringJob.AddOrUpdate<ISyncJob>("daily-paper-sync", job => job.RunAsync(), syncCron);
     RecurringJob.AddOrUpdate<TopicInsightExtractionJob>("topic-insight-extraction", job => job.RunExtractionAsync(CancellationToken.None), "*/10 * * * *"); // Run every 10 mins
     RecurringJob.AddOrUpdate<TopicInsightAggregationJob>("topic-insight-aggregation", job => job.RunAggregationAsync(CancellationToken.None), "0 2 * * *"); // Run daily at 2 AM
-    RecurringJob.AddOrUpdate<RecalculateKeywordTrendsJob>("keyword-trend-recalc", job => job.RunAsync(CancellationToken.None), "0 3 * * *"); // Run daily at 3 AM
 }
 
+// Trend rebuild is independent of SyncSchedule:Enabled
+RecurringJob.AddOrUpdate<RecalculateTrendsJob>(
+    "trend-recalc",
+    job => job.RunAsync(CancellationToken.None),
+    "0 3 * * *"); // Daily 3 AM UTC
+RecurringJob.RemoveIfExists("keyword-trend-recalc");
+
 app.MapControllers();
+
+app.Lifetime.ApplicationStarted.Register(() =>
+{
+    using var scope = app.Services.CreateScope();
+    scope.ServiceProvider.GetRequiredService<ITrendAggregationService>().ScheduleEnsureBuilt();
+});
 
 app.Run();

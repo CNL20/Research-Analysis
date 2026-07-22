@@ -29,4 +29,15 @@ public class ApiResponse<T>
             Errors = errors
         };
     }
+
+    public static ApiResponse<T> FailResponse(string message, T data, List<string>? errors = null)
+    {
+        return new ApiResponse<T>
+        {
+            Success = false,
+            Message = message,
+            Data = data,
+            Errors = errors
+        };
+    }
 }

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ScholarTrend.Application.DTOs.Trends;
 using ScholarTrend.Application.Interfaces.Repositories;
+using ScholarTrend.Application.Services.Keywords;
 using ScholarTrend.Domain.Entities;
 using ScholarTrend.Domain.Enums;
 using ScholarTrend.Infrastructure.Data;
@@ -77,6 +78,21 @@ public class TrendRepository : ITrendRepository
     {
         var query = _context.ResearchPapers
             .Where(p => PaperStatusRules.Browsable.Contains(p.Status) && p.PublicationDate.HasValue);
+
+        if (criteria.KeywordId.HasValue)
+        {
+            query = query.Where(p => p.PaperKeywords.Any(pk => pk.KeywordId == criteria.KeywordId.Value));
+        }
+
+        if (criteria.TopicId.HasValue)
+        {
+            query = query.Where(p => p.PaperTopics.Any(pt => pt.TopicId == criteria.TopicId.Value));
+        }
+
+        if (criteria.JournalId.HasValue)
+        {
+            query = query.Where(p => p.JournalId == criteria.JournalId.Value);
+        }
 
         if (criteria.YearFrom.HasValue)
         {
@@ -192,9 +208,9 @@ public class TrendRepository : ITrendRepository
 
         foreach (var item in items)
         {
-            var growthRate = previousCount == 0
-                ? 0
-                : Math.Round(((item.PaperCount - previousCount) / (double)previousCount) * 100, 2);
+            var growthRate = KeywordTrendCalculator.CalculateGrowthRate(previousCount, item.PaperCount);
+            var score = KeywordTrendCalculator.CalculateTrendingScore(
+                item.PaperCount, growthRate, item.CitationCount);
 
             result.Add(new TrendDataPointDto
             {
@@ -203,7 +219,7 @@ public class TrendRepository : ITrendRepository
                 PaperCount = item.PaperCount,
                 CitationCount = item.CitationCount,
                 GrowthRate = growthRate,
-                TrendingScore = Math.Round((item.PaperCount * 0.65) + (Math.Max(growthRate, 0) / 10.0) + (item.CitationCount / 120.0), 2)
+                TrendingScore = score
             });
 
             previousCount = item.PaperCount;

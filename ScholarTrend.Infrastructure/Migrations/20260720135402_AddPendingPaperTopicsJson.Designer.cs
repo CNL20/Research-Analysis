@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ScholarTrend.Infrastructure.Data;
@@ -11,9 +12,11 @@ using ScholarTrend.Infrastructure.Data;
 namespace ScholarTrend.Infrastructure.Migrations
 {
     [DbContext(typeof(ScholarTrendDbContext))]
-    partial class ScholarTrendDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260720135402_AddPendingPaperTopicsJson")]
+    partial class AddPendingPaperTopicsJson
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -806,10 +809,6 @@ namespace ScholarTrend.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<string>("UserId")
                         .IsRequired()
                         .HasColumnType("text");
@@ -859,9 +858,6 @@ namespace ScholarTrend.Infrastructure.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<int>("AbstractConfidence")
-                        .HasColumnType("integer");
-
                     b.Property<string>("AnalysisLevel")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -871,9 +867,6 @@ namespace ScholarTrend.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
-
-                    b.Property<int>("ConclusionConfidence")
-                        .HasColumnType("integer");
 
                     b.Property<string>("ConclusionsJson")
                         .HasColumnType("text");
@@ -893,9 +886,6 @@ namespace ScholarTrend.Infrastructure.Migrations
                     b.Property<string>("DatasetsJson")
                         .HasColumnType("text");
 
-                    b.Property<int>("DiscussionConfidence")
-                        .HasColumnType("integer");
-
                     b.Property<string>("DiscussionsJson")
                         .HasColumnType("text");
 
@@ -903,9 +893,6 @@ namespace ScholarTrend.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("FutureWorkJson")
-                        .HasColumnType("text");
-
-                    b.Property<string>("HybridMetadataJson")
                         .HasColumnType("text");
 
                     b.Property<string>("KeywordsJson")
@@ -931,15 +918,6 @@ namespace ScholarTrend.Infrastructure.Migrations
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp without time zone");
-
-                    b.Property<bool>("UsedAbstract")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("UsedConclusion")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("UsedDiscussion")
-                        .HasColumnType("boolean");
 
                     b.HasKey("Id");
 

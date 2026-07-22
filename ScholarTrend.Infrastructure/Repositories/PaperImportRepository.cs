@@ -5,6 +5,7 @@ using ScholarTrend.Application.Interfaces;
 using ScholarTrend.Application.Interfaces.External;
 using ScholarTrend.Application.Interfaces.Repositories;
 using ScholarTrend.Application.Services.Aggregation;
+using ScholarTrend.Application.Services.Topics;
 using ScholarTrend.Domain.Entities;
 using ScholarTrend.Domain.Enums;
 using ScholarTrend.Infrastructure.Data;
@@ -30,6 +31,7 @@ public class PaperImportRepository : IPaperImportRepository
     private readonly IEnrichPaperSourcesEnqueuer _enrichEnqueuer;
     private readonly IPaperKeywordLinkerService _keywordLinker;
     private readonly IJournalResolver _journalResolver;
+    private readonly ITopicResolver _topicResolver;
     private readonly IPaperAuthorLinkerService _authorLinker;
     private readonly ILogger<PaperImportRepository> _logger;
 
@@ -39,6 +41,7 @@ public class PaperImportRepository : IPaperImportRepository
         IEnrichPaperSourcesEnqueuer enrichEnqueuer,
         IPaperKeywordLinkerService keywordLinker,
         IJournalResolver journalResolver,
+        ITopicResolver topicResolver,
         IPaperAuthorLinkerService authorLinker,
         ILogger<PaperImportRepository> logger)
     {
@@ -47,6 +50,7 @@ public class PaperImportRepository : IPaperImportRepository
         _enrichEnqueuer = enrichEnqueuer;
         _keywordLinker = keywordLinker;
         _journalResolver = journalResolver;
+        _topicResolver = topicResolver;
         _authorLinker = authorLinker;
         _logger = logger;
     }
@@ -251,101 +255,67 @@ public class PaperImportRepository : IPaperImportRepository
             external.Keywords,
             ct);
 
-        var linkedKeywordNames = await _context.PaperKeywords
-            .Where(pk => pk.PaperId == paperId)
-            .Select(pk => pk.Keyword.Name)
-            .ToListAsync(ct);
+        var topicIds = new HashSet<int>();
 
-        var text = $"{external.Title ?? string.Empty} {external.Abstract ?? string.Empty}"
-            .ToLowerInvariant();
+        // 1) Prefer mapping free labels / title onto the 5 seeded topics.
+        var seededNames = ScholarTopicMapper.MapToSeededTopics(
+            external.Topics,
+            external.Title,
+            external.Abstract);
 
-        ResearchTopic? topic = null;
-        if (linkedKeywordNames.Count > 0)
+        if (seededNames.Count == 0)
         {
-            var topics = await _context.ResearchTopics.ToListAsync(ct);
-            topic = topics.FirstOrDefault(t =>
-                linkedKeywordNames.Any(k =>
-                    t.TopicName.Contains(k, StringComparison.OrdinalIgnoreCase) ||
-                    k.Contains(t.TopicName, StringComparison.OrdinalIgnoreCase)));
+            var linkedKeywordNames = await _context.PaperKeywords
+                .Where(pk => pk.PaperId == paperId)
+                .Select(pk => pk.Keyword.Name)
+                .ToListAsync(ct);
+
+            seededNames = ScholarTopicMapper.MapToSeededTopics(
+                linkedKeywordNames,
+                external.Title,
+                external.Abstract);
         }
 
-        if (topic == null)
+        if (seededNames.Count > 0)
         {
-            topic = await MatchTopicByKeywordsAsync(text, ct);
+            var seeded = await _context.ResearchTopics
+                .Where(t => seededNames.Contains(t.TopicName))
+                .Select(t => t.Id)
+                .ToListAsync(ct);
+            foreach (var id in seeded)
+                topicIds.Add(id);
         }
 
-        if (topic != null)
+        // 2) Unmapped API labels → find-or-create ResearchTopic (same idea as JournalResolver).
+        foreach (var label in external.Topics ?? [])
+        {
+            if (string.IsNullOrWhiteSpace(label))
+                continue;
+
+            // Already covered by a seeded bucket — do not also create a duplicate free-text topic.
+            if (ScholarTopicMapper.MatchOne(label) != null)
+                continue;
+
+            var id = await _topicResolver.ResolveAsync(label, ct);
+            if (id.HasValue)
+                topicIds.Add(id.Value);
+        }
+
+        foreach (var topicId in topicIds)
         {
             var topicExists = await _context.PaperTopics
-                .AnyAsync(pt => pt.PaperId == paperId && pt.TopicId == topic.Id, ct);
+                .AnyAsync(pt => pt.PaperId == paperId && pt.TopicId == topicId, ct);
             if (!topicExists)
             {
                 await _context.PaperTopics.AddAsync(new PaperTopic
                 {
                     PaperId = paperId,
-                    TopicId = topic.Id
+                    TopicId = topicId
                 }, ct);
             }
         }
 
         await _context.SaveChangesAsync(ct);
-    }
-
-    private async Task<ResearchTopic?> MatchTopicByKeywordsAsync(string text, CancellationToken ct)
-    {
-        var mlPatterns = new[] { "machine learning", "deep learning", "neural network", "artificial intelligence",
-            "transformer", "bert", "gpt", "lstm", "reinforcement learning", "supervised learning", "unsupervised learning" };
-        var mlSingleKeywords = new[] { "cnn", "rnn", "gan", "vae", "mlp" };
-
-        var cvPatterns = new[] { "computer vision", "image recognition", "object detection", "image segmentation" };
-        var cvSingleKeywords = new[] { "yolo", "resnet", "faster r-cnn" };
-
-        var nlpPatterns = new[] { "natural language", "sentiment analysis", "machine translation", "language model", "text classification" };
-        var nlpSingleKeywords = new[] { "nlp", "llm" };
-
-        var roboticsPatterns = new[] { "robotics", "autonomous", "motion planning", "robot control" };
-        var roboticsSingleKeywords = new[] { "kinematics", "manipulator" };
-
-        if (mlPatterns.Any(p => text.Contains(p)))
-            return await GetTopicByNameAsync("Machine Learning", ct);
-        if (cvPatterns.Any(p => text.Contains(p)))
-            return await GetTopicByNameAsync("Computer Vision", ct);
-        if (nlpPatterns.Any(p => text.Contains(p)))
-            return await GetTopicByNameAsync("NLP", ct);
-        if (roboticsPatterns.Any(p => text.Contains(p)))
-            return await GetTopicByNameAsync("Robotics", ct);
-
-        if (mlSingleKeywords.Any(k => HasWordBoundary(text, k)))
-            return await GetTopicByNameAsync("Machine Learning", ct);
-        if (cvSingleKeywords.Any(k => HasWordBoundary(text, k)))
-            return await GetTopicByNameAsync("Computer Vision", ct);
-        if (nlpSingleKeywords.Any(k => HasWordBoundary(text, k)))
-            return await GetTopicByNameAsync("NLP", ct);
-        if (roboticsSingleKeywords.Any(k => HasWordBoundary(text, k)))
-            return await GetTopicByNameAsync("Robotics", ct);
-
-        return null;
-    }
-
-    private async Task<ResearchTopic?> GetTopicByNameAsync(string topicName, CancellationToken ct)
-    {
-        return await _context.ResearchTopics
-            .FirstOrDefaultAsync(t => EF.Functions.ILike(t.TopicName, topicName), ct);
-    }
-
-    private static bool HasWordBoundary(string text, string keyword)
-    {
-        return text.Contains($" {keyword} ") ||
-               text.Contains($" {keyword},") ||
-               text.Contains($" {keyword}.") ||
-               text.Contains($" {keyword}?") ||
-               text.Contains($" {keyword}!") ||
-               text.Contains($" {keyword};") ||
-               text.Contains($" {keyword}:") ||
-               text.Contains($" {keyword}-") ||
-               text.Contains($"({keyword} ") ||
-               text.StartsWith($"{keyword} ") ||
-               text.EndsWith($" {keyword}");
     }
 
     private static string ExtractArxivId(string raw)

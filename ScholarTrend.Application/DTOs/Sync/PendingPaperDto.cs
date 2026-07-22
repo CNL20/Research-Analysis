@@ -13,6 +13,7 @@ public class PendingPaperDto
     public string? Url { get; set; }
     public string? Journal { get; set; }
     public List<string> Keywords { get; set; } = [];
+    public List<string> Topics { get; set; } = [];
     public string? SyncSearchQuery { get; set; }
     public List<string> Authors { get; set; } = [];
     public string Status { get; set; } = string.Empty;

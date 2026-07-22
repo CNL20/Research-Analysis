@@ -253,6 +253,16 @@ public class CrossrefClient : ICrossrefClient
 
                 .ToList() ?? [],
 
+            Topics = work.Subject?
+
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+
+                .Take(5)
+
+                .ToList() ?? [],
+
             PdfUrl = pdfUrl,
 
             PdfAccessType = pdfAccessType,

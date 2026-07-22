@@ -24,6 +24,7 @@ public class SyncServiceTests
     private readonly Mock<IArXivClient> _mockArXivClient;
     private readonly Mock<INotificationService> _mockNotificationService;
     private readonly Mock<IPaperPdfEnqueuer> _mockPaperPdfEnqueuer;
+    private readonly Mock<ITrendAggregationService> _mockTrendAggregation;
     private readonly Mock<IConfiguration> _mockConfig;
     private readonly Mock<ILogger<SyncService>> _mockLogger;
     private readonly SyncService _syncService;
@@ -39,6 +40,7 @@ public class SyncServiceTests
         _mockArXivClient = new Mock<IArXivClient>();
         _mockNotificationService = new Mock<INotificationService>();
         _mockPaperPdfEnqueuer = new Mock<IPaperPdfEnqueuer>();
+        _mockTrendAggregation = new Mock<ITrendAggregationService>();
         _mockConfig = new Mock<IConfiguration>();
         _mockLogger = new Mock<ILogger<SyncService>>();
 
@@ -59,6 +61,7 @@ public class SyncServiceTests
             _mockArXivClient.Object,
             _mockNotificationService.Object,
             _mockPaperPdfEnqueuer.Object,
+            _mockTrendAggregation.Object,
             _mockConfig.Object,
             _mockLogger.Object
         );
@@ -133,6 +136,7 @@ public class SyncServiceTests
         result.PapersApproved.Should().Be(1);
         _mockPaperImportRepo.Verify(r => r.ImportAsync(It.IsAny<ExternalPaperDto>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()), Times.Once);
         _mockNotificationService.Verify(n => n.NotifyFollowersForNewPaperAsync(501), Times.Once);
+        _mockTrendAggregation.Verify(t => t.ScheduleRebuild(), Times.Once);
     }
 
     [Fact]

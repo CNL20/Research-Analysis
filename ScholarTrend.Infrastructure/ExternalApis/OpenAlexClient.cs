@@ -28,7 +28,7 @@ public class OpenAlexClient : IOpenAlexClient
     public async Task<IReadOnlyList<ExternalPaperDto>> SearchPapersAsync(string query, int limit = 20)
     {
         var searchTerm = string.IsNullOrWhiteSpace(query) ? _searchQuery : query;
-        var url = $"works?search={Uri.EscapeDataString(searchTerm)}&per-page={limit}&select=id,display_name,publication_year,cited_by_count,doi,abstract_inverted_index,authorships,primary_location,open_access,keywords";
+        var url = $"works?search={Uri.EscapeDataString(searchTerm)}&per-page={limit}&select=id,display_name,publication_year,cited_by_count,doi,abstract_inverted_index,authorships,primary_location,open_access,keywords,primary_topic,topics";
 
         for (var attempt = 1; attempt <= 3; attempt++)
         {
@@ -58,6 +58,7 @@ public class OpenAlexClient : IOpenAlexClient
                         Journal = w.PrimaryLocation?.Source?.DisplayName,
                         Keywords = w.Keywords?.Select(k => k.DisplayName ?? string.Empty)
                             .Where(k => !string.IsNullOrWhiteSpace(k)).ToList() ?? [],
+                        Topics = MapTopics(w),
                         PdfUrl = pdfUrl,
                         PdfAccessType = pdfUrl is null
                             ? null
@@ -122,6 +123,7 @@ public class OpenAlexClient : IOpenAlexClient
                 Journal = work.PrimaryLocation?.Source?.DisplayName,
                 AuthorNames = work.Authorships?.Select(a => a.Author?.DisplayName ?? "Unknown").ToList() ?? [],
                 Keywords = work.Keywords?.Select(k => k.DisplayName ?? string.Empty).Where(k => !string.IsNullOrWhiteSpace(k)).ToList() ?? [],
+                Topics = MapTopics(work),
                 PdfUrl = pdfUrl,
                 PdfAccessType = pdfUrl is null
                     ? null
@@ -183,6 +185,12 @@ public class OpenAlexClient : IOpenAlexClient
         [JsonPropertyName("keywords")]
         public List<OpenAlexKeyword>? Keywords { get; set; }
 
+        [JsonPropertyName("primary_topic")]
+        public OpenAlexTopic? PrimaryTopic { get; set; }
+
+        [JsonPropertyName("topics")]
+        public List<OpenAlexTopic>? Topics { get; set; }
+
         [JsonPropertyName("open_access")]
         public OpenAlexOpenAccess? OpenAccess { get; set; }
     }
@@ -211,6 +219,27 @@ public class OpenAlexClient : IOpenAlexClient
         public string? DisplayName { get; set; }
     }
 
+    private sealed class OpenAlexTopic
+    {
+        [JsonPropertyName("display_name")]
+        public string? DisplayName { get; set; }
+
+        [JsonPropertyName("field")]
+        public OpenAlexTopicNode? Field { get; set; }
+
+        [JsonPropertyName("subfield")]
+        public OpenAlexTopicNode? Subfield { get; set; }
+
+        [JsonPropertyName("domain")]
+        public OpenAlexTopicNode? Domain { get; set; }
+    }
+
+    private sealed class OpenAlexTopicNode
+    {
+        [JsonPropertyName("display_name")]
+        public string? DisplayName { get; set; }
+    }
+
     private sealed class OpenAlexOpenAccess
     {
         [JsonPropertyName("oa_url")]
@@ -221,6 +250,38 @@ public class OpenAlexClient : IOpenAlexClient
 
         [JsonPropertyName("oa_status")]
         public string? OaStatus { get; set; }
+    }
+
+    private static List<string> MapTopics(OpenAlexWork work)
+    {
+        var labels = new List<string>();
+
+        void Add(string? value)
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                labels.Add(value.Trim());
+            }
+        }
+
+        if (work.PrimaryTopic != null)
+        {
+            Add(work.PrimaryTopic.DisplayName);
+            Add(work.PrimaryTopic.Subfield?.DisplayName);
+            Add(work.PrimaryTopic.Field?.DisplayName);
+            Add(work.PrimaryTopic.Domain?.DisplayName);
+        }
+
+        foreach (var topic in work.Topics ?? [])
+        {
+            Add(topic.DisplayName);
+            Add(topic.Field?.DisplayName);
+        }
+
+        return labels
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(8)
+            .ToList();
     }
 
     private sealed class OpenAlexAuthorship
