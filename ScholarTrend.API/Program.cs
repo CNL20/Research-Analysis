@@ -30,7 +30,6 @@ using ScholarTrend.Application.DTOs.Common;
 using ScholarTrend.Application.Options;
 using Microsoft.AspNetCore.Http.Features;
 using System.Text;
-using System.Text;
 using HangfireBasicAuthenticationFilter;
 using Amazon.S3;
 using Amazon.Runtime;
@@ -156,7 +155,19 @@ builder.Services.AddScoped<IPaperPdfFileRepository, PaperPdfFileRepository>();
 builder.Services.AddScoped<IPaperQualityRepository, PaperQualityRepository>();
 builder.Services.AddSingleton<IPaperPdfChannel, PaperPdfChannel>();
 builder.Services.AddScoped<IPaperPdfEnqueuer, PaperPdfDownloadService>();
-builder.Services.AddScoped<IPaperPdfProcessor, PaperPdfDownloadService>();
+
+// PdfProcessing: conditionally register processor based on config
+var pdfConfig = builder.Configuration.GetSection("PdfProcessing").Get<ScholarTrend.Application.Options.PdfProcessingSettings>();
+if (pdfConfig?.AutoParseAfterDownload == true)
+{
+    builder.Services.AddScoped<IPaperPdfProcessor, AutoParsePdfProcessor>();
+    Console.WriteLine("[PdfProcessing] AutoParsePdfProcessor registered (auto-parse enabled)");
+}
+else
+{
+    builder.Services.AddScoped<IPaperPdfProcessor, PaperPdfDownloadService>();
+    Console.WriteLine("[PdfProcessing] PaperPdfDownloadService registered (auto-parse disabled)");
+}
 
 // IPaperFileStorage: đăng ký CẢ HAI implementations qua interface + qua concrete type.
 //

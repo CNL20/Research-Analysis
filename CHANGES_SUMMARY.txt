@@ -1,0 +1,403 @@
+================================================================================
+TỔNG HỢP CÁC CHỨC NĂNG ĐÃ CHỈNH SỬA / THAY ĐỔI TRONG DỰ ÁN
+Research-Analysis (ScholarTrend)
+================================================================================
+Tổng số commit: 86 commits (từ Initial commit đến hiện tại)
+Ngày tạo: 21/07/2026
+
+================================================================================
+PHẦN 1: CÁC THAY ĐỔI GẦN ĐÂY (RELEVANT - LIÊN QUAN ĐẾN GAP ANALYSIS)
+================================================================================
+
+--------------------------------------------------------------------------------
+[1] Commit: fb097ee - "thay doi logic phan tich gap" (21/07/2026)
+--------------------------------------------------------------------------------
+Mô tả: Thay đổi logic phân tích gap theo hướng Hybrid Extraction
+Số file thay đổi: 14 files
+Số dòng: +4268 insertions, -44 deletions
+
+Các file thay đổi:
+1. ScholarTrend.API/Controllers/AdminGapAnalysisController.cs (183 dòng)
+2. ScholarTrend.Application/DTOs/GapAnalysis/PaperAnalysisDto.cs (22 dòng)
+3. ScholarTrend.Application/DTOs/GapAnalysis/ResearchGapDto.cs (26 dòng)
+4. ScholarTrend.Application/DTOs/TopicInsights/HybridExtractionDto.cs (124 dòng) [MỚI]
+5. ScholarTrend.Application/Interfaces/External/IAiExtractionService.cs (24 dòng)
+6. ScholarTrend.Application/Interfaces/IPaperAnalysisService.cs (20 dòng)
+7. ScholarTrend.Application/Services/PaperAnalysisService.cs (208 dòng)
+8. ScholarTrend.Application/Services/SectionExtractor.cs (270 dòng) [MỚI]
+9. ScholarTrend.Domain/Entities/PaperAnalysis.cs (26 dòng)
+10. ScholarTrend.Infrastructure/ExternalApis/GroqExtractionService.cs (307 dòng) [MỚI]
+11. ScholarTrend.Infrastructure/Jobs/PaperAnalysisExtractionJob.cs (124 dòng)
+12. Migration: 20260721084254_AddHybridExtractionFields.Designer.cs (2863 dòng) [MỚI]
+13. Migration: 20260721084254_AddHybridExtractionFields.cs (94 dòng) [MỚI]
+14. ScholarTrend.Infrastructure/Data/ScholarTrendDbContextModelSnapshot.cs (21 dòng)
+
+Chức năng chính:
+- Thêm HybridExtractionDto (DTO mới cho hybrid extraction)
+- Thêm SectionExtractor (trích xuất section Discussion/Conclusion từ PDF)
+- Thêm GroqExtractionService (dịch vụ AI extraction qua Groq API)
+- Cập nhật PaperAnalysis entity (thêm các trường hybrid)
+- Migration: AddHybridExtractionFields
+- Cập nhật logic PaperAnalysisService và PaperAnalysisExtractionJob
+
+--------------------------------------------------------------------------------
+[2] Commit: 5aa126b - "fix dashboard" (21/07/2026)
+--------------------------------------------------------------------------------
+Mô tả: Sửa lỗi logic dashboard
+Số file thay đổi: 1 file
+Số dòng: +2 insertions, -2 deletions
+
+Các file thay đổi:
+1. ScholarTrend.Application/Services/DashboardService.cs
+
+================================================================================
+PHẦN 2: CÁC THAY ĐỔI TRONG GIT STATUS (CHƯA COMMIT)
+================================================================================
+
+Hiện tại KHÔNG có thay đổi chưa commit (git status trống).
+Tất cả thay đổi đã được commit.
+
+================================================================================
+PHẦN 3: LỊCH SỬ CÁC CHỨC NĂNG QUAN TRỌNG (THEO THỨ TỰ THỜI GIAN)
+================================================================================
+
+--------------------------------------------------------------------------------
+[3] Commit: 28ed9ca - "fix chức năng thông báo"
+--------------------------------------------------------------------------------
+Mô tả: Sửa chức năng thông báo
+
+--------------------------------------------------------------------------------
+[4] Commit: a773855 - "tách chức nâng thông báo cho các role"
+--------------------------------------------------------------------------------
+Mô tả: Tách chức năng thông báo theo role (Admin, Researcher, etc.)
+
+--------------------------------------------------------------------------------
+[5] Commit: 3909374 - "them object storage"
+--------------------------------------------------------------------------------
+Mô tả: Thêm Object Storage (lưu trữ file PDF)
+
+--------------------------------------------------------------------------------
+[6] Commit: 896a2d8 - "fix sync data"
+--------------------------------------------------------------------------------
+Mô tả: Sửa lỗi logic đồng bộ dữ liệu từ các nguồn API
+
+--------------------------------------------------------------------------------
+[7] Commit: a9b9baa - "fix logic chuc nang gap"
+--------------------------------------------------------------------------------
+Mô tả: Sửa logic chức năng gap analysis
+
+--------------------------------------------------------------------------------
+[8] Commit: fe781ba - "phan tich gap theo topic"
+--------------------------------------------------------------------------------
+Mô tả: Phân tích gap theo topic (thay vì tất cả papers)
+
+--------------------------------------------------------------------------------
+[9] Commit: a2c2c5d - "sua format gap"
+--------------------------------------------------------------------------------
+Mô tả: Sửa format hiển thị kết quả gap
+
+--------------------------------------------------------------------------------
+[10] Commit: 24888bf - "fix Page"
+--------------------------------------------------------------------------------
+Mô tả: Sửa lỗi phân trang
+
+--------------------------------------------------------------------------------
+[11] Commit: 832a5e4 - "thêm phân trang"
+--------------------------------------------------------------------------------
+Mô tả: Thêm chức năng phân trang cho danh sách
+
+--------------------------------------------------------------------------------
+[12] Commit: ab4670b - "thêm thư viện cho hangfire dashboard"
+--------------------------------------------------------------------------------
+Mô tả: Thêm thư viện Hangfire dashboard để theo dõi background jobs
+
+--------------------------------------------------------------------------------
+[13] Commit: 649bdbf - "đổi Gemini sang Groq để có nhiều quota hơn"
+--------------------------------------------------------------------------------
+Mô tả: Đổi từ Gemini API sang Groq API (nhiều quota hơn)
+
+--------------------------------------------------------------------------------
+[14] Commit: 21e9aa9 - "them chuc nang phan tich gap v1"
+--------------------------------------------------------------------------------
+Mô tả: Thêm chức năng phân tích gap version 1
+
+--------------------------------------------------------------------------------
+[15] Commit: a86553d - "merge: resolve conflicts với dev (PDF services + PayOS + Memory cache + ViewCount migration)"
+--------------------------------------------------------------------------------
+Mô tả: Giải quyết conflicts khi merge PDF services, PayOS, Memory cache, ViewCount migration
+
+--------------------------------------------------------------------------------
+[16] Commit: 3a65600 - "fix: Webhook transaction lookup bug by using ProviderTransactionId"
+--------------------------------------------------------------------------------
+Mô tả: Sửa bug tìm transaction trong webhook bằng ProviderTransactionId
+
+--------------------------------------------------------------------------------
+[17] Commit: 1352335 - "chuyển tiền xong sẽ được up role"
+--------------------------------------------------------------------------------
+Mô tả: Sau khi thanh toán thành công sẽ tự động nâng cấp role
+
+--------------------------------------------------------------------------------
+[18] Commit: 103c591 - "thêm tính năng payment"
+--------------------------------------------------------------------------------
+Mô tả: Thêm tính năng thanh toán (PayOS)
+
+--------------------------------------------------------------------------------
+[19] Commit: 9da1414 - "sửa định dạng postgresql"
+--------------------------------------------------------------------------------
+Mô tả: Sửa định dạng connection string PostgreSQL
+
+--------------------------------------------------------------------------------
+[20] Commit: da75142, d1d3fe7 - PostgreSQL deployment
+--------------------------------------------------------------------------------
+Mô tả: Cấu hình deployment cho Render + PostgreSQL
+
+--------------------------------------------------------------------------------
+[21] Commit: 374d6ba - "sửa lại logic về sync keyword, map thong tin khi còn thiếu, thông báo cho admin biết khi approve thiếu field nào"
+--------------------------------------------------------------------------------
+Mô tả: 
+- Sửa logic sync keyword
+- Mapping thông tin khi còn thiếu
+- Thông báo cho admin khi approve mà thiếu field
+
+--------------------------------------------------------------------------------
+[22] Commit: 0adcd09 - "Refactor: cross-source dedup via PaperSources + on-the-fly merge"
+--------------------------------------------------------------------------------
+Mô tả: Refactor - Loại bỏ trùng lặp giữa các nguồn thông qua bảng PaperSources, merge on-the-fly
+
+--------------------------------------------------------------------------------
+[23] Commit: b79d136, a281574 - "them chuc nang lay pdf url"
+--------------------------------------------------------------------------------
+Mô tả: Thêm chức năng lấy PDF URL
+
+--------------------------------------------------------------------------------
+[24] Commit: a85f81f - "thêm chức năng viewpaper"
+--------------------------------------------------------------------------------
+Mô tả: Thêm chức năng xem chi tiết paper
+
+--------------------------------------------------------------------------------
+[25] Commit: 820f004 - "fix logic sync data"
+--------------------------------------------------------------------------------
+Mô tả: Sửa logic đồng bộ dữ liệu
+
+--------------------------------------------------------------------------------
+[26] Commit: 4d421a0 - "thay đổi về status search và thêm 2 nguồn khi sync data"
+--------------------------------------------------------------------------------
+Mô tả: 
+- Thay đổi status search
+- Thêm 2 nguồn API mới khi sync data
+
+--------------------------------------------------------------------------------
+[27] Commit: 059c4e6, 8d47c4e - "đổi SQL server thành PostgreSQL"
+--------------------------------------------------------------------------------
+Mô tả: Migrate database từ SQL Server sang PostgreSQL
+
+--------------------------------------------------------------------------------
+[28] Commit: e264ade - "them search title"
+--------------------------------------------------------------------------------
+Mô tả: Thêm chức năng tìm kiếm theo title
+
+--------------------------------------------------------------------------------
+[29] Commit: eaa6309 - "fix(TopicInsight): hoàn thiện luồng trích xuất AI và xử lý lỗi API"
+--------------------------------------------------------------------------------
+Mô tả: Hoàn thiện luồng trích xuất AI cho TopicInsight, xử lý lỗi API
+
+--------------------------------------------------------------------------------
+[30] Commit: 0096778 - "thêm dto và services của topicinsight và thêm API GET trong topiccontroller"
+--------------------------------------------------------------------------------
+Mô tả: Thêm DTO + Services cho TopicInsight + API GET
+
+--------------------------------------------------------------------------------
+[31] Commit: e360aac - "thêm Database & Entities cho phân tích xu hướng thị trường"
+--------------------------------------------------------------------------------
+Mô tả: Thêm Database schema + Entities cho phân tích xu hướng thị trường
+
+--------------------------------------------------------------------------------
+[32] Commit: 0b58ec8 - "thêm 13 test case"
+--------------------------------------------------------------------------------
+Mô tả: Thêm 13 test case
+
+--------------------------------------------------------------------------------
+[33] Commit: 440adf9 - "thêm api ArXiv"
+--------------------------------------------------------------------------------
+Mô tả: Thêm API đồng bộ từ ArXiv
+
+--------------------------------------------------------------------------------
+[34] Commit: 2b0e264 - "đổi từ SMTP sang Brevo"
+--------------------------------------------------------------------------------
+Mô tả: Chuyển từ SMTP sang Brevo (email service)
+
+--------------------------------------------------------------------------------
+[35] Commit: 61e75d3 - "chinh sua co ban và thêm 2 nguồn API mới"
+--------------------------------------------------------------------------------
+Mô tả: Chỉnh sửa cơ bản + thêm 2 nguồn API mới (Semantic Scholar, OpenAlex, etc.)
+
+--------------------------------------------------------------------------------
+[36] Commit: 826795b - "fix v1 - them interface"
+--------------------------------------------------------------------------------
+Mô tả: Thêm interface cho Repository pattern
+
+--------------------------------------------------------------------------------
+[37] Commit: 888a484 - "v1 so sanh du lieu và đưa ra điểm khác biệt"
+--------------------------------------------------------------------------------
+Mô tả: So sánh dữ liệu giữa các nguồn, đưa ra điểm khác biệt
+
+--------------------------------------------------------------------------------
+[38] Commit: 302fedd - "auto sync data + notify admin"
+--------------------------------------------------------------------------------
+Mô tả: Tự động đồng bộ dữ liệu + thông báo cho admin
+
+--------------------------------------------------------------------------------
+[39] Commit: 5885252 - "thêm login with google"
+--------------------------------------------------------------------------------
+Mô tả: Thêm đăng nhập với Google OAuth
+
+--------------------------------------------------------------------------------
+[40] Commit: 2a58819 - "thêm chức năng change and forgot password"
+--------------------------------------------------------------------------------
+Mô tả: Thêm chức năng đổi mật khẩu và quên mật khẩu
+
+--------------------------------------------------------------------------------
+[41] Commit: 2f045e4 - "add STM and verify email, resend email"
+--------------------------------------------------------------------------------
+Mô tả: 
+- STM (Send Transactional Mail)
+- Verify email
+- Resend email
+
+--------------------------------------------------------------------------------
+[42] Commit: d667409 - "complete changepassword"
+--------------------------------------------------------------------------------
+Mô tả: Hoàn thiện chức năng đổi mật khẩu
+
+--------------------------------------------------------------------------------
+[43] Commit: 5d32ec8 - "get author"
+--------------------------------------------------------------------------------
+Mô tả: Lấy thông tin tác giả
+
+--------------------------------------------------------------------------------
+[44] Commit: befdaf8 - "follow paper and author"
+--------------------------------------------------------------------------------
+Mô tả: Chức năng theo dõi paper và tác giả
+
+--------------------------------------------------------------------------------
+[45] Commit: e3e613f - "feat: send welcome notification on user registration"
+--------------------------------------------------------------------------------
+Mô tả: Gửi thông báo chào mừng khi đăng ký tài khoản
+
+--------------------------------------------------------------------------------
+[46] Commit: 8a29381 - "them logic sync tu dong cho api"
+--------------------------------------------------------------------------------
+Mô tả: Thêm logic tự động sync cho API
+
+--------------------------------------------------------------------------------
+[47] Commit: 56870ea - "chore: clear jwt secret, add local config to gitignore"
+--------------------------------------------------------------------------------
+Mô tả: 
+- Xóa JWT secret trong config
+- Thêm local config vào gitignore
+
+--------------------------------------------------------------------------------
+[48] Commit: 2726207 - "docs: cap nhat tai lieu features và workflow cho dự án"
+--------------------------------------------------------------------------------
+Mô tả: Cập nhật tài liệu features và workflow
+
+--------------------------------------------------------------------------------
+[49] Commit: 0902a63 - "thay đổi từ ASCII thành UTF8 và trong Authservices đổi từ dấu [] thành :"
+--------------------------------------------------------------------------------
+Mô tả: 
+- Đổi encoding từ ASCII sang UTF8
+- Authservices: đổi [] thành :
+
+--------------------------------------------------------------------------------
+[50] Commit: 66f15d2 - "BE base 1"
+--------------------------------------------------------------------------------
+Mô tả: Backend base version 1
+
+--------------------------------------------------------------------------------
+[51] Commit: b1d5f71 - "thêm repo pattern"
+--------------------------------------------------------------------------------
+Mô tả: Thêm Repository pattern
+
+--------------------------------------------------------------------------------
+[52] Commit: e65d32f - "thêm các chức năng login, register, profile"
+--------------------------------------------------------------------------------
+Mô tả: Thêm các chức năng cơ bản: đăng nhập, đăng ký, profile
+
+--------------------------------------------------------------------------------
+[53] Commit: fe4b235 - "Initial commit - Khởi tạo dự án"
+--------------------------------------------------------------------------------
+Mô tả: Commit khởi tạo dự án
+
+================================================================================
+PHẦN 4: TỔNG KẾT CÁC CHỨC NĂNG CHÍNH
+================================================================================
+
+1. AUTHENTICATION & USER MANAGEMENT
+   - Đăng ký / Đăng nhập / Profile
+   - Login với Google OAuth
+   - Đổi mật khẩu / Quên mật khẩu
+   - Verify email / Resend email
+   - Welcome notification
+   - JWT authentication
+
+2. PAYMENT
+   - Tích hợp PayOS
+   - Auto upgrade role sau thanh toán
+   - Webhook transaction handling
+
+3. PAPER MANAGEMENT
+   - Đồng bộ từ nhiều nguồn (Semantic Scholar, ArXiv, OpenAlex, etc.)
+   - Cross-source deduplication (PaperSources)
+   - On-the-fly merge data
+   - Lấy PDF URL
+   - Xem chi tiết paper
+   - Search theo title
+   - Follow paper/author
+   - Cross-source comparison
+
+4. TOPIC INSIGHT
+   - AI extraction với Groq API (đổi từ Gemini)
+   - Topic insights dashboard
+   - Market trend analysis
+
+5. GAP ANALYSIS (CHỨC NĂNG CHÍNH)
+   - Gap analysis v1
+   - Phân tích gap theo topic
+   - Pattern mining
+   - Quality assessment
+   - Hybrid Extraction (Abstract + PDF Discussion/Conclusion)
+   - Section Extractor
+   - Groq Extraction Service
+   - Migration: AddHybridExtractionFields
+   - Full pipeline endpoint
+
+6. NOTIFICATION
+   - Thông báo theo role
+   - Admin notify khi approve thiếu field
+
+7. INFRASTRUCTURE
+   - PostgreSQL (đổi từ SQL Server)
+   - Hangfire dashboard
+   - Render deployment
+   - Object Storage
+   - Memory cache
+   - Migration SQL Server → PostgreSQL
+   - Brevo email service (đổi từ SMTP)
+   - Auto sync data jobs
+   - Background jobs với Hangfire
+
+8. UI/UX
+   - Pagination
+   - Format gap display
+   - Dashboard
+
+9. TESTING
+   - 13 test cases
+
+10. DOCUMENTATION
+    - README features & workflow
+    - Deployment docs (Dockerfile, render.yaml)
+
+================================================================================
+HẾT
+================================================================================
