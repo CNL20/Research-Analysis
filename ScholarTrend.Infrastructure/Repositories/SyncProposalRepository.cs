@@ -65,4 +65,26 @@ public class SyncProposalRepository : ISyncProposalRepository
             p.ExternalSource == externalSource &&
             (p.Status == PendingPaperStatus.Pending || p.Status == PendingPaperStatus.Approved));
     }
+
+    public async Task<HashSet<string>> GetExistingExternalIdsAsync(IReadOnlyList<string> externalIds, string externalSource)
+    {
+        if (externalIds.Count == 0)
+        {
+            return new HashSet<string>();
+        }
+
+        var existingInPapers = await _context.Set<PaperSource>()
+            .Where(ps => ps.SourceName == externalSource && externalIds.Contains(ps.ExternalId))
+            .Select(ps => ps.ExternalId)
+            .ToListAsync();
+
+        var existingInPending = await _context.PendingPapers
+            .Where(p => p.ExternalSource == externalSource
+                     && externalIds.Contains(p.ExternalId)
+                     && (p.Status == PendingPaperStatus.Pending || p.Status == PendingPaperStatus.Approved))
+            .Select(p => p.ExternalId)
+            .ToListAsync();
+
+        return new HashSet<string>(existingInPapers.Concat(existingInPending));
+    }
 }

@@ -274,15 +274,24 @@ public class SyncService : ISyncService
             var newPapersToAdd = new List<ExternalPaperDto>();
             var duplicatesSkipped = 0;
 
-            foreach (var external in externalPapers)
+            if (externalPapers.Count > 0)
             {
-                if (await _unitOfWork.SyncProposals.IsPaperAlreadyQueuedOrStoredAsync(external.ExternalId, external.Source))
-                {
-                    duplicatesSkipped++;
-                    continue;
-                }
+                var externalIds = externalPapers
+                    .Select(p => p.ExternalId)
+                    .ToList();
 
-                newPapersToAdd.Add(external);
+                var existingIds = await _unitOfWork.SyncProposals.GetExistingExternalIdsAsync(externalIds, source.Name);
+
+                foreach (var external in externalPapers)
+                {
+                    if (existingIds.Contains(external.ExternalId))
+                    {
+                        duplicatesSkipped++;
+                        continue;
+                    }
+
+                    newPapersToAdd.Add(external);
+                }
             }
 
             if (newPapersToAdd.Count == 0)
