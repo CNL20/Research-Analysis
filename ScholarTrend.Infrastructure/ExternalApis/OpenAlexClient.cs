@@ -21,10 +21,13 @@ public class OpenAlexClient : IOpenAlexClient
         _httpClient = httpClient;
         _logger = logger;
         _searchQuery = configuration["ExternalApis:OpenAlex:SearchQuery"] ?? "machine learning";
-        _politeEmail = configuration["ExternalApis:OpenAlex:PoliteEmail"] ?? "support@scholartrend.com";
+        
+        var rawEmail = configuration["ExternalApis:OpenAlex:PoliteEmail"];
+        _politeEmail = string.IsNullOrWhiteSpace(rawEmail) ? "admin@scholartrend.com" : rawEmail.Trim();
 
         var baseUrl = configuration["ExternalApis:OpenAlex:BaseUrl"] ?? "https://api.openalex.org";
         _httpClient.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/");
+        _httpClient.DefaultRequestHeaders.Add("User-Agent", $"ScholarTrend/1.0 (mailto:{_politeEmail})");
     }
 
     public async Task<IReadOnlyList<ExternalPaperDto>> SearchPapersAsync(string query, int limit = 20)
