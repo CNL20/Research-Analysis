@@ -80,8 +80,8 @@ public class SyncServiceTests
         _mockSyncProposalRepo.Setup(r => r.AddAsync(It.IsAny<SyncProposal>()))
             .Callback<SyncProposal>(p => p.Id = 101)
             .Returns(Task.CompletedTask);
-        _mockSyncProposalRepo.Setup(r => r.IsPaperAlreadyQueuedOrStoredAsync(It.IsAny<string>(), It.IsAny<string>()))
-            .ReturnsAsync(false);
+        _mockSyncProposalRepo.Setup(r => r.GetExistingExternalIdsAsync(It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>()))
+            .ReturnsAsync(new HashSet<string>());
 
         var externalPapers = new List<ExternalPaperDto>
         {
@@ -183,8 +183,8 @@ public class SyncServiceTests
         _mockSyncProposalRepo.Setup(r => r.AddAsync(It.IsAny<SyncProposal>()))
             .Callback<SyncProposal>(p => p.Id = Random.Shared.Next(100, 999))
             .Returns(Task.CompletedTask);
-        _mockSyncProposalRepo.Setup(r => r.IsPaperAlreadyQueuedOrStoredAsync(It.IsAny<string>(), It.IsAny<string>()))
-            .ReturnsAsync(false);
+        _mockSyncProposalRepo.Setup(r => r.GetExistingExternalIdsAsync(It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>()))
+            .ReturnsAsync(new HashSet<string>());
 
         _mockSemanticClient.Setup(c => c.SearchPapersAsync(It.IsAny<string>(), It.IsAny<int>()))
             .ReturnsAsync(new List<ExternalPaperDto>
@@ -222,8 +222,8 @@ public class SyncServiceTests
         _mockSyncProposalRepo.Setup(r => r.AddAsync(It.IsAny<SyncProposal>()))
             .Callback<SyncProposal>(p => p.Id = Random.Shared.Next(100, 999))
             .Returns(Task.CompletedTask);
-        _mockSyncProposalRepo.Setup(r => r.IsPaperAlreadyQueuedOrStoredAsync(It.IsAny<string>(), It.IsAny<string>()))
-            .ReturnsAsync(false);
+        _mockSyncProposalRepo.Setup(r => r.GetExistingExternalIdsAsync(It.IsAny<IReadOnlyList<string>>(), It.IsAny<string>()))
+            .ReturnsAsync(new HashSet<string>());
         _mockSemanticClient.Setup(c => c.SearchPapersAsync(It.IsAny<string>(), It.IsAny<int>()))
             .ReturnsAsync(new List<ExternalPaperDto>());
 
