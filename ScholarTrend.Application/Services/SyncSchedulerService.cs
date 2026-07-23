@@ -104,7 +104,11 @@ public class SyncSchedulerService : ISyncSchedulerService
             List<string>? queriesForRun = null;
             if (!string.IsNullOrWhiteSpace(searchQuery))
             {
-                queriesForRun = [searchQuery];
+                queriesForRun = searchQuery
+                    .Split(new[] { ',', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(q => q.Trim())
+                    .Where(q => !string.IsNullOrEmpty(q))
+                    .ToList();
             }
             else
             {

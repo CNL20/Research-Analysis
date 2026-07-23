@@ -140,6 +140,39 @@ public class SyncServiceTests
     }
 
     [Fact]
+    public async Task ApproveAllPendingProposalsAsync_ShouldLoopAndApproveAll()
+    {
+        var proposals = new List<SyncProposal>
+        {
+            new SyncProposal { Id = 101, Status = SyncProposalStatus.Pending },
+            new SyncProposal { Id = 102, Status = SyncProposalStatus.PartiallyApproved }
+        };
+
+        _mockSyncProposalRepo.Setup(r => r.GetPendingProposalsAsync(1, 10000))
+            .ReturnsAsync((proposals, 2));
+
+        _mockSyncProposalRepo.Setup(r => r.GetByIdWithPapersAsync(It.IsAny<int>()))
+            .ReturnsAsync((int id) => new SyncProposal
+            {
+                Id = id,
+                Status = SyncProposalStatus.Pending,
+                PendingPapers = new List<PendingPaper>
+                {
+                    new PendingPaper { Id = id * 10, Status = PendingPaperStatus.Pending, ExternalId = $"ext{id}", ExternalSource = "SemanticScholar", Title = $"Paper {id}", AuthorNamesJson = "[]" }
+                }
+            });
+
+        _mockUnitOfWork.Setup(u => u.Journals.GetAllAsync()).ReturnsAsync(new List<Journal>());
+        _mockPaperImportRepo.Setup(r => r.ImportAsync(It.IsAny<ExternalPaperDto>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Application.Interfaces.Repositories.ResearchPaperImportResult { IsNew = true, PaperId = 501 });
+
+        var totalApproved = await _syncService.ApproveAllPendingProposalsAsync("admin-id");
+
+        totalApproved.Should().Be(2);
+        _mockPaperImportRepo.Verify(r => r.ImportAsync(It.IsAny<ExternalPaperDto>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
+    }
+
+    [Fact]
     public async Task RunSyncAsync_ShouldHandleApiFailure_Gracefully()
     {
         var source = new ApiDataSource { Id = 1, Name = "SemanticScholar", IsActive = true };

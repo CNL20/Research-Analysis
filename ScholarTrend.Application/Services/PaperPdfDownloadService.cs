@@ -43,6 +43,16 @@ public class PaperPdfDownloadService : IPaperPdfEnqueuer, IPaperPdfProcessor
 
     public async Task EnqueueAsync(string externalSource, string sourceUrl, int researchPaperId, CancellationToken ct = default)
     {
+        // Fix: Check if PDF already exists to avoid unique constraint violation and poisoned ChangeTracker
+        var exists = await _unitOfWork.Context.Set<PaperPdfFile>()
+            .AnyAsync(p => p.ResearchPaperId == researchPaperId, ct);
+        
+        if (exists)
+        {
+            _logger.LogInformation("PDF download already queued/exists for paper {PaperId}. Skipping.", researchPaperId);
+            return;
+        }
+
         var relativePath = $"papers/{researchPaperId}.pdf";
         var record = new PaperPdfFile
         {

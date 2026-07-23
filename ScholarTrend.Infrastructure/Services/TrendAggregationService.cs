@@ -54,12 +54,17 @@ public class TrendAggregationService : ITrendAggregationService
             window.Start, window.End, papers.Count);
 
         var keywordIds = await RebuildKeywordTrendsAsync(papers, window, ct);
+        await _context.SaveChangesAsync(ct); // Save keywords first to reduce batch size
+
         var topicIds = await RebuildTopicTrendsAsync(papers, window, ct);
+        await _context.SaveChangesAsync(ct); // Save topics
+
         var journalIds = await RebuildJournalTrendsAsync(papers, window, ct);
+        await _context.SaveChangesAsync(ct); // Save journals
+
         await PruneOutsideWindowAsync(window.Start, ct);
         await PruneOrphansInWindowAsync(window, keywordIds, topicIds, journalIds, ct);
-
-        await _context.SaveChangesAsync(ct);
+        await _context.SaveChangesAsync(ct); // Save prunes
         _cacheInvalidator.Invalidate();
         _logger.LogInformation(
             "Trend rebuild completed: {PaperCount} browsable papers, {MonthCount} months stored",
