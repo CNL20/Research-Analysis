@@ -22,8 +22,27 @@ public class AiPaperExtractionDto
     [JsonPropertyName("conclusions")]
     public List<string> Conclusions { get; set; } = [];
 
-    [JsonPropertyName("research_problem")]
+    [JsonIgnore]
     public string? ResearchProblem { get; set; }
+
+    [JsonPropertyName("research_problem")]
+    public System.Text.Json.JsonElement? ResearchProblemElement 
+    { 
+        get => null; 
+        set 
+        {
+            if (value.HasValue) 
+            {
+                var el = value.Value;
+                if (el.ValueKind == System.Text.Json.JsonValueKind.String) 
+                    ResearchProblem = el.GetString();
+                else if (el.ValueKind == System.Text.Json.JsonValueKind.Array) 
+                    ResearchProblem = string.Join(", ", el.EnumerateArray().Select(e => e.GetString()));
+                else 
+                    ResearchProblem = el.GetRawText();
+            }
+        }
+    }
 
     [JsonIgnore]
     public string? Metric { get; set; }
@@ -47,6 +66,25 @@ public class AiPaperExtractionDto
         }
     }
 
-    [JsonPropertyName("contribution")]
+    [JsonIgnore]
     public string? Contribution { get; set; }
+
+    [JsonPropertyName("contribution")]
+    public System.Text.Json.JsonElement? ContributionElement 
+    { 
+        get => null; 
+        set 
+        {
+            if (value.HasValue) 
+            {
+                var el = value.Value;
+                if (el.ValueKind == System.Text.Json.JsonValueKind.String) 
+                    Contribution = el.GetString();
+                else if (el.ValueKind == System.Text.Json.JsonValueKind.Array) 
+                    Contribution = string.Join(", ", el.EnumerateArray().Select(e => e.GetString()));
+                else 
+                    Contribution = el.GetRawText();
+            }
+        }
+    }
 }

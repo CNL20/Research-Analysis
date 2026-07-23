@@ -486,6 +486,31 @@ public class SyncService : ISyncService
         };
     }
 
+    public async Task<int> ApproveAllPendingProposalsAsync(string adminUserId)
+    {
+        var (pendingProposals, _) = await _unitOfWork.SyncProposals.GetPendingProposalsAsync(1, 10000);
+
+        int totalApproved = 0;
+        foreach (var proposal in pendingProposals)
+        {
+            var fullProposal = await _unitOfWork.SyncProposals.GetByIdWithPapersAsync(proposal.Id);
+            if (fullProposal == null) continue;
+
+            var pendingPaperIds = fullProposal.PendingPapers
+                .Where(p => p.Status == PendingPaperStatus.Pending)
+                .Select(p => p.Id)
+                .ToList();
+            
+            if (pendingPaperIds.Count > 0)
+            {
+                var request = new ApproveSyncRequest { PendingPaperIds = pendingPaperIds };
+                var result = await ApprovePendingSyncAsync(proposal.Id, adminUserId, request);
+                totalApproved += result.PapersApproved;
+            }
+        }
+        return totalApproved;
+    }
+
     public async Task<ApproveSyncResultDto> RejectPendingSyncAsync(int proposalId, string adminUserId)
     {
         var proposal = await _unitOfWork.SyncProposals.GetByIdWithPapersAsync(proposalId);
@@ -570,28 +595,34 @@ public class SyncService : ISyncService
         return JsonSerializer.Deserialize<List<string>>(json) ?? [];
     }
 
+    private static string? Truncate(string? value, int maxLength)
+    {
+        if (string.IsNullOrEmpty(value)) return value;
+        return value.Length <= maxLength ? value : value[..maxLength];
+    }
+
     private static PendingPaper MapToPendingPaper(ExternalPaperDto external, int proposalId, string searchQuery)
     {
         return new PendingPaper
         {
             SyncProposalId = proposalId,
-            ExternalId = external.ExternalId,
-            ExternalSource = external.Source,
-            Title = external.Title,
-            Abstract = external.Abstract,
+            ExternalId = Truncate(external.ExternalId, 200)!,
+            ExternalSource = Truncate(external.Source, 100)!,
+            Title = Truncate(external.Title, 500) ?? "(no title)",
+            Abstract = Truncate(external.Abstract, 5000),
             Year = external.Year,
             CitationCount = external.CitationCount,
-            Doi = external.Doi,
-            Url = external.Url,
-            AuthorNamesJson = JsonSerializer.Serialize(external.AuthorNames),
-            KeywordsJson = JsonSerializer.Serialize(external.Keywords),
-            TopicsJson = JsonSerializer.Serialize(external.Topics ?? []),
-            SyncSearchQuery = searchQuery,
-            JournalName = external.Journal,
+            Doi = Truncate(external.Doi, 100),
+            Url = Truncate(external.Url, 500),
+            AuthorNamesJson = JsonSerializer.Serialize(external.AuthorNames.Take(30)),
+            KeywordsJson = JsonSerializer.Serialize(external.Keywords.Take(30)),
+            TopicsJson = JsonSerializer.Serialize((external.Topics ?? []).Take(30)),
+            SyncSearchQuery = Truncate(searchQuery, 200),
+            JournalName = Truncate(external.Journal, 300),
             Status = PendingPaperStatus.Pending,
-            PdfUrl = external.PdfUrl,
-            PdfAccessType = external.PdfAccessType,
-            PdfLicense = external.PdfLicense
+            PdfUrl = Truncate(external.PdfUrl, 500),
+            PdfAccessType = Truncate(external.PdfAccessType, 50),
+            PdfLicense = Truncate(external.PdfLicense, 100)
         };
     }
 
@@ -628,7 +659,7 @@ public class SyncService : ISyncService
         {
             Id = proposal.Id,
             CreatedAt = proposal.CreatedAt,
-            Status = proposal.Status,
+            Status = proposal.Status == SyncProposalStatus.PartiallyApproved ? SyncProposalStatus.Pending : proposal.Status,
             TotalFetched = proposal.TotalFetched,
             PendingCount = proposal.PendingPapers.Count(p => p.Status == PendingPaperStatus.Pending),
             TotalApproved = proposal.TotalApproved
@@ -641,7 +672,7 @@ public class SyncService : ISyncService
         {
             Id = proposal.Id,
             CreatedAt = proposal.CreatedAt,
-            Status = proposal.Status,
+            Status = proposal.Status == SyncProposalStatus.PartiallyApproved ? SyncProposalStatus.Pending : proposal.Status,
             TotalFetched = proposal.TotalFetched,
             TotalApproved = proposal.TotalApproved,
             ReviewedByUserId = proposal.ReviewedByUserId,

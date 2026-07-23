@@ -61,6 +61,27 @@ public class AdminSyncController : ControllerBase
         }
     }
 
+    [HttpPost("approve-all-pending")]
+    public async Task<ActionResult<ApiResponse<ApproveSyncResultDto>>> ApproveAllPendingSyncs()
+    {
+        try
+        {
+            var adminUserId = GetUserId();
+            var totalApproved = await _syncService.ApproveAllPendingProposalsAsync(adminUserId);
+            var result = new ApproveSyncResultDto
+            {
+                Status = "Success",
+                PapersApproved = totalApproved,
+                Message = $"Successfully approved {totalApproved} pending papers across all proposals."
+            };
+            return Ok(ApiResponse<ApproveSyncResultDto>.SuccessResponse(result, result.Message));
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(ApiResponse<ApproveSyncResultDto>.FailResponse(ex.Message));
+        }
+    }
+
     [HttpPost("pending/{id:int}/reject")]
     public async Task<ActionResult<ApiResponse<ApproveSyncResultDto>>> RejectPendingSync(int id)
     {

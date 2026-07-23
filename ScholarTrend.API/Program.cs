@@ -292,7 +292,7 @@ builder.Services.AddHangfire(config =>
           .UseSimpleAssemblyNameTypeSerializer()
           .UseRecommendedSerializerSettings()
           .UsePostgreSqlStorage(options => options.UseNpgsqlConnection(connectionString)));
-builder.Services.AddHangfireServer();
+builder.Services.AddHangfireServer(options => options.WorkerCount = 6);
 
 // 8. Swagger with JWT support
 builder.Services.AddSwaggerGen(c =>

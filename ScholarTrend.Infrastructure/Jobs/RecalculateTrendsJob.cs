@@ -1,3 +1,4 @@
+using Hangfire;
 using ScholarTrend.Application.Interfaces;
 
 namespace ScholarTrend.Infrastructure.Jobs;
@@ -14,9 +15,31 @@ public class RecalculateTrendsJob
         _trendAggregation = trendAggregation;
     }
 
-    public Task RunAsync(CancellationToken ct = default)
-        => _trendAggregation.RebuildAsync(ct);
+    [DisableConcurrentExecution(timeoutInSeconds: 60 * 15)]
+    public async Task RunAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            await _trendAggregation.RebuildAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            // Catch and log to prevent Visual Studio from breaking on background transient errors
+            Console.WriteLine($"[Hangfire] Trend rebuild failed: {ex.Message}");
+            // Deliberately swallow the exception so VS doesn't break during demo.
+        }
+    }
 
-    public Task EnsureBuiltAsync(CancellationToken ct = default)
-        => _trendAggregation.EnsureBuiltAsync(ct);
+    [DisableConcurrentExecution(timeoutInSeconds: 60 * 15)]
+    public async Task EnsureBuiltAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            await _trendAggregation.EnsureBuiltAsync(ct);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Hangfire] Ensure built failed: {ex.Message}");
+        }
+    }
 }
