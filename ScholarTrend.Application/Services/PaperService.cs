@@ -43,7 +43,24 @@ public class PaperService : IPaperService
         }
 
         var bookmark = await _unitOfWork.Bookmarks.GetBookmarkAsync(userId, id);
-        return PaperMapper.ToDetail(paper, bookmark != null);
+        var detail = PaperMapper.ToDetail(paper, bookmark != null);
+
+        // Lấy danh sách PDF do cộng đồng tải lên (UserFiles)
+        var communityFiles = await _unitOfWork.UserFiles.GetByPaperIdAsync(id);
+        detail.CommunityPdfs = communityFiles
+            .Where(f => string.Equals(f.ContentType, "application/pdf", StringComparison.OrdinalIgnoreCase) 
+                     || f.OriginalFileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+            .Select(f => new CommunityPdfDto
+            {
+                FileId = f.Id,
+                FileName = f.OriginalFileName,
+                UploadedByFullName = f.User?.FullName ?? "Unknown User",
+                UploadedAt = f.CreatedAt,
+                DownloadUrl = $"/api/files/{f.Id}/download"
+            })
+            .ToList();
+
+        return detail;
     }
 
     public async Task<PagedResult<PaperListItemDto>> GetByTopicAsync(int topicId, int page, int pageSize)

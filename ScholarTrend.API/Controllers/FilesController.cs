@@ -8,7 +8,7 @@ using ScholarTrend.Domain.Constants;
 
 namespace ScholarTrend.API.Controllers;
 
-[Authorize(Roles = $"{RoleConstants.Admin},{RoleConstants.Researcher}")]
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 [RequestSizeLimit(20 * 1024 * 1024)]
@@ -24,6 +24,7 @@ public class FilesController : ControllerBase
     /// <summary>
     /// Upload a file (image or document). Researcher and Admin only.
     /// </summary>
+    [Authorize(Roles = $"{RoleConstants.Admin},{RoleConstants.Researcher}")]
     [HttpPost("upload")]
     [Consumes("multipart/form-data")]
     public async Task<ActionResult<ApiResponse<FileUploadResultDto>>> Upload(

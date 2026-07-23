@@ -122,6 +122,42 @@ public class AdminPdfTextController : ControllerBase
             Preview = preview
         }));
     }
+
+    /// <summary>
+    /// Chuyển toàn bộ các PDF bị lỗi tải (Status = Failed) về lại hàng chờ (Queued) để hệ thống thử tải lại.
+    /// </summary>
+    [HttpPost("retry-failed-downloads")]
+    public async Task<ActionResult<ApiResponse<object>>> RetryFailedDownloads([FromServices] ScholarTrend.Application.Interfaces.IUnitOfWork uow, CancellationToken ct)
+    {
+        _logger.LogInformation("Admin triggered retry for failed PDF downloads.");
+        
+        // Lấy danh sách các file đang bị lỗi HOẶC bị skip do validator
+        var failedFiles = await uow.PaperPdfFiles.GetByStatusAsync(PaperDownloadStatus.Failed, 1000);
+        var skippedFiles = await uow.PaperPdfFiles.GetByStatusAsync(PaperDownloadStatus.Skipped, 1000);
+        
+        var allToRetry = failedFiles.Concat(skippedFiles).ToList();
+        int count = 0;
+        
+        foreach (var file in allToRetry)
+        {
+            file.Status = PaperDownloadStatus.Queued;
+            file.FailureReason = null;
+            file.AttemptCount = 0; // Reset số lần thử
+            file.EnqueuedAt = DateTime.UtcNow;
+            
+            uow.PaperPdfFiles.Update(file);
+            count++;
+        }
+
+        if (count > 0)
+        {
+            await uow.SaveChangesAsync();
+        }
+
+        return Ok(ApiResponse<object>.SuccessResponse(
+            new { RetryCount = count }, 
+            $"Successfully reset {count} failed downloads to Queued status."));
+    }
 }
 
 public class PdfExtractBatchRequest

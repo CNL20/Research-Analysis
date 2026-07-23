@@ -21,4 +21,6 @@ public class PaperDetailDto
     public List<string> Limitations { get; set; } = [];
     public List<string> FutureWorks { get; set; } = [];
     public bool IsBookmarked { get; set; }
+
+    public List<CommunityPdfDto> CommunityPdfs { get; set; } = [];
 }

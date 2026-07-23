@@ -30,7 +30,7 @@ public class PaperPdfStartupRecovery : IHostedService
         {
             using var scope = _scopeFactory.CreateScope();
             var repo = scope.ServiceProvider.GetRequiredService<IPaperPdfFileRepository>();
-            var enqueuer = scope.ServiceProvider.GetRequiredService<IPaperPdfEnqueuer>();
+            var channel = scope.ServiceProvider.GetRequiredService<IPaperPdfChannel>();
 
             var stuck = await repo.GetStuckAsync(new[]
             {
@@ -59,11 +59,7 @@ public class PaperPdfStartupRecovery : IHostedService
 
             foreach (var item in stuck)
             {
-                await enqueuer.EnqueueAsync(
-                    externalSource: item.ExternalSource,
-                    sourceUrl: item.SourceUrl,
-                    researchPaperId: item.ResearchPaperId,
-                    ct: ct);
+                await channel.Writer.WriteAsync(item.Id, ct);
 
                 _logger.LogInformation(
                     "Re-queued PDF download for paper {PaperId}",

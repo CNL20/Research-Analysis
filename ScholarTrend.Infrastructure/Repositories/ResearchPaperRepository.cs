@@ -182,24 +182,24 @@ public class ResearchPaperRepository : GenericRepository<ResearchPaper>, IResear
 
         if (!string.IsNullOrWhiteSpace(criteria.Query))
         {
-            var term = criteria.Query.Trim();
+            var term = criteria.Query.Trim().ToLowerInvariant();
             query = criteria.SearchType.ToLowerInvariant() switch
             {
-                "author" => query.Where(p => p.PaperAuthors.Any(pa => pa.Author.Name.Contains(term))),
-                "journal" => query.Where(p => p.Journal != null && p.Journal.Name.Contains(term)),
-                "title" => query.Where(p => p.Title.Contains(term)),
+                "author" => query.Where(p => p.PaperAuthors.Any(pa => pa.Author.Name.ToLower().Contains(term))),
+                "journal" => query.Where(p => p.Journal != null && p.Journal.Name.ToLower().Contains(term)),
+                "title" => query.Where(p => p.Title.ToLower().Contains(term)),
                 "publish" => ApplyPublishSearch(query, term),
                 "all" => query.Where(p =>
-                    p.Title.Contains(term) ||
-                    (p.Abstract != null && p.Abstract.Contains(term)) ||
-                    p.PaperAuthors.Any(pa => pa.Author.Name.Contains(term)) ||
-                    (p.Journal != null && p.Journal.Name.Contains(term)) ||
-                    p.PaperKeywords.Any(pk => pk.Keyword.Name.Contains(term)) ||
+                    p.Title.ToLower().Contains(term) ||
+                    (p.Abstract != null && p.Abstract.ToLower().Contains(term)) ||
+                    p.PaperAuthors.Any(pa => pa.Author.Name.ToLower().Contains(term)) ||
+                    (p.Journal != null && p.Journal.Name.ToLower().Contains(term)) ||
+                    p.PaperKeywords.Any(pk => pk.Keyword.Name.ToLower().Contains(term)) ||
                     (p.PublicationYear != null && p.PublicationYear.ToString() == term)),
                 _ => query.Where(p =>
-                    p.Title.Contains(term) ||
-                    (p.Abstract != null && p.Abstract.Contains(term)) ||
-                    p.PaperKeywords.Any(pk => pk.Keyword.Name.Contains(term)))
+                    p.Title.ToLower().Contains(term) ||
+                    (p.Abstract != null && p.Abstract.ToLower().Contains(term)) ||
+                    p.PaperKeywords.Any(pk => pk.Keyword.Name.ToLower().Contains(term)))
             };
         }
 
