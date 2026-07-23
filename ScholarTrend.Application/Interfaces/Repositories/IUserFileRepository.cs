@@ -13,6 +13,7 @@ public interface IUserFileRepository
         int pageSize);
     Task<int> CountActiveByUserAsync(string userId);
     Task<IReadOnlyList<UserFile>> GetActiveAvatarsByUserAsync(string userId);
+    Task<List<UserFile>> GetByPaperIdAsync(int paperId);
     Task AddAsync(UserFile file);
     Task UpdateAsync(UserFile file);
 }

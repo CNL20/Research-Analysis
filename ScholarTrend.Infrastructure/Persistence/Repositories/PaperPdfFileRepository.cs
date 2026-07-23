@@ -23,7 +23,8 @@ public class PaperPdfFileRepository : IPaperPdfFileRepository
 
     public Task<PaperPdfFile?> GetByResearchPaperIdAsync(int researchPaperId)
     {
-        return _db.FirstOrDefaultAsync(p => p.ResearchPaperId == researchPaperId);
+        return _db
+            .FirstOrDefaultAsync(p => p.ResearchPaperId == researchPaperId);
     }
 
     public async Task<List<PaperPdfFile>> GetByStatusAsync(string status, int take = 100)

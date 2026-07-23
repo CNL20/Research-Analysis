@@ -57,6 +57,15 @@ public class UserFileRepository : IUserFileRepository
             .ToListAsync();
     }
 
+    public async Task<List<UserFile>> GetByPaperIdAsync(int paperId)
+    {
+        return await _context.UserFiles
+            .Include(f => f.User)
+            .Where(f => f.PaperId == paperId && !f.IsDeleted)
+            .OrderByDescending(f => f.CreatedAt)
+            .ToListAsync();
+    }
+
     public async Task AddAsync(UserFile file)
     {
         await _context.UserFiles.AddAsync(file);

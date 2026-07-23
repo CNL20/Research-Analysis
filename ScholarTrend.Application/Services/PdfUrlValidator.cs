@@ -35,6 +35,9 @@ public static class PdfUrlValidator
         "researchgate.net",
         "core.ac.uk",                // CORE aggregator
         "doaj.org",
+        "nih.gov",                   // PubMed / NCBI
+        "ncbi.nlm.nih.gov",          // PMC
+        "europepmc.org"              // Europe PMC
     };
 
     public static bool IsSafe(string? url, out string? failureReason)

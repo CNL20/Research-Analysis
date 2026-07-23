@@ -22,7 +22,8 @@ public interface IUnitOfWork : IDisposable
     ISyncProposalRepository SyncProposals { get; }
     IPendingPaperRepository PendingPapers { get; }
     IPaperPdfFileRepository PaperPdfFiles { get; }
-    
+    IUserFileRepository UserFiles { get; }
+
     // Paper Analysis & Quality
     IPaperQualityRepository PaperQualities { get; }
     IPaperAnalysisRepository PaperAnalyses { get; }

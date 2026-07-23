@@ -32,6 +32,7 @@ public class UnitOfWork : IUnitOfWork
     private IResearchGapRepository? _researchGaps;
     private IGapTimelineRepository? _gapTimelines;
     private ICoverageReportRepository? _coverageReports;
+    private IUserFileRepository? _userFiles;
     private Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? _transaction;
 
     public DbContext Context => _context;
@@ -61,6 +62,7 @@ public class UnitOfWork : IUnitOfWork
     public IResearchGapRepository ResearchGaps => _researchGaps ??= new ResearchGapRepository(_context);
     public IGapTimelineRepository GapTimelines => _gapTimelines ??= new GapTimelineRepository(_context);
     public ICoverageReportRepository CoverageReports => _coverageReports ??= new CoverageReportRepository(_context);
+    public IUserFileRepository UserFiles => _userFiles ??= new UserFileRepository(_context);
 
     public async Task<int> SaveChangesAsync()
     {
