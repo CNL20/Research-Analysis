@@ -23,17 +23,29 @@ public class PaperAuthorLinkerService : IPaperAuthorLinkerService
         }
 
         var order = 1;
-        foreach (var name in authorNames.Where(n => !string.IsNullOrWhiteSpace(n)).Take(10))
+        var addedAuthorIds = new HashSet<int>();
+
+        var distinctNames = authorNames
+            .Where(n => !string.IsNullOrWhiteSpace(n))
+            .Select(n => n.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(10);
+
+        foreach (var name in distinctNames)
         {
-            var trimmed = name.Trim();
             var author = await _context.Authors
-                .FirstOrDefaultAsync(a => a.Name == trimmed, ct);
+                .FirstOrDefaultAsync(a => a.Name == name, ct);
 
             if (author == null)
             {
-                author = new Author { Name = trimmed };
+                author = new Author { Name = name };
                 await _context.Authors.AddAsync(author, ct);
                 await _context.SaveChangesAsync(ct);
+            }
+
+            if (addedAuthorIds.Contains(author.Id))
+            {
+                continue;
             }
 
             var exists = await _context.PaperAuthors
@@ -47,6 +59,7 @@ public class PaperAuthorLinkerService : IPaperAuthorLinkerService
                     AuthorId = author.Id,
                     AuthorOrder = order++
                 }, ct);
+                addedAuthorIds.Add(author.Id);
             }
         }
 
