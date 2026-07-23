@@ -5,17 +5,22 @@ namespace ScholarTrend.Application.Validators;
 
 public class ReportFilterRequestValidator : AbstractValidator<ReportFilterRequest>
 {
-    private static readonly string[] AllowedGroupBy = ["year", "keyword", "topic"];
+    private static readonly string[] AllowedGroupBy = ["year", "keyword", "topic", "journal"];
 
     public ReportFilterRequestValidator()
     {
         RuleFor(x => x.GroupBy)
             .Must(g => AllowedGroupBy.Contains(g.ToLowerInvariant()))
-            .WithMessage("GroupBy must be year, keyword, or topic.");
+            .WithMessage("GroupBy must be year, keyword, topic, or journal.");
 
         RuleFor(x => x.YearTo)
             .GreaterThanOrEqualTo(x => x.YearFrom!.Value)
             .When(x => x.YearFrom.HasValue && x.YearTo.HasValue)
             .WithMessage("YearTo must be greater than or equal to YearFrom.");
+
+        RuleFor(x => x.Top)
+            .InclusiveBetween(1, 50)
+            .When(x => x.Top.HasValue)
+            .WithMessage("Top must be between 1 and 50.");
     }
 }
