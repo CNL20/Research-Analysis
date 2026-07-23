@@ -14,12 +14,14 @@ public class OpenAlexClient : IOpenAlexClient
     private readonly HttpClient _httpClient;
     private readonly ILogger<OpenAlexClient> _logger;
     private readonly string _searchQuery;
+    private readonly string _politeEmail;
 
     public OpenAlexClient(HttpClient httpClient, IConfiguration configuration, ILogger<OpenAlexClient> logger)
     {
         _httpClient = httpClient;
         _logger = logger;
         _searchQuery = configuration["ExternalApis:OpenAlex:SearchQuery"] ?? "machine learning";
+        _politeEmail = configuration["ExternalApis:OpenAlex:PoliteEmail"] ?? "support@scholartrend.com";
 
         var baseUrl = configuration["ExternalApis:OpenAlex:BaseUrl"] ?? "https://api.openalex.org";
         _httpClient.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/");
@@ -28,7 +30,7 @@ public class OpenAlexClient : IOpenAlexClient
     public async Task<IReadOnlyList<ExternalPaperDto>> SearchPapersAsync(string query, int limit = 20)
     {
         var searchTerm = string.IsNullOrWhiteSpace(query) ? _searchQuery : query;
-        var url = $"works?search={Uri.EscapeDataString(searchTerm)}&per-page={limit}&select=id,display_name,publication_year,cited_by_count,doi,abstract_inverted_index,authorships,primary_location,open_access,keywords,primary_topic,topics";
+        var url = $"works?search={Uri.EscapeDataString(searchTerm)}&per-page={limit}&mailto={Uri.EscapeDataString(_politeEmail)}&select=id,display_name,publication_year,cited_by_count,doi,abstract_inverted_index,authorships,primary_location,open_access,keywords,primary_topic,topics";
 
         for (var attempt = 1; attempt <= 3; attempt++)
         {
@@ -98,7 +100,7 @@ public class OpenAlexClient : IOpenAlexClient
             return MetadataMapper.NotFound("openalex", "DOI is required.");
         }
 
-        var url = $"works/https://doi.org/{Uri.EscapeDataString(normalizedDoi)}";
+        var url = $"works/https://doi.org/{Uri.EscapeDataString(normalizedDoi)}?mailto={Uri.EscapeDataString(_politeEmail)}";
 
         try
         {

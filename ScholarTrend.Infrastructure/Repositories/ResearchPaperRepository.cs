@@ -61,6 +61,7 @@ public class ResearchPaperRepository : GenericRepository<ResearchPaper>, IResear
             .Include(p => p.Journal)
             .Include(p => p.PaperAuthors).ThenInclude(pa => pa.Author)
             .Include(p => p.PaperKeywords).ThenInclude(pk => pk.Keyword)
+            .AsSplitQuery()
             .OrderByDescending(p => p.CitationCount);
 
         return limit > 0
@@ -75,6 +76,7 @@ public class ResearchPaperRepository : GenericRepository<ResearchPaper>, IResear
             .Include(p => p.Journal)
             .Include(p => p.PaperAuthors).ThenInclude(pa => pa.Author)
             .Include(p => p.PaperKeywords).ThenInclude(pk => pk.Keyword)
+            .AsSplitQuery()
             .OrderByDescending(p => p.CitationCount);
 
         if (limit > 0)
@@ -92,6 +94,7 @@ public class ResearchPaperRepository : GenericRepository<ResearchPaper>, IResear
             .Include(p => p.Journal)
             .Include(p => p.PaperAuthors).ThenInclude(pa => pa.Author)
             .Include(p => p.PaperKeywords).ThenInclude(pk => pk.Keyword)
+            .AsSplitQuery()
             .OrderByDescending(p => p.CitationCount)
             .ThenByDescending(p => p.PublicationYear);
 
@@ -108,6 +111,7 @@ public class ResearchPaperRepository : GenericRepository<ResearchPaper>, IResear
             .Include(p => p.PaperKeywords).ThenInclude(pk => pk.Keyword)
             .Include(p => p.PaperTopics).ThenInclude(pt => pt.Topic)
             .Include(p => p.Analysis)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(p => p.Id == id && PaperStatusRules.Browsable.Contains(p.Status));
     }
 
@@ -144,6 +148,7 @@ public class ResearchPaperRepository : GenericRepository<ResearchPaper>, IResear
             .Include(p => p.Journal)
             .Include(p => p.PaperAuthors).ThenInclude(pa => pa.Author)
             .Include(p => p.PaperKeywords).ThenInclude(pk => pk.Keyword)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(p => p.Doi != null && p.Doi.ToLower() == normalizedDoi);
     }
 
@@ -153,6 +158,7 @@ public class ResearchPaperRepository : GenericRepository<ResearchPaper>, IResear
             .Include(p => p.Journal)
             .Include(p => p.PaperAuthors).ThenInclude(pa => pa.Author)
             .Include(p => p.PaperKeywords).ThenInclude(pk => pk.Keyword)
+            .AsSplitQuery()
             .Where(p => PaperStatusRules.Browsable.Contains(p.Status));
 
         if (criteria.JournalId.HasValue)
