@@ -20,6 +20,7 @@ public class TrendRepository : ITrendRepository
     public async Task<IReadOnlyList<KeywordTrend>> GetKeywordTrendsAsync(TrendFilterCriteria criteria)
     {
         var query = _context.KeywordTrends
+            .AsNoTracking()
             .Include(t => t.Keyword)
             .AsQueryable();
 
@@ -39,6 +40,7 @@ public class TrendRepository : ITrendRepository
     public async Task<IReadOnlyList<TopicTrend>> GetTopicTrendsAsync(TrendFilterCriteria criteria)
     {
         var query = _context.TopicTrends
+            .AsNoTracking()
             .Include(t => t.Topic)
             .AsQueryable();
 
@@ -58,6 +60,7 @@ public class TrendRepository : ITrendRepository
     public async Task<IReadOnlyList<JournalTrend>> GetJournalTrendsAsync(TrendFilterCriteria criteria)
     {
         var query = _context.JournalTrends
+            .AsNoTracking()
             .Include(t => t.Journal)
             .AsQueryable();
 

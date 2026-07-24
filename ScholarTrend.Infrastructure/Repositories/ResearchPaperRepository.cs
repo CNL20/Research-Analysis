@@ -121,6 +121,20 @@ public class ResearchPaperRepository : GenericRepository<ResearchPaper>, IResear
             .CountAsync(pt => pt.TopicId == topicId && PaperStatusRules.Browsable.Contains(pt.Paper.Status));
     }
 
+    public async Task<Dictionary<int, int>> CountByTopicIdsAsync(IEnumerable<int> topicIds)
+    {
+        var topicIdsList = topicIds.ToList();
+        if (topicIdsList.Count == 0) return new Dictionary<int, int>();
+
+        var query = await _context.PaperTopics
+            .Where(pt => topicIdsList.Contains(pt.TopicId) && PaperStatusRules.Browsable.Contains(pt.Paper.Status))
+            .GroupBy(pt => pt.TopicId)
+            .Select(g => new { TopicId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.TopicId, x => x.Count);
+
+        return query;
+    }
+
     public Task<int> CountByJournalAsync(int journalId)
     {
         return _dbSet.CountAsync(p => p.JournalId == journalId && PaperStatusRules.Browsable.Contains(p.Status));
