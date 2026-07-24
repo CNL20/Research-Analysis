@@ -19,17 +19,19 @@ public class TopicService : ITopicService
     public async Task<IReadOnlyList<TopicListItemDto>> GetAllAsync()
     {
         var topics = await _unitOfWork.Topics.GetAllAsync();
-        var result = new List<TopicListItemDto>();
+        
+        var topicIds = topics.Select(t => t.Id).ToList();
+        var paperCounts = await _unitOfWork.ResearchPapers.CountByTopicIdsAsync(topicIds);
 
+        var result = new List<TopicListItemDto>();
         foreach (var topic in topics)
         {
-            var paperCount = await _unitOfWork.ResearchPapers.CountByTopicAsync(topic.Id);
             result.Add(new TopicListItemDto
             {
                 Id = topic.Id,
                 TopicName = topic.TopicName,
                 Description = topic.Description,
-                PaperCount = paperCount
+                PaperCount = paperCounts.GetValueOrDefault(topic.Id, 0)
             });
         }
 
