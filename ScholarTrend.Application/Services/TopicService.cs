@@ -2,6 +2,7 @@ using ScholarTrend.Application.DTOs.Topics;
 using ScholarTrend.Application.DTOs.Trends;
 using ScholarTrend.Application.Interfaces;
 using ScholarTrend.Application.Mappings;
+using ScholarTrend.Application.DTOs.Common;
 
 namespace ScholarTrend.Application.Services;
 
@@ -16,17 +17,17 @@ public class TopicService : ITopicService
         _trendService = trendService;
     }
 
-    public async Task<IReadOnlyList<TopicListItemDto>> GetAllAsync()
+    public async Task<PagedResult<TopicListItemDto>> GetPagedAsync(string? keyword, int page, int pageSize)
     {
-        var topics = await _unitOfWork.Topics.GetAllAsync();
+        var (topics, totalCount) = await _unitOfWork.Topics.GetPagedAsync(keyword, page, pageSize);
         
         var topicIds = topics.Select(t => t.Id).ToList();
         var paperCounts = await _unitOfWork.ResearchPapers.CountByTopicIdsAsync(topicIds);
 
-        var result = new List<TopicListItemDto>();
+        var items = new List<TopicListItemDto>();
         foreach (var topic in topics)
         {
-            result.Add(new TopicListItemDto
+            items.Add(new TopicListItemDto
             {
                 Id = topic.Id,
                 TopicName = topic.TopicName,
@@ -35,7 +36,13 @@ public class TopicService : ITopicService
             });
         }
 
-        return result;
+        return new PagedResult<TopicListItemDto>
+        {
+            Items = items,
+            TotalCount = totalCount,
+            Page = page,
+            PageSize = pageSize
+        };
     }
 
     public async Task<TopicDetailDto> GetByIdAsync(int id)
