@@ -2,6 +2,7 @@ using ScholarTrend.Application.DTOs.Authors;
 using ScholarTrend.Application.Interfaces;
 using ScholarTrend.Application.Mappings;
 using ScholarTrend.Domain.Entities;
+using ScholarTrend.Application.DTOs.Common;
 
 namespace ScholarTrend.Application.Services;
 
@@ -14,21 +15,27 @@ public class AuthorService : IAuthorService
         _unitOfWork = unitOfWork;
     }
 
-    public async Task<IReadOnlyList<AuthorListItemDto>> GetAllAsync()
+    public async Task<PagedResult<AuthorListItemDto>> GetPagedAsync(string? keyword, int page, int pageSize)
     {
-        var authors = await _unitOfWork.Authors.GetAllAsync();
+        var (authors, totalCount) = await _unitOfWork.Authors.GetPagedAsync(keyword, page, pageSize);
         
         var authorIds = authors.Select(a => a.Id).ToList();
         var paperCounts = await _unitOfWork.ResearchPapers.CountByAuthorIdsAsync(authorIds);
 
-        var result = new List<AuthorListItemDto>();
+        var items = new List<AuthorListItemDto>();
         foreach (var author in authors)
         {
             var paperCount = paperCounts.GetValueOrDefault(author.Id, 0);
-            result.Add(MapListItem(author, paperCount));
+            items.Add(MapListItem(author, paperCount));
         }
 
-        return result;
+        return new PagedResult<AuthorListItemDto>
+        {
+            Items = items,
+            TotalCount = totalCount,
+            Page = page,
+            PageSize = pageSize
+        };
     }
 
     public async Task<AuthorDetailDto> GetByIdAsync(int id)

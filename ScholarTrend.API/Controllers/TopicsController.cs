@@ -44,10 +44,13 @@ public class TopicsController : ControllerBase
     /// Get all research topics.
     /// </summary>
     [HttpGet]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<TopicListItemDto>>>> GetAll()
+    public async Task<ActionResult<ApiResponse<PagedResult<TopicListItemDto>>>> GetAll(
+        [FromQuery] string? keyword, 
+        [FromQuery] int page = 1, 
+        [FromQuery] int pageSize = 12)
     {
-        var result = await _topicService.GetAllAsync();
-        return Ok(ApiResponse<IReadOnlyList<TopicListItemDto>>.SuccessResponse(result));
+        var result = await _topicService.GetPagedAsync(keyword, page, pageSize);
+        return Ok(ApiResponse<PagedResult<TopicListItemDto>>.SuccessResponse(result));
     }
 
     /// <summary>

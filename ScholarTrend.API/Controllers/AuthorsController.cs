@@ -22,10 +22,13 @@ public class AuthorsController : ControllerBase
     /// Get all authors.
     /// </summary>
     [HttpGet]
-    public async Task<ActionResult<ApiResponse<IReadOnlyList<AuthorListItemDto>>>> GetAll()
+    public async Task<ActionResult<ApiResponse<PagedResult<AuthorListItemDto>>>> GetAll(
+        [FromQuery] string? keyword, 
+        [FromQuery] int page = 1, 
+        [FromQuery] int pageSize = 10)
     {
-        var result = await _authorService.GetAllAsync();
-        return Ok(ApiResponse<IReadOnlyList<AuthorListItemDto>>.SuccessResponse(result));
+        var result = await _authorService.GetPagedAsync(keyword, page, pageSize);
+        return Ok(ApiResponse<PagedResult<AuthorListItemDto>>.SuccessResponse(result));
     }
 
     /// <summary>
