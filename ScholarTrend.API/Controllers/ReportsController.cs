@@ -20,7 +20,8 @@ public class ReportsController : ControllerBase
     }
 
     /// <summary>
-    /// Generate publication report grouped by year, keyword, or topic.
+    /// Publication breakdown by year, keyword, topic, or journal.
+    /// Optional Top ranks entities by trending score (after merging scale + trend metrics).
     /// </summary>
     [HttpGet("publications")]
     public async Task<ActionResult<ApiResponse<PublicationReportDto>>> GetPublicationReport(
@@ -31,25 +32,24 @@ public class ReportsController : ControllerBase
     }
 
     /// <summary>
-    /// Export publication report as JSON file download.
+    /// Export publication report as JSON file download (same payload as GET /publications).
     /// </summary>
     [HttpGet("export/json")]
     public async Task<IActionResult> ExportJson([FromQuery] ReportFilterRequest filter)
     {
         var report = await _reportService.GenerateReportAsync(filter);
         var fileName = $"publication-report-{report.GroupBy}-{DateTime.UtcNow:yyyyMMdd}.json";
-        return File(
-            System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(report, new System.Text.Json.JsonSerializerOptions
-            {
-                WriteIndented = true,
-                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
-            }),
-            "application/json",
-            fileName);
+        var bytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(report, new System.Text.Json.JsonSerializerOptions
+        {
+            WriteIndented = true,
+            PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.Never
+        });
+        return File(bytes, "application/json; charset=utf-8", fileName);
     }
 
     /// <summary>
-    /// Export publication report as CSV file download.
+    /// Export publication report as CSV file download (same fields as GET /publications).
     /// </summary>
     [HttpGet("export/csv")]
     public async Task<IActionResult> ExportCsv([FromQuery] ReportFilterRequest filter)
@@ -57,6 +57,6 @@ public class ReportsController : ControllerBase
         var report = await _reportService.GenerateReportAsync(filter);
         var fileName = $"publication-report-{report.GroupBy}-{DateTime.UtcNow:yyyyMMdd}.csv";
         var bytes = _reportService.ExportCsv(report);
-        return File(bytes, "text/csv", fileName);
+        return File(bytes, "text/csv; charset=utf-8", fileName);
     }
 }
