@@ -14,6 +14,7 @@ public interface IResearchPaperRepository : IGenericRepository<ResearchPaper>
     Task<Dictionary<int, int>> CountByTopicIdsAsync(IEnumerable<int> topicIds);
     Task<int> CountByJournalAsync(int journalId);
     Task<int> CountByAuthorAsync(int authorId);
+    Task<Dictionary<int, int>> CountByAuthorIdsAsync(IEnumerable<int> authorIds);
     Task<ResearchPaper?> GetByExternalIdAsync(string externalId, string source);
     Task<ResearchPaper?> GetByDoiAsync(string doi);
 }

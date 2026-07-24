@@ -17,11 +17,14 @@ public class AuthorService : IAuthorService
     public async Task<IReadOnlyList<AuthorListItemDto>> GetAllAsync()
     {
         var authors = await _unitOfWork.Authors.GetAllAsync();
-        var result = new List<AuthorListItemDto>();
+        
+        var authorIds = authors.Select(a => a.Id).ToList();
+        var paperCounts = await _unitOfWork.ResearchPapers.CountByAuthorIdsAsync(authorIds);
 
+        var result = new List<AuthorListItemDto>();
         foreach (var author in authors)
         {
-            var paperCount = await _unitOfWork.ResearchPapers.CountByAuthorAsync(author.Id);
+            var paperCount = paperCounts.GetValueOrDefault(author.Id, 0);
             result.Add(MapListItem(author, paperCount));
         }
 
