@@ -47,7 +47,7 @@ public class TopicInsightExtractionJob
             {
                 _logger.LogInformation($"Extracting insights for Paper ID: {paper.Id}");
                 
-                var extractedData = await _aiExtractionService.ExtractFromAbstractAsync(paper.Abstract, cancellationToken);
+                var extractedData = await _aiExtractionService.ExtractFromAbstractAsync(paper.Abstract!, cancellationToken);
                 
                 if (extractedData != null)
                 {

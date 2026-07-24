@@ -111,7 +111,7 @@ public class PapersController : ControllerBase
         try
         {
             await _paperService.RecordViewAsync(id);
-            return Ok(ApiResponse<object>.SuccessResponse(null, "View recorded successfully."));
+            return Ok(ApiResponse<object>.SuccessResponse(default!, "View recorded successfully."));
         }
         catch (InvalidOperationException ex)
         {

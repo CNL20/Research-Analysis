@@ -292,6 +292,7 @@ builder.Services.AddHangfire(config =>
           .UseSimpleAssemblyNameTypeSerializer()
           .UseRecommendedSerializerSettings()
           .UsePostgreSqlStorage(options => options.UseNpgsqlConnection(connectionString)));
+// Bật lại Hangfire Worker để xử lý Background Jobs (như tự động tính toán Trend)
 builder.Services.AddHangfireServer(options => options.WorkerCount = 6);
 
 // 8. Swagger with JWT support

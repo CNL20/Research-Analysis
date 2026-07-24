@@ -134,7 +134,7 @@ public class AuthService : IAuthService
         var emailBody = $"<h3>Yêu cầu gửi lại link xác thực ScholarTrend</h3>" +
                         $"<p>Vui lòng click vào link bên dưới để hoàn tất xác thực:</p>" +
                         $"<a href='{verificationLink}' style='padding: 10px 20px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px;'>Xác thực ngay</a>";
-        await _emailService.SendEmailAsync(user.Email, "Xác thực tài khoản ScholarTrend (Gửi lại)", emailBody);
+        await _emailService.SendEmailAsync(user.Email!, "Xác thực tài khoản ScholarTrend (Gửi lại)", emailBody);
         return true;
     }
 

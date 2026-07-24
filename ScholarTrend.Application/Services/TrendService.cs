@@ -48,61 +48,96 @@ public class TrendService : ITrendService
         })!;
     }
 
-    public async Task<IReadOnlyList<TrendSeriesDto>> GetKeywordTrendsAsync(TrendFilterRequest? filter = null)
+    public Task<IReadOnlyList<TrendSeriesDto>> GetKeywordTrendsAsync(TrendFilterRequest? filter = null)
     {
         var criteria = NormalizeCriteria(filter);
-        var trends = await _trendRepository.GetKeywordTrendsAsync(criteria);
-        var topItems = BuildTopItems(
-            trends.Select(t => (t.KeywordId, t.Keyword.Name, t.Year, t.Month, t.PaperCount, t.CitationCount, t.GrowthRate, t.TrendingScore)),
-            criteria.Top);
-        var topIds = topItems.Select(t => t.Id).ToHashSet();
-        return GroupKeywordTrends(trends.Where(t => topIds.Contains(t.KeywordId)).ToList());
+        var cacheKey = $"trends:keywords:series:v{_cacheInvalidator.GetVersion()}:{BuildCacheKey(criteria)}";
+        return _cache.GetOrCreateAsync(cacheKey, async entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = CacheDuration;
+            var trends = await _trendRepository.GetKeywordTrendsAsync(criteria);
+            var topItems = BuildTopItems(
+                trends.Select(t => (t.KeywordId, t.Keyword.Name, t.Year, t.Month, t.PaperCount, t.CitationCount, t.GrowthRate, t.TrendingScore)),
+                criteria.Top);
+            var topIds = topItems.Select(t => t.Id).ToHashSet();
+            return GroupKeywordTrends(trends.Where(t => topIds.Contains(t.KeywordId)).ToList());
+        })!;
     }
 
     public Task<IReadOnlyList<TopTrendItemDto>> GetTopKeywordsAsync(TrendFilterRequest? filter = null)
     {
         var criteria = NormalizeCriteria(filter);
-        return GetTopKeywordsInternalAsync(criteria);
+        var cacheKey = $"trends:keywords:top:v{_cacheInvalidator.GetVersion()}:{BuildCacheKey(criteria)}";
+        return _cache.GetOrCreateAsync(cacheKey, async entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = CacheDuration;
+            return await GetTopKeywordsInternalAsync(criteria);
+        })!;
     }
 
-    public async Task<IReadOnlyList<TrendSeriesDto>> GetTopicTrendsAsync(TrendFilterRequest? filter = null)
+    public Task<IReadOnlyList<TrendSeriesDto>> GetTopicTrendsAsync(TrendFilterRequest? filter = null)
     {
         var criteria = NormalizeCriteria(filter);
-        var trends = await _trendRepository.GetTopicTrendsAsync(criteria);
-        var topItems = BuildTopItems(
-            trends.Select(t => (t.TopicId, t.Topic.TopicName, t.Year, t.Month, t.PaperCount, t.CitationCount, t.GrowthRate, t.TrendingScore)),
-            criteria.Top);
-        var topIds = topItems.Select(t => t.Id).ToHashSet();
-        return GroupTopicTrends(trends.Where(t => topIds.Contains(t.TopicId)).ToList());
+        var cacheKey = $"trends:topics:series:v{_cacheInvalidator.GetVersion()}:{BuildCacheKey(criteria)}";
+        return _cache.GetOrCreateAsync(cacheKey, async entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = CacheDuration;
+            var trends = await _trendRepository.GetTopicTrendsAsync(criteria);
+            var topItems = BuildTopItems(
+                trends.Select(t => (t.TopicId, t.Topic.TopicName, t.Year, t.Month, t.PaperCount, t.CitationCount, t.GrowthRate, t.TrendingScore)),
+                criteria.Top);
+            var topIds = topItems.Select(t => t.Id).ToHashSet();
+            return GroupTopicTrends(trends.Where(t => topIds.Contains(t.TopicId)).ToList());
+        })!;
     }
 
     public Task<IReadOnlyList<TopTrendItemDto>> GetTopTopicsAsync(TrendFilterRequest? filter = null)
     {
         var criteria = NormalizeCriteria(filter);
-        return GetTopTopicsInternalAsync(criteria);
+        var cacheKey = $"trends:topics:top:v{_cacheInvalidator.GetVersion()}:{BuildCacheKey(criteria)}";
+        return _cache.GetOrCreateAsync(cacheKey, async entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = CacheDuration;
+            return await GetTopTopicsInternalAsync(criteria);
+        })!;
     }
 
-    public async Task<IReadOnlyList<TrendSeriesDto>> GetJournalTrendsAsync(TrendFilterRequest? filter = null)
+    public Task<IReadOnlyList<TrendSeriesDto>> GetJournalTrendsAsync(TrendFilterRequest? filter = null)
     {
         var criteria = NormalizeCriteria(filter);
-        var trends = await _trendRepository.GetJournalTrendsAsync(criteria);
-        var topItems = BuildTopItems(
-            trends.Select(t => (t.JournalId, t.Journal.Name, t.Year, t.Month, t.PaperCount, t.CitationCount, t.GrowthRate, t.TrendingScore)),
-            criteria.Top);
-        var topIds = topItems.Select(t => t.Id).ToHashSet();
-        return GroupJournalTrends(trends.Where(t => topIds.Contains(t.JournalId)).ToList());
+        var cacheKey = $"trends:journals:series:v{_cacheInvalidator.GetVersion()}:{BuildCacheKey(criteria)}";
+        return _cache.GetOrCreateAsync(cacheKey, async entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = CacheDuration;
+            var trends = await _trendRepository.GetJournalTrendsAsync(criteria);
+            var topItems = BuildTopItems(
+                trends.Select(t => (t.JournalId, t.Journal.Name, t.Year, t.Month, t.PaperCount, t.CitationCount, t.GrowthRate, t.TrendingScore)),
+                criteria.Top);
+            var topIds = topItems.Select(t => t.Id).ToHashSet();
+            return GroupJournalTrends(trends.Where(t => topIds.Contains(t.JournalId)).ToList());
+        })!;
     }
 
     public Task<IReadOnlyList<TopTrendItemDto>> GetTopJournalsAsync(TrendFilterRequest? filter = null)
     {
         var criteria = NormalizeCriteria(filter);
-        return GetTopJournalsInternalAsync(criteria);
+        var cacheKey = $"trends:journals:top:v{_cacheInvalidator.GetVersion()}:{BuildCacheKey(criteria)}";
+        return _cache.GetOrCreateAsync(cacheKey, async entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = CacheDuration;
+            return await GetTopJournalsInternalAsync(criteria);
+        })!;
     }
 
-    public async Task<IReadOnlyList<TrendDataPointDto>> GetPublicationTrendAsync(TrendFilterRequest? filter = null)
+    public Task<IReadOnlyList<TrendDataPointDto>> GetPublicationTrendAsync(TrendFilterRequest? filter = null)
     {
         var criteria = NormalizeCriteria(filter);
-        return await _trendRepository.GetPublicationTrendAsync(criteria);
+        var cacheKey = $"trends:publications:v{_cacheInvalidator.GetVersion()}:{BuildCacheKey(criteria)}";
+        return _cache.GetOrCreateAsync(cacheKey, async entry =>
+        {
+            entry.AbsoluteExpirationRelativeToNow = CacheDuration;
+            return await _trendRepository.GetPublicationTrendAsync(criteria);
+        })!;
     }
 
     public async Task<IReadOnlyList<TrendSeriesDto>> CompareTrendsAsync(TrendCompareRequest request)

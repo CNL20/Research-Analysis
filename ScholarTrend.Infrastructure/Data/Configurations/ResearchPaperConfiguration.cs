@@ -45,7 +45,9 @@ public class ResearchPaperConfiguration : IEntityTypeConfiguration<ResearchPaper
 
         // Indexes - Critical for search & filtering
         builder.HasIndex(p => p.Title)
-            .HasDatabaseName("IX_ResearchPaper_Title");
+            .HasDatabaseName("IX_ResearchPaper_Title")
+            .HasMethod("gin")
+            .HasOperators("gin_trgm_ops");
 
         builder.HasIndex(p => p.PublicationYear)
             .HasDatabaseName("IX_ResearchPaper_PublicationYear");

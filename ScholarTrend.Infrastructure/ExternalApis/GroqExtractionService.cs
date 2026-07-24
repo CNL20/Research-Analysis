@@ -668,7 +668,7 @@ Return ONLY a valid JSON object:
         return deduped;
     }
 
-    private static double TitleOverlap(string a, string b)
+    private static double TitleOverlap(string? a, string? b)
     {
         if (string.IsNullOrWhiteSpace(a) || string.IsNullOrWhiteSpace(b)) return 0;
         var wordsA = a.ToLowerInvariant().Split(new[] { ' ', ',', '.', ':', ';', '-' }, StringSplitOptions.RemoveEmptyEntries)

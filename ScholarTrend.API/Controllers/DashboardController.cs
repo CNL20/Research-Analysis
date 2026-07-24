@@ -29,7 +29,6 @@ public class DashboardController : ControllerBase
         return Ok(ApiResponse<PersonalDashboardDto>.SuccessResponse(result));
     }
 
-    /// <summary>
     /// System overview dashboard with aggregate stats and top trends.
     /// </summary>
     [HttpGet("overview")]

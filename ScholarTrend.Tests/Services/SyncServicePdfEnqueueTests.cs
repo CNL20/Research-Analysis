@@ -72,7 +72,7 @@ public class SyncServicePdfEnqueueTests
             _mockLogger.Object);
     }
 
-    private static PendingPaper MakePending(string accessType, string? pdfUrl, int id = 1, string source = "ArXiv")
+    private static PendingPaper MakePending(string? accessType, string? pdfUrl, int id = 1, string source = "ArXiv")
         => new()
         {
             Id = id,

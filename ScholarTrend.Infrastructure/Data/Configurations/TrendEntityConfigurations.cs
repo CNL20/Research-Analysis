@@ -11,6 +11,12 @@ public class KeywordTrendConfiguration : IEntityTypeConfiguration<KeywordTrend>
         builder.HasIndex(t => new { t.KeywordId, t.Year, t.Month })
             .IsUnique()
             .HasDatabaseName("IX_KeywordTrends_KeywordId_Year_Month");
+            
+        builder.HasIndex(t => new { t.Year, t.Month })
+            .HasDatabaseName("IX_KeywordTrends_Year_Month");
+            
+        builder.HasIndex(t => t.TrendingScore)
+            .HasDatabaseName("IX_KeywordTrends_TrendingScore");
     }
 }
 
@@ -21,6 +27,12 @@ public class TopicTrendConfiguration : IEntityTypeConfiguration<TopicTrend>
         builder.HasIndex(t => new { t.TopicId, t.Year, t.Month })
             .IsUnique()
             .HasDatabaseName("IX_TopicTrends_TopicId_Year_Month");
+            
+        builder.HasIndex(t => new { t.Year, t.Month })
+            .HasDatabaseName("IX_TopicTrends_Year_Month");
+            
+        builder.HasIndex(t => t.TrendingScore)
+            .HasDatabaseName("IX_TopicTrends_TrendingScore");
     }
 }
 
@@ -31,5 +43,11 @@ public class JournalTrendConfiguration : IEntityTypeConfiguration<JournalTrend>
         builder.HasIndex(t => new { t.JournalId, t.Year, t.Month })
             .IsUnique()
             .HasDatabaseName("IX_JournalTrends_JournalId_Year_Month");
+            
+        builder.HasIndex(t => new { t.Year, t.Month })
+            .HasDatabaseName("IX_JournalTrends_Year_Month");
+            
+        builder.HasIndex(t => t.TrendingScore)
+            .HasDatabaseName("IX_JournalTrends_TrendingScore");
     }
 }

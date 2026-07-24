@@ -39,7 +39,7 @@ public interface IUnitOfWork : IDisposable
     
     Task<int> SaveChangesAsync();
 
-    Task<bool> BeginTransactionAsync();
+    Task<bool> BeginTransactionAsync(System.Data.IsolationLevel isolationLevel = System.Data.IsolationLevel.ReadCommitted);
     Task CommitTransactionAsync();
     Task RollbackTransactionAsync();
 }

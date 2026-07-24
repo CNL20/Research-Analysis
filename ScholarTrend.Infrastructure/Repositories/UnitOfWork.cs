@@ -69,13 +69,13 @@ public class UnitOfWork : IUnitOfWork
         return await _context.SaveChangesAsync();
     }
 
-    public async Task<bool> BeginTransactionAsync()
+    public async Task<bool> BeginTransactionAsync(System.Data.IsolationLevel isolationLevel = System.Data.IsolationLevel.ReadCommitted)
     {
         if (_transaction != null)
         {
             return false;
         }
-        _transaction = await _context.Database.BeginTransactionAsync();
+        _transaction = await _context.Database.BeginTransactionAsync(isolationLevel);
         return true;
     }
 

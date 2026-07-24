@@ -6,6 +6,8 @@ using ScholarTrend.Application.DTOs.Trends;
 using ScholarTrend.Application.Interfaces;
 using ScholarTrend.Application.Interfaces.Repositories;
 
+using Microsoft.Extensions.Caching.Memory;
+
 namespace ScholarTrend.Application.Services;
 
 public class DashboardService : IDashboardService
@@ -13,15 +15,18 @@ public class DashboardService : IDashboardService
     private readonly IUnitOfWork _unitOfWork;
     private readonly ITrendService _trendService;
     private readonly IStatisticsRepository _statistics;
+    private readonly IMemoryCache _cache;
 
     public DashboardService(
         IUnitOfWork unitOfWork,
         ITrendService trendService,
-        IStatisticsRepository statistics)
+        IStatisticsRepository statistics,
+        IMemoryCache cache)
     {
         _unitOfWork = unitOfWork;
         _trendService = trendService;
         _statistics = statistics;
+        _cache = cache;
     }
 
     public async Task<PersonalDashboardDto> GetPersonalDashboardAsync(string userId)
@@ -31,7 +36,8 @@ public class DashboardService : IDashboardService
         var (followedJournals, followedJournalsCount) = await _unitOfWork.Follows.GetUserFollowedJournalsAsync(userId, 1, 5);
         var notifications = await _unitOfWork.Notifications.GetUserNotificationsAsync(userId, null, 5, "User");
         var unreadCount = await _unitOfWork.Notifications.GetUnreadCountAsync(userId, "User");
-        var topTopics = await _trendService.GetTopTopicsAsync(new DTOs.Trends.TrendFilterRequest { Top = 5 });
+        var trendDashboard = await _trendService.GetDashboardAsync(new TrendFilterRequest { Top = 5 });
+        var topTopics = trendDashboard.TopTopics;
 
         return new PersonalDashboardDto
         {
@@ -75,24 +81,55 @@ public class DashboardService : IDashboardService
                 CreatedAt = n.CreatedAt,
                 ReadAt = n.ReadAt
             }).ToList(),
-            RecommendedTopics = topTopics.ToList()
+            RecommendedTopics = topTopics
         };
     }
 
     public async Task<OverviewDashboardDto> GetOverviewAsync()
     {
-        var trendFilter = new TrendFilterRequest { Top = 5 };
-
-        return new OverviewDashboardDto
+        return await _cache.GetOrCreateAsync("dashboard:overview", async entry =>
         {
-            TotalPapers = await _statistics.CountPapersAsync(),
-            TotalKeywords = await _statistics.CountKeywordsAsync(),
-            TotalTopics = await _statistics.CountTopicsAsync(),
-            TotalJournals = await _statistics.CountJournalsAsync(),
-            TotalAuthors = await _statistics.CountAuthorsAsync(),
-            PublicationTrend = (await _trendService.GetPublicationTrendAsync(trendFilter)).ToList(),
-            TopKeywords = (await _trendService.GetTopKeywordsAsync(trendFilter)).ToList(),
-            TopTopics = (await _trendService.GetTopTopicsAsync(trendFilter)).ToList()
-        };
+            entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1);
+
+            // Execute in ReadUncommitted transaction to prevent lock timeouts caused by background Hangfire jobs
+            var transactionStarted = await _unitOfWork.BeginTransactionAsync(System.Data.IsolationLevel.ReadUncommitted);
+            try 
+            {
+                var trendFilter = new TrendFilterRequest { Top = 5 };
+
+                var totalPapers = await _statistics.CountPapersAsync();
+                var totalKeywords = await _statistics.CountKeywordsAsync();
+                var totalTopics = await _statistics.CountTopicsAsync();
+                var totalJournals = await _statistics.CountJournalsAsync();
+                var totalAuthors = await _statistics.CountAuthorsAsync();
+                
+                var trendDashboard = await _trendService.GetDashboardAsync(trendFilter);
+
+                if (transactionStarted)
+                {
+                    await _unitOfWork.CommitTransactionAsync();
+                }
+
+                return new OverviewDashboardDto
+                {
+                    TotalPapers = totalPapers,
+                    TotalKeywords = totalKeywords,
+                    TotalTopics = totalTopics,
+                    TotalJournals = totalJournals,
+                    TotalAuthors = totalAuthors,
+                    PublicationTrend = trendDashboard.PublicationTrend,
+                    TopKeywords = trendDashboard.TopKeywords,
+                    TopTopics = trendDashboard.TopTopics
+                };
+            }
+            catch 
+            {
+                if (transactionStarted)
+                {
+                    await _unitOfWork.RollbackTransactionAsync();
+                }
+                throw;
+            }
+        }) ?? new OverviewDashboardDto();
     }
 }
