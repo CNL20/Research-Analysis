@@ -226,7 +226,7 @@ public static class MetadataQualityAnalyzer
         Status = spread <= 1 ? "minorConflict" : "majorConflict",
         Values = matched
           .Where(s => sources[s].Year.HasValue)
-          .ToDictionary(s => s, s => sources[s].Year!.Value.ToString()),
+          .ToDictionary(s => s, s => (string?)sources[s].Year!.Value.ToString()),
         Note = spread <= 1
           ? "Publication year differs by at most one year."
           : "Publication year differs significantly between sources.",

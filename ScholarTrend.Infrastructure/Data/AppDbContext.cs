@@ -109,6 +109,9 @@ public class ScholarTrendDbContext : IdentityDbContext<User>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        
+        // Enable PostgreSQL trgm extension for fast ILIKE searches
+        modelBuilder.HasPostgresExtension("pg_trgm");
 
         // Apply entity configurations from assembly
         // All IEntityTypeConfiguration implementations will be auto-loaded

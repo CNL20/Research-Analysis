@@ -134,7 +134,7 @@ public class TopicInsightAggregationJob
                 Year = currentYear,
                 Achievement = "System is tracking emerging methodologies and datasets.",
                 Summary = "Auto-generated aggregation.",
-                FutureDirectionsJson = JsonSerializer.Serialize(aiOpportunities.Select(o => new { Title = o.Title, Description = o.Description })),
+                FutureDirectionsJson = JsonSerializer.Serialize((aiOpportunities ?? []).Select(o => new { Title = o.Title, Description = o.Description })),
                 TopMethodsJson = JsonSerializer.Serialize(topMethods),
                 TopDatasetsJson = JsonSerializer.Serialize(topDatasets),
                 PaperCountAtGeneration = paperIdsMapping.Distinct().Count(),

@@ -31,7 +31,7 @@ public class PdfStorageStatusService
                 ResearchPaperId = p.ResearchPaperId,
                 LocalRelativePath = p.LocalRelativePath,
                 Status = p.Status,
-                ContentType = p.ContentType,
+                ContentType = p.ContentType ?? "application/pdf",
                 SizeBytes = p.SizeBytes,
                 Sha256 = p.Sha256,
                 ExternalSource = p.ExternalSource,
