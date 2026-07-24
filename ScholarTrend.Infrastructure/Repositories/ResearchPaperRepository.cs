@@ -146,6 +146,20 @@ public class ResearchPaperRepository : GenericRepository<ResearchPaper>, IResear
             .CountAsync(pa => pa.AuthorId == authorId && PaperStatusRules.Browsable.Contains(pa.Paper.Status));
     }
 
+    public async Task<Dictionary<int, int>> CountByAuthorIdsAsync(IEnumerable<int> authorIds)
+    {
+        var authorIdsList = authorIds.ToList();
+        if (authorIdsList.Count == 0) return new Dictionary<int, int>();
+
+        var query = await _context.PaperAuthors
+            .Where(pa => authorIdsList.Contains(pa.AuthorId) && PaperStatusRules.Browsable.Contains(pa.Paper.Status))
+            .GroupBy(pa => pa.AuthorId)
+            .Select(g => new { AuthorId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.AuthorId, x => x.Count);
+
+        return query;
+    }
+
     public Task<ResearchPaper?> GetByExternalIdAsync(string externalId, string source)
     {
         return _dbSet
