@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Hangfire;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -69,6 +70,7 @@ public class TopicsJsonSyncServiceTests
             Mock.Of<INotificationService>(),
             Mock.Of<IPaperPdfEnqueuer>(),
             mockTrendAggregation.Object,
+            Mock.Of<IBackgroundJobClient>(),
             mockConfig.Object,
             Mock.Of<ILogger<SyncService>>());
 

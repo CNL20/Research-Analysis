@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Hangfire;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -66,7 +67,9 @@ public class SyncServicePdfEnqueueTests
             _mockCrossrefClient.Object, _mockArXivClient.Object,
             _mockNotificationService.Object, _mockPaperPdfEnqueuer.Object,
             _mockTrendAggregation.Object,
-            _mockConfig.Object, _mockLogger.Object);
+            Mock.Of<IBackgroundJobClient>(),
+            _mockConfig.Object,
+            _mockLogger.Object);
     }
 
     private static PendingPaper MakePending(string accessType, string? pdfUrl, int id = 1, string source = "ArXiv")

@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Hangfire;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -62,6 +63,7 @@ public class SyncServiceTests
             _mockNotificationService.Object,
             _mockPaperPdfEnqueuer.Object,
             _mockTrendAggregation.Object,
+            Mock.Of<IBackgroundJobClient>(),
             _mockConfig.Object,
             _mockLogger.Object
         );

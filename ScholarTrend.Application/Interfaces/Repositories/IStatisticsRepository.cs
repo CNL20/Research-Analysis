@@ -15,4 +15,8 @@ public interface IStatisticsRepository
     Task<IReadOnlyList<ReportGroupItemDto>> GetReportByYearAsync(int? yearFrom, int? yearTo);
     Task<IReadOnlyList<ReportGroupItemDto>> GetReportByKeywordAsync(int? yearFrom, int? yearTo);
     Task<IReadOnlyList<ReportGroupItemDto>> GetReportByTopicAsync(int? yearFrom, int? yearTo);
+    Task<IReadOnlyList<ReportGroupItemDto>> GetReportByJournalAsync(int? yearFrom, int? yearTo);
+    Task<IReadOnlyDictionary<int, double>> GetKeywordReliabilityAsync(IEnumerable<int> keywordIds, int? yearFrom, int? yearTo);
+    Task<IReadOnlyDictionary<int, double>> GetTopicReliabilityAsync(IEnumerable<int> topicIds, int? yearFrom, int? yearTo);
+    Task<IReadOnlyDictionary<int, double>> GetJournalReliabilityAsync(IEnumerable<int> journalIds, int? yearFrom, int? yearTo);
 }

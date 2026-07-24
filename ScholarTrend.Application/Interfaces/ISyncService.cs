@@ -31,6 +31,9 @@ public interface ISyncService
     Task<ApproveSyncResultDto> ApprovePendingSyncAsync(int proposalId, string adminUserId, ApproveSyncRequest request);
     Task<int> ApproveAllPendingProposalsAsync(string adminUserId);
     Task<ApproveSyncResultDto> RejectPendingSyncAsync(int proposalId, string adminUserId);
+    
+    // Background Processing Methods
+    Task ProcessApprovePendingSyncBackgroundAsync(int proposalId, string adminUserId, ApproveSyncRequest request);
 
     Task<PagedResult<SyncLogDto>> GetSyncLogsAsync(int page = 1, int pageSize = 20);
     Task<IReadOnlyList<ApiDataSourceDto>> GetDataSourcesAsync();

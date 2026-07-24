@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -35,6 +36,7 @@ public class SyncService : ISyncService
     private readonly IReadOnlyList<string> _defaultSearchQueries;
     private readonly int _semanticScholarPageSize;
     private readonly int _openAlexPageSize;
+    private readonly IBackgroundJobClient _backgroundJobClient;
 
     public SyncService(
         IUnitOfWork unitOfWork,
@@ -46,6 +48,7 @@ public class SyncService : ISyncService
         INotificationService notificationService,
         IPaperPdfEnqueuer paperPdfEnqueuer,
         ITrendAggregationService trendAggregationService,
+        IBackgroundJobClient backgroundJobClient,
         IConfiguration configuration,
         ILogger<SyncService> logger)
     {
@@ -58,6 +61,7 @@ public class SyncService : ISyncService
         _notificationService = notificationService;
         _paperPdfEnqueuer = paperPdfEnqueuer;
         _trendAggregationService = trendAggregationService;
+        _backgroundJobClient = backgroundJobClient;
         _logger = logger;
         _defaultSearchQuery = configuration["ExternalApis:SemanticScholar:SearchQuery"] ?? "artificial intelligence";
         _defaultSearchQueries = ReadDefaultSearchQueries(configuration);
@@ -425,9 +429,9 @@ public class SyncService : ISyncService
             throw new InvalidOperationException("Sync proposal not found.");
         }
 
-        if (proposal.Status is SyncProposalStatus.Approved or SyncProposalStatus.Rejected)
+        if (proposal.Status is SyncProposalStatus.Approved or SyncProposalStatus.Rejected or SyncProposalStatus.Processing)
         {
-            throw new InvalidOperationException("This sync proposal has already been reviewed.");
+            throw new InvalidOperationException("This sync proposal has already been reviewed or is currently processing.");
         }
 
         var pendingPapers = proposal.PendingPapers
@@ -445,21 +449,56 @@ public class SyncService : ISyncService
             throw new InvalidOperationException("No pending papers available to approve.");
         }
 
-        var approvedCount = 0;
+        proposal.Status = SyncProposalStatus.Processing;
+        _unitOfWork.SyncProposals.Update(proposal);
+        await _unitOfWork.SaveChangesAsync();
 
+        _backgroundJobClient.Enqueue(() => ProcessApprovePendingSyncBackgroundAsync(proposalId, adminUserId, request));
+
+        return new ApproveSyncResultDto
+        {
+            SyncProposalId = proposal.Id,
+            Status = SyncProposalStatus.Processing,
+            PapersApproved = 0,
+            PapersRejected = 0,
+            Message = $"Approval process started in background for {pendingPapers.Count} papers."
+        };
+    }
+
+    public async Task ProcessApprovePendingSyncBackgroundAsync(int proposalId, string adminUserId, ApproveSyncRequest request)
+    {
+        var proposal = await _unitOfWork.SyncProposals.GetByIdWithPapersAsync(proposalId);
+        if (proposal == null) return;
+        
+        var pendingPapers = proposal.PendingPapers.Where(p => p.Status == PendingPaperStatus.Pending).ToList();
+        if (request.PendingPaperIds is { Count: > 0 })
+        {
+            var selectedIds = request.PendingPaperIds.ToHashSet();
+            pendingPapers = pendingPapers.Where(p => selectedIds.Contains(p.Id)).ToList();
+        }
+
+        var approvedCount = 0;
         foreach (var pending in pendingPapers)
         {
-            var external = MapToExternalPaper(pending);
-            var result = await _paperImportRepository.ImportAsync(external);
+            try 
+            {
+                var external = MapToExternalPaper(pending);
+                var result = await _paperImportRepository.ImportAsync(external);
 
-            pending.Status = PendingPaperStatus.Approved;
-            pending.ImportedPaperId = result.PaperId;
-            approvedCount++;
+                pending.Status = PendingPaperStatus.Approved;
+                pending.ImportedPaperId = result.PaperId;
+                approvedCount++;
 
-            await _notificationService.NotifyFollowersForNewPaperAsync(result.PaperId);
-
-            // Nếu paper có PDF URL và thuộc loại tải được (ArXiv hoặc OpenAccess) → enqueue download
-            await TryEnqueuePdfDownloadAsync(external, result.PaperId);
+                await _notificationService.NotifyFollowersForNewPaperAsync(result.PaperId);
+                await TryEnqueuePdfDownloadAsync(external, result.PaperId);
+                
+                // Throttle to protect weak DB instance (e.g. Render Free Tier)
+                await Task.Delay(200); 
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to import paper {PaperId} during background approval.", pending.Id);
+            }
         }
 
         proposal.TotalApproved += approvedCount;
@@ -472,25 +511,16 @@ public class SyncService : ISyncService
             : SyncProposalStatus.Approved;
 
         _unitOfWork.SyncProposals.Update(proposal);
-        await _unitOfWork.SaveChangesAsync();
+        await RetrySaveChangesAsync();
 
         _trendAggregationService.ScheduleRebuild();
-
-        return new ApproveSyncResultDto
-        {
-            SyncProposalId = proposal.Id,
-            Status = proposal.Status,
-            PapersApproved = approvedCount,
-            PapersRejected = 0,
-            Message = $"{approvedCount} paper(s) approved and imported successfully."
-        };
     }
 
     public async Task<int> ApproveAllPendingProposalsAsync(string adminUserId)
     {
         var (pendingProposals, _) = await _unitOfWork.SyncProposals.GetPendingProposalsAsync(1, 10000);
 
-        int totalApproved = 0;
+        int totalQueued = 0;
         foreach (var proposal in pendingProposals)
         {
             var fullProposal = await _unitOfWork.SyncProposals.GetByIdWithPapersAsync(proposal.Id);
@@ -504,11 +534,11 @@ public class SyncService : ISyncService
             if (pendingPaperIds.Count > 0)
             {
                 var request = new ApproveSyncRequest { PendingPaperIds = pendingPaperIds };
-                var result = await ApprovePendingSyncAsync(proposal.Id, adminUserId, request);
-                totalApproved += result.PapersApproved;
+                await ApprovePendingSyncAsync(proposal.Id, adminUserId, request);
+                totalQueued += pendingPaperIds.Count;
             }
         }
-        return totalApproved;
+        return totalQueued;
     }
 
     public async Task<ApproveSyncResultDto> RejectPendingSyncAsync(int proposalId, string adminUserId)
