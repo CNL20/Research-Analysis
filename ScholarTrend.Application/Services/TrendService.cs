@@ -335,15 +335,17 @@ public class TrendService : ITrendService
         var window = TrendPeriod.GetRollingWindow();
 
         // Default: rolling last 12 months. Explicit YearFrom/YearTo from client still win.
-        var yearFrom = filter.YearFrom ?? window.Start.Year;
-        var yearTo = filter.YearTo ?? window.End.Year;
+        // If we are filtering by a specific entity (keyword, topic, journal), span the full history range by default.
+        var isSpecificEntity = filter.KeywordId.HasValue || filter.TopicId.HasValue || filter.JournalId.HasValue;
+        var yearFrom = filter.YearFrom ?? (isSpecificEntity ? 2000 : window.Start.Year);
+        var yearTo = filter.YearTo ?? (isSpecificEntity ? DateTime.UtcNow.Year : window.End.Year);
 
         int? monthFrom;
         if (filter.MonthFrom.HasValue)
         {
             monthFrom = filter.MonthFrom;
         }
-        else if (filter.YearFrom.HasValue)
+        else if (filter.YearFrom.HasValue || isSpecificEntity)
         {
             monthFrom = 1;
         }
@@ -357,7 +359,7 @@ public class TrendService : ITrendService
         {
             monthTo = filter.MonthTo;
         }
-        else if (filter.YearTo.HasValue)
+        else if (filter.YearTo.HasValue || isSpecificEntity)
         {
             monthTo = 12;
         }
