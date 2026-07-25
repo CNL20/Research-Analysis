@@ -4,6 +4,7 @@ using ScholarTrend.Application.DTOs.TopicInsights;
 using ScholarTrend.Application.Interfaces;
 using ScholarTrend.Application.Interfaces.External;
 using ScholarTrend.Application.Interfaces.Repositories;
+using ScholarTrend.Application.Services;
 using ScholarTrend.Domain.Constants;
 using ScholarTrend.Domain.Entities;
 using ScholarTrend.Infrastructure.Storage;
@@ -148,6 +149,8 @@ public class GeminiPdfAnalysisService : IPdfAnalysisService
             }
 
             // Cache extracted text vào entity để lần sau dùng lại.
+            // Strip null bytes — Postgres UTF-8 rejects 0x00 from some PDF extracts.
+            extractedText = PdfValidationHelper.SanitizeForPostgres(extractedText)!;
             pdfFile.ExtractedText = extractedText;
             pdfFile.ExtractedAt = DateTime.UtcNow;
             _pdfFileRepo.Update(pdfFile);
@@ -158,6 +161,7 @@ public class GeminiPdfAnalysisService : IPdfAnalysisService
         }
 
         var truncated = extractedText.Length > MaxTextChars ? extractedText[..MaxTextChars] : extractedText;
+        truncated = PdfValidationHelper.SanitizeForPostgres(truncated)!;
 
         // Cache truncated text nếu lần trước chưa cache (chỉ cache 1 lần duy nhất lúc extract)
         if (string.IsNullOrWhiteSpace(pdfFile.ExtractedText) && !string.Equals(pdfFile.ExtractedText, truncated))

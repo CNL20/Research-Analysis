@@ -19,10 +19,9 @@ public class TrendRepository : ITrendRepository
 
     public async Task<IReadOnlyList<KeywordTrend>> GetKeywordTrendsAsync(TrendFilterCriteria criteria)
     {
-        var query = _context.KeywordTrends
-            .AsNoTracking()
-            .Include(t => t.Keyword)
-            .AsQueryable();
+        var query = ApplyKeywordPeriodFilter(
+            _context.KeywordTrends.AsNoTracking().Include(t => t.Keyword),
+            criteria);
 
         if (criteria.KeywordId.HasValue)
         {
@@ -30,58 +29,27 @@ public class TrendRepository : ITrendRepository
         }
         else
         {
-            var baseQuery = _context.KeywordTrends.AsQueryable();
+            var topIds = await SelectTopKeywordIdsAsync(
+                ApplyKeywordPeriodFilter(_context.KeywordTrends.AsNoTracking(), criteria),
+                criteria.Top);
 
-            if (criteria.YearFrom.HasValue)
-            {
-                baseQuery = baseQuery.Where(t => t.Year > criteria.YearFrom.Value ||
-                                         (t.Year == criteria.YearFrom.Value &&
-                                          (!criteria.MonthFrom.HasValue || t.Month >= criteria.MonthFrom.Value)));
-            }
-            if (criteria.YearTo.HasValue)
-            {
-                baseQuery = baseQuery.Where(t => t.Year < criteria.YearTo.Value ||
-                                         (t.Year == criteria.YearTo.Value &&
-                                          (!criteria.MonthTo.HasValue || t.Month <= criteria.MonthTo.Value)));
-            }
+            if (topIds.Count == 0)
+                return [];
 
-            var topIds = await baseQuery
-                .GroupBy(t => t.KeywordId)
-                .Select(g => new { KeywordId = g.Key, TotalScore = g.Sum(x => x.TrendingScore) })
-                .OrderByDescending(x => x.TotalScore)
-                .Take(criteria.Top)
-                .Select(x => x.KeywordId)
-                .ToListAsync();
-
-            if (topIds.Count == 0) return new List<KeywordTrend>();
-                
             query = query.Where(t => topIds.Contains(t.KeywordId));
         }
 
-        var results = await query.ToListAsync();
-
-        if (criteria.YearFrom.HasValue)
-        {
-            results = results.Where(t => t.Year > criteria.YearFrom.Value ||
-                                     (t.Year == criteria.YearFrom.Value &&
-                                      (!criteria.MonthFrom.HasValue || t.Month >= criteria.MonthFrom.Value))).ToList();
-        }
-        if (criteria.YearTo.HasValue)
-        {
-            results = results.Where(t => t.Year < criteria.YearTo.Value ||
-                                     (t.Year == criteria.YearTo.Value &&
-                                      (!criteria.MonthTo.HasValue || t.Month <= criteria.MonthTo.Value))).ToList();
-        }
-
-        return results.OrderBy(t => t.Year).ThenBy(t => t.Month).ToList();
+        return await query
+            .OrderBy(t => t.Year)
+            .ThenBy(t => t.Month)
+            .ToListAsync();
     }
 
     public async Task<IReadOnlyList<TopicTrend>> GetTopicTrendsAsync(TrendFilterCriteria criteria)
     {
-        var query = _context.TopicTrends
-            .AsNoTracking()
-            .Include(t => t.Topic)
-            .AsQueryable();
+        var query = ApplyTopicPeriodFilter(
+            _context.TopicTrends.AsNoTracking().Include(t => t.Topic),
+            criteria);
 
         if (criteria.TopicId.HasValue)
         {
@@ -89,58 +57,27 @@ public class TrendRepository : ITrendRepository
         }
         else
         {
-            var baseQuery = _context.TopicTrends.AsQueryable();
+            var topIds = await SelectTopTopicIdsAsync(
+                ApplyTopicPeriodFilter(_context.TopicTrends.AsNoTracking(), criteria),
+                criteria.Top);
 
-            if (criteria.YearFrom.HasValue)
-            {
-                baseQuery = baseQuery.Where(t => t.Year > criteria.YearFrom.Value ||
-                                         (t.Year == criteria.YearFrom.Value &&
-                                          (!criteria.MonthFrom.HasValue || t.Month >= criteria.MonthFrom.Value)));
-            }
-            if (criteria.YearTo.HasValue)
-            {
-                baseQuery = baseQuery.Where(t => t.Year < criteria.YearTo.Value ||
-                                         (t.Year == criteria.YearTo.Value &&
-                                          (!criteria.MonthTo.HasValue || t.Month <= criteria.MonthTo.Value)));
-            }
+            if (topIds.Count == 0)
+                return [];
 
-            var topIds = await baseQuery
-                .GroupBy(t => t.TopicId)
-                .Select(g => new { TopicId = g.Key, TotalScore = g.Sum(x => x.TrendingScore) })
-                .OrderByDescending(x => x.TotalScore)
-                .Take(criteria.Top)
-                .Select(x => x.TopicId)
-                .ToListAsync();
-
-            if (topIds.Count == 0) return new List<TopicTrend>();
-                
             query = query.Where(t => topIds.Contains(t.TopicId));
         }
 
-        var results = await query.ToListAsync();
-
-        if (criteria.YearFrom.HasValue)
-        {
-            results = results.Where(t => t.Year > criteria.YearFrom.Value ||
-                                     (t.Year == criteria.YearFrom.Value &&
-                                      (!criteria.MonthFrom.HasValue || t.Month >= criteria.MonthFrom.Value))).ToList();
-        }
-        if (criteria.YearTo.HasValue)
-        {
-            results = results.Where(t => t.Year < criteria.YearTo.Value ||
-                                     (t.Year == criteria.YearTo.Value &&
-                                      (!criteria.MonthTo.HasValue || t.Month <= criteria.MonthTo.Value))).ToList();
-        }
-
-        return results.OrderBy(t => t.Year).ThenBy(t => t.Month).ToList();
+        return await query
+            .OrderBy(t => t.Year)
+            .ThenBy(t => t.Month)
+            .ToListAsync();
     }
 
     public async Task<IReadOnlyList<JournalTrend>> GetJournalTrendsAsync(TrendFilterCriteria criteria)
     {
-        var query = _context.JournalTrends
-            .AsNoTracking()
-            .Include(t => t.Journal)
-            .AsQueryable();
+        var query = ApplyJournalPeriodFilter(
+            _context.JournalTrends.AsNoTracking().Include(t => t.Journal),
+            criteria);
 
         if (criteria.JournalId.HasValue)
         {
@@ -148,90 +85,75 @@ public class TrendRepository : ITrendRepository
         }
         else
         {
-            var baseQuery = _context.JournalTrends.AsQueryable();
+            var topIds = await SelectTopJournalIdsAsync(
+                ApplyJournalPeriodFilter(_context.JournalTrends.AsNoTracking(), criteria),
+                criteria.Top);
 
-            if (criteria.YearFrom.HasValue)
-            {
-                baseQuery = baseQuery.Where(t => t.Year > criteria.YearFrom.Value ||
-                                         (t.Year == criteria.YearFrom.Value &&
-                                          (!criteria.MonthFrom.HasValue || t.Month >= criteria.MonthFrom.Value)));
-            }
-            if (criteria.YearTo.HasValue)
-            {
-                baseQuery = baseQuery.Where(t => t.Year < criteria.YearTo.Value ||
-                                         (t.Year == criteria.YearTo.Value &&
-                                          (!criteria.MonthTo.HasValue || t.Month <= criteria.MonthTo.Value)));
-            }
+            if (topIds.Count == 0)
+                return [];
 
-            var topIds = await baseQuery
-                .GroupBy(t => t.JournalId)
-                .Select(g => new { JournalId = g.Key, TotalScore = g.Sum(x => x.TrendingScore) })
-                .OrderByDescending(x => x.TotalScore)
-                .Take(criteria.Top)
-                .Select(x => x.JournalId)
-                .ToListAsync();
-
-            if (topIds.Count == 0) return new List<JournalTrend>();
-                
             query = query.Where(t => topIds.Contains(t.JournalId));
         }
 
-        var results = await query.ToListAsync();
-
-        if (criteria.YearFrom.HasValue)
-        {
-            results = results.Where(t => t.Year > criteria.YearFrom.Value ||
-                                     (t.Year == criteria.YearFrom.Value &&
-                                      (!criteria.MonthFrom.HasValue || t.Month >= criteria.MonthFrom.Value))).ToList();
-        }
-        if (criteria.YearTo.HasValue)
-        {
-            results = results.Where(t => t.Year < criteria.YearTo.Value ||
-                                     (t.Year == criteria.YearTo.Value &&
-                                      (!criteria.MonthTo.HasValue || t.Month <= criteria.MonthTo.Value))).ToList();
-        }
-
-        return results.OrderBy(t => t.Year).ThenBy(t => t.Month).ToList();
+        return await query
+            .OrderBy(t => t.Year)
+            .ThenBy(t => t.Month)
+            .ToListAsync();
     }
 
     public async Task<IReadOnlyList<TrendDataPointDto>> GetPublicationTrendAsync(TrendFilterCriteria criteria)
     {
         if (criteria.KeywordId.HasValue)
         {
-            var q = ApplyKeywordPeriodFilter(_context.KeywordTrends.Where(t => t.KeywordId == criteria.KeywordId.Value), criteria);
+            var q = ApplyKeywordPeriodFilter(
+                _context.KeywordTrends.Where(t => t.KeywordId == criteria.KeywordId.Value),
+                criteria);
             return await q
                 .OrderBy(t => t.Year).ThenBy(t => t.Month)
                 .Select(t => new TrendDataPointDto
                 {
-                    Year = t.Year, Month = t.Month,
-                    PaperCount = t.PaperCount, CitationCount = t.CitationCount,
-                    GrowthRate = t.GrowthRate, TrendingScore = t.TrendingScore
+                    Year = t.Year,
+                    Month = t.Month,
+                    PaperCount = t.PaperCount,
+                    CitationCount = t.CitationCount,
+                    GrowthRate = t.GrowthRate,
+                    TrendingScore = t.TrendingScore
                 }).ToListAsync();
         }
 
         if (criteria.TopicId.HasValue)
         {
-            var q = ApplyTopicPeriodFilter(_context.TopicTrends.Where(t => t.TopicId == criteria.TopicId.Value), criteria);
+            var q = ApplyTopicPeriodFilter(
+                _context.TopicTrends.Where(t => t.TopicId == criteria.TopicId.Value),
+                criteria);
             return await q
                 .OrderBy(t => t.Year).ThenBy(t => t.Month)
                 .Select(t => new TrendDataPointDto
                 {
-                    Year = t.Year, Month = t.Month,
-                    PaperCount = t.PaperCount, CitationCount = t.CitationCount,
-                    GrowthRate = t.GrowthRate, TrendingScore = t.TrendingScore
+                    Year = t.Year,
+                    Month = t.Month,
+                    PaperCount = t.PaperCount,
+                    CitationCount = t.CitationCount,
+                    GrowthRate = t.GrowthRate,
+                    TrendingScore = t.TrendingScore
                 }).ToListAsync();
         }
 
         if (criteria.JournalId.HasValue)
         {
-            var q = ApplyJournalPeriodFilter(_context.JournalTrends.Where(t => t.JournalId == criteria.JournalId.Value), criteria);
+            var q = ApplyJournalPeriodFilter(
+                _context.JournalTrends.Where(t => t.JournalId == criteria.JournalId.Value),
+                criteria);
             return await q
                 .OrderBy(t => t.Year).ThenBy(t => t.Month)
                 .Select(t => new TrendDataPointDto
                 {
-                    Year = t.Year, Month = t.Month,
-                    PaperCount = t.PaperCount, CitationCount = t.CitationCount,
-                    GrowthRate = t.GrowthRate, TrendingScore = t.TrendingScore
+                    Year = t.Year,
+                    Month = t.Month,
+                    PaperCount = t.PaperCount,
+                    CitationCount = t.CitationCount,
+                    GrowthRate = t.GrowthRate,
+                    TrendingScore = t.TrendingScore
                 }).ToListAsync();
         }
 
@@ -239,14 +161,10 @@ public class TrendRepository : ITrendRepository
             .Where(p => PaperStatusRules.Browsable.Contains(p.Status) && p.PublicationDate.HasValue);
 
         if (criteria.YearFrom.HasValue)
-        {
             query = query.Where(p => p.PublicationYear >= criteria.YearFrom);
-        }
 
         if (criteria.YearTo.HasValue)
-        {
             query = query.Where(p => p.PublicationYear <= criteria.YearTo);
-        }
 
         if (criteria.MonthFrom.HasValue && criteria.YearFrom.HasValue)
         {
@@ -281,7 +199,78 @@ public class TrendRepository : ITrendRepository
         return BuildDataPointsWithGrowth(grouped.Select(g => (g.Year, g.Month, g.PaperCount, g.CitationCount)));
     }
 
+    /// <summary>
+    /// Top N entity ids inside the period-filtered window (not a single anchor month).
+    /// Prefers PaperCount &gt; 0; ranks by best TrendingScore then total papers.
+    /// </summary>
+    private static async Task<List<int>> SelectTopKeywordIdsAsync(
+        IQueryable<KeywordTrend> query,
+        int top)
+    {
+        var take = top > 0 ? top : 10;
+        var active = query.Where(t => t.PaperCount > 0);
+        var source = await active.AnyAsync() ? active : query;
 
+        return await source
+            .GroupBy(t => t.KeywordId)
+            .Select(g => new
+            {
+                Id = g.Key,
+                BestScore = g.Max(t => t.TrendingScore),
+                TotalPapers = g.Sum(t => t.PaperCount)
+            })
+            .OrderByDescending(x => x.BestScore)
+            .ThenByDescending(x => x.TotalPapers)
+            .Take(take)
+            .Select(x => x.Id)
+            .ToListAsync();
+    }
+
+    private static async Task<List<int>> SelectTopTopicIdsAsync(
+        IQueryable<TopicTrend> query,
+        int top)
+    {
+        var take = top > 0 ? top : 10;
+        var active = query.Where(t => t.PaperCount > 0);
+        var source = await active.AnyAsync() ? active : query;
+
+        return await source
+            .GroupBy(t => t.TopicId)
+            .Select(g => new
+            {
+                Id = g.Key,
+                BestScore = g.Max(t => t.TrendingScore),
+                TotalPapers = g.Sum(t => t.PaperCount)
+            })
+            .OrderByDescending(x => x.BestScore)
+            .ThenByDescending(x => x.TotalPapers)
+            .Take(take)
+            .Select(x => x.Id)
+            .ToListAsync();
+    }
+
+    private static async Task<List<int>> SelectTopJournalIdsAsync(
+        IQueryable<JournalTrend> query,
+        int top)
+    {
+        var take = top > 0 ? top : 10;
+        var active = query.Where(t => t.PaperCount > 0);
+        var source = await active.AnyAsync() ? active : query;
+
+        return await source
+            .GroupBy(t => t.JournalId)
+            .Select(g => new
+            {
+                Id = g.Key,
+                BestScore = g.Max(t => t.TrendingScore),
+                TotalPapers = g.Sum(t => t.PaperCount)
+            })
+            .OrderByDescending(x => x.BestScore)
+            .ThenByDescending(x => x.TotalPapers)
+            .Take(take)
+            .Select(x => x.Id)
+            .ToListAsync();
+    }
 
     private static List<TrendDataPointDto> BuildDataPointsWithGrowth(
         IEnumerable<(int Year, int Month, int PaperCount, int CitationCount)> items)
@@ -371,4 +360,3 @@ public class TrendRepository : ITrendRepository
         return query;
     }
 }
-

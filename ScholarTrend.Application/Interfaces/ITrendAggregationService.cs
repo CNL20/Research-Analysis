@@ -17,7 +17,8 @@ public interface ITrendAggregationService
     Task EnsureBuiltAsync(CancellationToken ct = default);
 
     /// <summary>
-    /// Enqueue a Hangfire job to rebuild trends (non-blocking).
+    /// Schedule a debounced Hangfire rebuild (60s). Consecutive calls reset the timer
+    /// so a burst of approvals shares one job. Non-blocking.
     /// </summary>
     void ScheduleRebuild();
 
