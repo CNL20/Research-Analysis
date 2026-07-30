@@ -17,4 +17,15 @@ public interface IResearchPaperRepository : IGenericRepository<ResearchPaper>
     Task<Dictionary<int, int>> CountByAuthorIdsAsync(IEnumerable<int> authorIds);
     Task<ResearchPaper?> GetByExternalIdAsync(string externalId, string source);
     Task<ResearchPaper?> GetByDoiAsync(string doi);
+
+    /// <summary>
+    /// Top paper ids for gap/extract sampling: abstract required, ordered by recency then citations.
+    /// Excludes absurd future publication years (bad metadata) that starve the sample of real analyses.
+    /// </summary>
+    Task<List<int>> GetTopPaperIdsForTopicSampleAsync(int topicId, int take);
+
+    /// <summary>
+    /// Top papers that already have PaperAnalysis (for gap gen when the raw Top-N has almost none).
+    /// </summary>
+    Task<List<int>> GetTopAnalyzedPaperIdsForTopicSampleAsync(int topicId, int take);
 }

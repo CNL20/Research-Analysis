@@ -146,7 +146,8 @@ public class PdfTextExtractionService
             };
         }
 
-        // Cache vào DB
+        // Cache vào DB (strip null bytes — Postgres UTF-8 rejects 0x00)
+        text = PdfValidationHelper.SanitizeForPostgres(text)!;
         pdfFile.ExtractedText = text;
         pdfFile.ExtractedAt = DateTime.UtcNow;
         _unitOfWork.PaperPdfFiles.Update(pdfFile);

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using ScholarTrend.Application.DTOs.GapAnalysis;
 using ScholarTrend.Application.Interfaces;
 using ScholarTrend.Application.Interfaces.Repositories;
 using ScholarTrend.Domain.Entities;
@@ -46,36 +47,43 @@ public class PaperQualityAssessmentJob
 
     public async Task AssessTopicPapersAsync(int topicId, CancellationToken ct = default)
     {
-        _logger.LogInformation("Assessing paper quality for topic {TopicId}...", topicId);
+        _logger.LogInformation(
+            "Assessing paper quality for topic {TopicId} (Top-{Sample} sample)...",
+            topicId, SampleCoverageLevels.SampleTarget);
 
         using var scope = _scopeFactory.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ScholarTrendDbContext>();
+        var paperRepo = scope.ServiceProvider.GetRequiredService<IResearchPaperRepository>();
 
-        var paperIds = await context.PaperTopics
-            .Where(pt => pt.TopicId == topicId)
-            .Select(pt => pt.PaperId)
-            .ToListAsync(ct);
+        var paperIds = await paperRepo.GetTopPaperIdsForTopicSampleAsync(
+            topicId, SampleCoverageLevels.SampleTarget);
 
         var assessed = 0;
         var batch = new List<PaperQuality>();
 
-        foreach (var paperId in paperIds)
+        var existingQualityIds = await context.PaperQualities
+            .AsNoTracking()
+            .Where(q => paperIds.Contains(q.PaperId))
+            .Select(q => q.PaperId)
+            .ToListAsync(ct);
+        var existingSet = existingQualityIds.ToHashSet();
+
+        var pendingIds = paperIds.Where(id => !existingSet.Contains(id)).ToList();
+        if (pendingIds.Count == 0)
+        {
+            _logger.LogInformation("Topic {TopicId}: Top sample quality already assessed.", topicId);
+            return;
+        }
+
+        var papers = await context.ResearchPapers
+            .Include(p => p.PaperAuthors)
+            .Include(p => p.PaperKeywords)
+            .Where(p => pendingIds.Contains(p.Id))
+            .ToListAsync(ct);
+
+        foreach (var paper in papers)
         {
             if (ct.IsCancellationRequested) break;
-
-            var existingQuality = await context.PaperQualities
-                .FirstOrDefaultAsync(q => q.PaperId == paperId, ct);
-
-            if (existingQuality != null)
-                continue;
-
-            var paper = await context.ResearchPapers
-                .Include(p => p.PaperAuthors)
-                .Include(p => p.PaperKeywords)
-                .FirstOrDefaultAsync(p => p.Id == paperId, ct);
-
-            if (paper == null)
-                continue;
 
             var quality = AssessPaperQuality(paper, context, ct);
             batch.Add(quality);

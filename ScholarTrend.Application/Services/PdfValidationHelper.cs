@@ -86,4 +86,15 @@ public static class PdfValidationHelper
                    bytes[i + 1] == 0x48)   // H<TML
                );
     }
+
+    /// <summary>
+    /// Postgres UTF-8 text columns reject null bytes (0x00). PDF extractors often emit them.
+    /// </summary>
+    public static string? SanitizeForPostgres(string? text)
+    {
+        if (string.IsNullOrEmpty(text) || text.IndexOf('\0') < 0)
+            return text;
+
+        return text.Replace("\0", string.Empty);
+    }
 }

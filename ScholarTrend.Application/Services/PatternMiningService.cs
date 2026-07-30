@@ -26,7 +26,28 @@ public class PatternMiningService : IPatternMiningService
             throw new ArgumentException($"Topic {topicId} not found");
 
         var analyses = await _unitOfWork.PaperAnalyses.GetByTopicIdAsync(topicId);
+        return await MineAndPersistAsync(topicId, topic.TopicName, analyses, ct);
+    }
 
+    public async Task<PatternMiningResultDto> MinePatternsForPaperIdsAsync(
+        int topicId,
+        IReadOnlyCollection<int> paperIds,
+        CancellationToken ct = default)
+    {
+        var topic = await _unitOfWork.Topics.GetByIdAsync(topicId);
+        if (topic == null)
+            throw new ArgumentException($"Topic {topicId} not found");
+
+        var analyses = await _unitOfWork.PaperAnalyses.GetByPaperIdsAsync(paperIds);
+        return await MineAndPersistAsync(topicId, topic.TopicName, analyses, ct);
+    }
+
+    private async Task<PatternMiningResultDto> MineAndPersistAsync(
+        int topicId,
+        string topicName,
+        List<PaperAnalysis> analyses,
+        CancellationToken ct)
+    {
         var methods = MineMethods(analyses);
         var datasets = MineDatasets(analyses);
         var limitations = MineLimitations(analyses);
@@ -43,7 +64,7 @@ public class PatternMiningService : IPatternMiningService
         return new PatternMiningResultDto
         {
             TopicId = topicId,
-            TopicName = topic.TopicName,
+            TopicName = topicName,
             Methods = methods.Select(m => new MethodPatternDto
             {
                 MethodName = m.Key,
@@ -68,6 +89,60 @@ public class PatternMiningService : IPatternMiningService
                 GrowthRate = 0,
                 Trend = "stable"
             }).OrderByDescending(l => l.PaperCount).ToList(),
+            MinedAt = DateTime.UtcNow
+        };
+    }
+
+    public async Task<PatternMiningResultDto> GetStoredPatternsAsync(int topicId, CancellationToken ct = default)
+    {
+        var topic = await _unitOfWork.Topics.GetByIdAsync(topicId);
+        if (topic == null)
+            throw new ArgumentException($"Topic {topicId} not found");
+
+        var methodPatterns = await _unitOfWork.Patterns.GetMethodPatternsAsync(topicId);
+        var datasetPatterns = await _unitOfWork.Patterns.GetDatasetPatternsAsync(topicId);
+        var limitationPatterns = await _unitOfWork.Patterns.GetLimitationPatternsAsync(topicId);
+
+        return new PatternMiningResultDto
+        {
+            TopicId = topicId,
+            TopicName = topic.TopicName,
+            Methods = methodPatterns
+                .GroupBy(p => p.MethodName)
+                .Select(g => new MethodPatternDto
+                {
+                    MethodName = g.Key,
+                    PaperCount = g.Sum(p => p.PaperCount),
+                    Year = g.Max(p => p.Year),
+                    GrowthRate = 0,
+                    Trend = "stable"
+                })
+                .OrderByDescending(m => m.PaperCount)
+                .ToList(),
+            Datasets = datasetPatterns
+                .GroupBy(p => p.DatasetName)
+                .Select(g => new DatasetPatternDto
+                {
+                    DatasetName = g.Key,
+                    PaperCount = g.Sum(p => p.PaperCount),
+                    Year = g.Max(p => p.Year),
+                    GrowthRate = 0,
+                    Trend = "stable"
+                })
+                .OrderByDescending(d => d.PaperCount)
+                .ToList(),
+            Limitations = limitationPatterns
+                .GroupBy(p => p.LimitationText)
+                .Select(g => new LimitationPatternDto
+                {
+                    LimitationText = g.Key,
+                    PaperCount = g.Sum(p => p.PaperCount),
+                    Year = g.Max(p => p.Year),
+                    GrowthRate = 0,
+                    Trend = "stable"
+                })
+                .OrderByDescending(l => l.PaperCount)
+                .ToList(),
             MinedAt = DateTime.UtcNow
         };
     }

@@ -30,7 +30,6 @@ using ScholarTrend.Application.DTOs.Common;
 using ScholarTrend.Application.Options;
 using Microsoft.AspNetCore.Http.Features;
 using System.Text;
-using HangfireBasicAuthenticationFilter;
 using Amazon.S3;
 using Amazon.Runtime;
 
@@ -257,8 +256,10 @@ builder.Services.AddScoped<TopicInsightAggregationJob>();
 // New Research Gap Analysis Jobs
 builder.Services.AddScoped<PaperQualityAssessmentJob>();
 builder.Services.AddScoped<PaperAnalysisExtractionJob>();
+builder.Services.AddSingleton<IGapGenerationJobTracker, GapGenerationJobTracker>();
 builder.Services.AddScoped<PatternMiningJob>();
 builder.Services.AddScoped<ResearchGapAnalysisJob>();
+builder.Services.AddScoped<TopicGapPipelineJob>();
 
 // New Research Gap Analysis Services
 builder.Services.AddScoped<IPaperQualityService, PaperQualityService>();
@@ -291,7 +292,13 @@ builder.Services.AddHangfire(config =>
     config.SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
           .UseSimpleAssemblyNameTypeSerializer()
           .UseRecommendedSerializerSettings()
-          .UsePostgreSqlStorage(options => options.UseNpgsqlConnection(connectionString)));
+          .UsePostgreSqlStorage(
+              options => options.UseNpgsqlConnection(connectionString),
+              new Hangfire.PostgreSql.PostgreSqlStorageOptions
+              {
+                  // Shared DB + many workers often holds locks longer than the default (~10s).
+                  DistributedLockTimeout = TimeSpan.FromMinutes(3)
+              }));
 // Bật lại Hangfire Worker để xử lý Background Jobs (như tự động tính toán Trend)
 builder.Services.AddHangfireServer(options => options.WorkerCount = 6);
 
@@ -355,47 +362,119 @@ app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Hangfire Dashboard
-var hangfireUsername = builder.Configuration["Hangfire:Username"];
-var hangfirePassword = builder.Configuration["Hangfire:Password"];
-
-app.UseHangfireDashboard("/hangfire", new DashboardOptions
-{
-    Authorization = new[]
-    {
-        new HangfireCustomBasicAuthenticationFilter
-        {
-            User = hangfireUsername,
-            Pass = hangfirePassword
-        }
-    }
-});
+app.UseHangfireDashboard("/hangfire");
 
 // ============ HANGFIRE RECURRING JOB ============
 // Configure sync schedule from appsettings.json
 var syncEnabled = builder.Configuration.GetValue("SyncSchedule:Enabled", true);
 var syncCron = builder.Configuration["SyncSchedule:CronExpression"] ?? "0 2 * * *";
+var trendRecalcEnabled = builder.Configuration.GetValue("Hangfire:TrendRecalcEnabled", true);
 
-if (syncEnabled)
-{
-    RecurringJob.AddOrUpdate<ISyncJob>("daily-paper-sync", job => job.RunAsync(), syncCron);
-    RecurringJob.AddOrUpdate<TopicInsightExtractionJob>("topic-insight-extraction", job => job.RunExtractionAsync(CancellationToken.None), "*/10 * * * *"); // Run every 10 mins
-    RecurringJob.AddOrUpdate<TopicInsightAggregationJob>("topic-insight-aggregation", job => job.RunAggregationAsync(CancellationToken.None), "0 2 * * *"); // Run daily at 2 AM
-}
-
-// Trend rebuild is independent of SyncSchedule:Enabled
-RecurringJob.AddOrUpdate<RecalculateTrendsJob>(
-    "trend-recalc",
-    job => job.RunAsync(CancellationToken.None),
-    "0 3 * * *"); // Daily 3 AM UTC
-RecurringJob.RemoveIfExists("keyword-trend-recalc");
+// Clear stale recurring-job locks (left by crashed / multi-instance workers) then register with retry.
+// Do not crash API startup if another machine still holds the Hangfire lock.
+TryClearHangfireRecurringLocks(connectionString!);
+RegisterRecurringJobs(syncEnabled, syncCron, trendRecalcEnabled);
 
 app.MapControllers();
 
 app.Lifetime.ApplicationStarted.Register(() =>
 {
+    if (!trendRecalcEnabled)
+    {
+        Console.WriteLine("[Hangfire] TrendRecalcEnabled=false — skip ScheduleEnsureBuilt on startup.");
+        return;
+    }
+
     using var scope = app.Services.CreateScope();
     scope.ServiceProvider.GetRequiredService<ITrendAggregationService>().ScheduleEnsureBuilt();
 });
 
 app.Run();
+
+static void TryClearHangfireRecurringLocks(string cs)
+{
+    try
+    {
+        using var conn = new Npgsql.NpgsqlConnection(cs);
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText =
+            """
+            DELETE FROM hangfire.lock
+            WHERE resource ILIKE '%recurring-job%'
+            """;
+        var deleted = cmd.ExecuteNonQuery();
+        if (deleted > 0)
+        {
+            Console.WriteLine($"[Hangfire] Cleared {deleted} stale recurring-job lock(s).");
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[Hangfire] Could not clear locks (non-fatal): {ex.Message}");
+    }
+}
+
+static void RegisterRecurringJobs(bool syncEnabled, string syncCron, bool trendRecalcEnabled)
+{
+    void TryRegister(string name, Action register)
+    {
+        const int maxAttempts = 5;
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
+            {
+                register();
+                return;
+            }
+            catch (Exception ex) when (ex.GetType().Name.Contains("DistributedLock", StringComparison.Ordinal)
+                                       || ex.Message.Contains("distributed lock", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.WriteLine(
+                    $"[Hangfire] Lock busy for '{name}' (attempt {attempt}/{maxAttempts}): {ex.Message}");
+                if (attempt == maxAttempts)
+                {
+                    Console.WriteLine(
+                        $"[Hangfire] Skipping recurring job '{name}' this startup — already registered or lock still held.");
+                    return;
+                }
+
+                Thread.Sleep(TimeSpan.FromSeconds(2 * attempt));
+            }
+        }
+    }
+
+    if (syncEnabled)
+    {
+        TryRegister("daily-paper-sync",
+            () => RecurringJob.AddOrUpdate<ISyncJob>("daily-paper-sync", job => job.RunAsync(), syncCron));
+        TryRegister("topic-insight-extraction",
+            () => RecurringJob.AddOrUpdate<TopicInsightExtractionJob>(
+                "topic-insight-extraction",
+                job => job.RunExtractionAsync(CancellationToken.None),
+                "*/10 * * * *"));
+        TryRegister("topic-insight-aggregation",
+            () => RecurringJob.AddOrUpdate<TopicInsightAggregationJob>(
+                "topic-insight-aggregation",
+                job => job.RunAggregationAsync(CancellationToken.None),
+                "0 2 * * *"));
+    }
+
+    if (trendRecalcEnabled)
+    {
+        TryRegister("trend-recalc",
+            () => RecurringJob.AddOrUpdate<RecalculateTrendsJob>(
+                "trend-recalc",
+                job => job.RunAsync(CancellationToken.None),
+                "0 3 * * *"));
+    }
+    else
+    {
+        TryRegister("remove-trend-recalc",
+            () => RecurringJob.RemoveIfExists("trend-recalc"));
+        Console.WriteLine("[Hangfire] TrendRecalcEnabled=false — removed recurring job trend-recalc.");
+    }
+
+    TryRegister("remove-keyword-trend-recalc",
+        () => RecurringJob.RemoveIfExists("keyword-trend-recalc"));
+}

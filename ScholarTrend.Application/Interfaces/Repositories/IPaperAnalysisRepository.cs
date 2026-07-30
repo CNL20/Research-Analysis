@@ -8,6 +8,7 @@ public interface IPaperAnalysisRepository
     Task<PaperAnalysis?> GetByPaperIdAsync(int paperId);
     Task<List<PaperAnalysis>> GetByTopicIdAsync(int topicId);
     Task<List<PaperAnalysis>> GetByTopicIdWithLimitAsync(int topicId, int limit);
+    Task<List<PaperAnalysis>> GetByPaperIdsAsync(IEnumerable<int> paperIds);
     Task<List<PaperAnalysis>> GetAnalyzedPapersWithoutFullTextAsync(int topicId, int take = 50);
     Task<PaperAnalysis> UpsertAsync(PaperAnalysis analysis);
     Task AddAsync(PaperAnalysis analysis);

@@ -25,9 +25,6 @@ public class ArXivClient : IArXivClient
         // ArXiv API rejects trailing slash before "?" — use raw URL and prefix url with "query?"
         _httpClient.BaseAddress = new Uri(baseUrl.TrimEnd('/'));
         _httpClient.Timeout = TimeSpan.FromSeconds(30);
-        
-        var rawEmail = configuration["ExternalApis:OpenAlex:PoliteEmail"] ?? "admin@scholartrend.com";
-        _httpClient.DefaultRequestHeaders.Add("User-Agent", $"ScholarTrend/1.0 (mailto:{rawEmail})");
     }
 
     public async Task<IReadOnlyList<ExternalPaperDto>> SearchPapersAsync(string query, int limit = 20)

@@ -69,6 +69,51 @@ public class ResearchPaperRepository : GenericRepository<ResearchPaper>, IResear
             : await query.ToListAsync();
     }
 
+    public async Task<List<int>> GetTopPaperIdsForTopicSampleAsync(int topicId, int take)
+    {
+        if (take <= 0) return [];
+
+        // Bad OpenAlex/Crossref metadata often sets PublicationYear in the future and
+        // then dominates OrderByDescending(year) — leaving real analyzed papers out of sample.
+        var maxYear = DateTime.UtcNow.Year;
+
+        return await _dbSet
+            .AsNoTracking()
+            .Where(p => PaperStatusRules.Browsable.Contains(p.Status)
+                        && p.PaperTopics.Any(pt => pt.TopicId == topicId)
+                        && p.Abstract != null
+                        && p.Abstract != ""
+                        && (p.PublicationYear == null || p.PublicationYear <= maxYear))
+            .OrderByDescending(p => p.PublicationYear)
+            .ThenByDescending(p => p.PublicationDate)
+            .ThenByDescending(p => p.CitationCount ?? 0)
+            .Select(p => p.Id)
+            .Take(take)
+            .ToListAsync();
+    }
+
+    public async Task<List<int>> GetTopAnalyzedPaperIdsForTopicSampleAsync(int topicId, int take)
+    {
+        if (take <= 0) return [];
+
+        var maxYear = DateTime.UtcNow.Year;
+
+        return await _dbSet
+            .AsNoTracking()
+            .Where(p => PaperStatusRules.Browsable.Contains(p.Status)
+                        && p.PaperTopics.Any(pt => pt.TopicId == topicId)
+                        && p.Abstract != null
+                        && p.Abstract != ""
+                        && (p.PublicationYear == null || p.PublicationYear <= maxYear)
+                        && p.Analysis != null)
+            .OrderByDescending(p => p.PublicationYear)
+            .ThenByDescending(p => p.PublicationDate)
+            .ThenByDescending(p => p.CitationCount ?? 0)
+            .Select(p => p.Id)
+            .Take(take)
+            .ToListAsync();
+    }
+
     public async Task<IEnumerable<ResearchPaper>> GetPapersByJournalAsync(int journalId, int limit = 0)
     {
         var query = _dbSet

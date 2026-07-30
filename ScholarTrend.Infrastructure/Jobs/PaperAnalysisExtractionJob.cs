@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using ScholarTrend.Application.DTOs.GapAnalysis;
 using ScholarTrend.Application.DTOs.Pdf;
 using ScholarTrend.Application.DTOs.TopicInsights;
 using ScholarTrend.Application.Interfaces.External;
@@ -16,8 +17,15 @@ public class PaperAnalysisExtractionJob
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<PaperAnalysisExtractionJob> _logger;
-    private const int BatchSize = 10;
-    private const int DelayBetweenRequests = 4000;
+
+    /// <summary>Same pool as gap sampling (Top N with abstract).</summary>
+    private static int SampleTarget => SampleCoverageLevels.SampleTarget;
+
+    /// <summary>Cap per pipeline/run so each click stays closer to ~20–40s of AI work.</summary>
+    private const int MaxExtractPerRun = 3;
+
+    /// <summary>Groq-friendly pause between papers (skipped after the last one).</summary>
+    private const int DelayBetweenRequestsMs = 1000;
 
     public PaperAnalysisExtractionJob(
         IServiceScopeFactory scopeFactory,
@@ -32,7 +40,6 @@ public class PaperAnalysisExtractionJob
         _logger.LogInformation("Starting paper analysis extraction job (Hybrid mode)...");
 
         using var scope = _scopeFactory.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<ScholarTrendDbContext>();
         var topicRepo = scope.ServiceProvider.GetRequiredService<IResearchTopicRepository>();
 
         var topics = await topicRepo.GetAllAsync();
@@ -46,9 +53,15 @@ public class PaperAnalysisExtractionJob
         _logger.LogInformation("Paper analysis extraction job completed.");
     }
 
-    public async Task ExtractForTopicAsync(int topicId, CancellationToken ct = default)
+    /// <summary>
+    /// Extract analysis for Top-N sample papers missing PaperAnalysis.
+    /// Returns how many papers were newly extracted (0 = fully cached / nothing to do).
+    /// </summary>
+    public async Task<int> ExtractForTopicAsync(int topicId, CancellationToken ct = default)
     {
-        _logger.LogInformation("Extracting analysis for topic {TopicId} (Hybrid mode)...", topicId);
+        _logger.LogInformation(
+            "Extracting analysis for topic {TopicId} (Top-{Sample} sample, Hybrid mode)...",
+            topicId, SampleTarget);
 
         using var scope = _scopeFactory.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ScholarTrendDbContext>();
@@ -57,27 +70,60 @@ public class PaperAnalysisExtractionJob
         var pdfTextService = scope.ServiceProvider.GetRequiredService<PdfTextExtractionService>();
         var sectionExtractor = new SectionExtractor();
 
-        var allPapers = await paperRepo.GetPapersByTopicAsync(topicId, 0);
-        
-        // Find papers that don't have analysis yet
-        var existingAnalysisPaperIds = await context.PaperAnalyses
-            .Where(a => allPapers.Select(p => p.Id).Contains(a.PaperId))
+        var samplePaperIds = await paperRepo.GetTopPaperIdsForTopicSampleAsync(topicId, SampleTarget);
+        if (samplePaperIds.Count == 0)
+        {
+            _logger.LogWarning("Topic {TopicId}: no papers in Top-{Sample} sample (need abstract).", topicId, SampleTarget);
+            return 0;
+        }
+
+        var alreadyAnalyzed = await context.PaperAnalyses
+            .AsNoTracking()
+            .Where(a => samplePaperIds.Contains(a.PaperId))
             .Select(a => a.PaperId)
             .ToListAsync(ct);
+        var alreadySet = alreadyAnalyzed.ToHashSet();
 
-        var papers = allPapers
-            .Where(p => !existingAnalysisPaperIds.Contains(p.Id))
-            .Take(BatchSize)
+        var pendingIds = samplePaperIds.Where(id => !alreadySet.Contains(id)).ToList();
+
+        _logger.LogInformation(
+            "Topic {TopicId}: sample {SampleSize}, already analyzed {Analyzed}, pending extract {Pending}",
+            topicId, samplePaperIds.Count, alreadySet.Count, pendingIds.Count);
+
+        if (pendingIds.Count == 0)
+        {
+            _logger.LogInformation("Topic {TopicId}: Top sample fully extracted — nothing to do.", topicId);
+            return 0;
+        }
+
+        var paperMap = await context.ResearchPapers
+            .AsNoTracking()
+            .Where(p => pendingIds.Contains(p.Id))
+            .ToDictionaryAsync(p => p.Id, ct);
+
+        var papers = pendingIds
+            .Where(id => paperMap.ContainsKey(id))
+            .Select(id => paperMap[id])
+            .Take(MaxExtractPerRun)
             .ToList();
+
+        if (pendingIds.Count > MaxExtractPerRun)
+        {
+            _logger.LogInformation(
+                "Topic {TopicId}: extracting {Batch}/{Pending} pending papers this run (cap {Cap})",
+                topicId, papers.Count, pendingIds.Count, MaxExtractPerRun);
+        }
+
         var processed = 0;
         var failed = 0;
         var skippedNoAbstract = 0;
         var hybridUsed = 0;
         var abstractOnlyUsed = 0;
 
-        foreach (var paper in papers)
+        for (var i = 0; i < papers.Count; i++)
         {
             if (ct.IsCancellationRequested) break;
+            var paper = papers[i];
 
             try
             {
@@ -94,7 +140,6 @@ public class PaperAnalysisExtractionJob
                     continue;
                 }
 
-                // Get full text from parsed PDF (if available)
                 string? fullText = null;
                 bool hasPdf = false;
 
@@ -117,14 +162,12 @@ public class PaperAnalysisExtractionJob
                     _logger.LogWarning(pdfEx, "Failed to get PDF text for paper {PaperId}, will use abstract only", paper.Id);
                 }
 
-                // Extract sections from full text
                 ExtractedSectionsDto? sections = null;
                 if (!string.IsNullOrWhiteSpace(fullText))
                 {
                     sections = sectionExtractor.ExtractRelevantSections(fullText);
                 }
 
-                // Perform hybrid extraction
                 var hybridResult = await aiService.ExtractHybridAsync(
                     paper.Abstract,
                     sections?.Discussion,
@@ -139,9 +182,6 @@ public class PaperAnalysisExtractionJob
                     failed++;
                     continue;
                 }
-
-                var quality = await context.PaperQualities
-                    .FirstOrDefaultAsync(q => q.PaperId == paper.Id, ct);
 
                 var merged = hybridResult.MergedExtraction;
 
@@ -171,11 +211,9 @@ public class PaperAnalysisExtractionJob
                     DiscussionConfidence = hybridResult.Metadata.ConfidenceBreakdown.DiscussionConfidence,
                     ConclusionConfidence = hybridResult.Metadata.ConfidenceBreakdown.ConclusionConfidence,
                     CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    UpdatedAt = DateTime.UtcNow,
+                    HybridMetadataJson = JsonSerializer.Serialize(hybridResult.Metadata)
                 };
-
-                // Store hybrid metadata as JSON
-                analysis.HybridMetadataJson = JsonSerializer.Serialize(hybridResult.Metadata);
 
                 await context.PaperAnalyses.AddAsync(analysis, ct);
                 await context.SaveChangesAsync(ct);
@@ -187,10 +225,11 @@ public class PaperAnalysisExtractionJob
                     abstractOnlyUsed++;
 
                 _logger.LogInformation(
-                    "Extracted analysis for paper {PaperId} ({Processed}/{BatchSize}) - Source: {Source}, Confidence: {Confidence}",
-                    paper.Id, processed, BatchSize, analysis.AnalysisSource, analysis.Confidence);
+                    "Extracted analysis for paper {PaperId} ({Processed}/{Pending}) - Source: {Source}, Confidence: {Confidence}",
+                    paper.Id, processed, papers.Count, analysis.AnalysisSource, analysis.Confidence);
 
-                await Task.Delay(DelayBetweenRequests, ct);
+                if (i < papers.Count - 1)
+                    await Task.Delay(DelayBetweenRequestsMs, ct);
             }
             catch (Exception ex)
             {
@@ -200,7 +239,10 @@ public class PaperAnalysisExtractionJob
         }
 
         _logger.LogInformation(
-            "Completed extraction for topic {TopicId}: {Processed} processed, {Failed} failed, {Skipped} skipped (no abstract). Hybrid: {Hybrid}, Abstract-only: {AbstractOnly}",
-            topicId, processed, failed, skippedNoAbstract, hybridUsed, abstractOnlyUsed);
+            "Completed extraction for topic {TopicId}: {Processed} processed, {Failed} failed, {Skipped} skipped (no abstract). Hybrid: {Hybrid}, Abstract-only: {AbstractOnly}. Sample coverage now ~{Analyzed}/{SampleSize}",
+            topicId, processed, failed, skippedNoAbstract, hybridUsed, abstractOnlyUsed,
+            alreadySet.Count + processed, samplePaperIds.Count);
+
+        return processed;
     }
 }
