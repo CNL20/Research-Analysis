@@ -8,10 +8,68 @@ public class ResearchGapReportDto
     public CoverageReportDto Coverage { get; set; } = new();
     public PatternMiningResultDto Patterns { get; set; } = new();
     public GapTimelineDto Timeline { get; set; } = new();
-    public DateTime GeneratedAt { get; set; }
+    public DateTime? GeneratedAt { get; set; }
+
+    /// <summary>cache = read from DB; generated = freshly produced by AI.</summary>
+    public string Source { get; set; } = "cache";
+
+    /// <summary>True when paper analyses are newer / more numerous than stored gaps.</summary>
+    public bool IsStale { get; set; }
+
+    /// <summary>True when there are no stored gaps yet.</summary>
+    public bool NeedsGeneration { get; set; }
+
+    public int AnalysisCount { get; set; }
+    public string? StaleReason { get; set; }
+
+    /// <summary>Target sample size (Top N papers for this gap run), typically 150.</summary>
+    public int SampleSize { get; set; }
+
+    /// <summary>How many papers in the Top-N sample already have PaperAnalysis.</summary>
+    public int AnalyzedInSample { get; set; }
+
+    /// <summary>High | Medium | Low — coverage confidence of the sample.</summary>
+    public string SampleCoverageLevel { get; set; } = "Low";
+
+    /// <summary>Short UI label, e.g. "72 / 150 papers analyzed".</summary>
+    public string SampleCoverageLabel { get; set; } = string.Empty;
+
+    /// <summary>Optional warning when coverage is low.</summary>
+    public string? SampleCoverageMessage { get; set; }
 
     // Hybrid extraction metadata for the report
     public HybridExtractionStatsDto? HybridStats { get; set; }
+}
+
+public static class SampleCoverageLevels
+{
+    public const string High = "High";
+    public const string Medium = "Medium";
+    public const string Low = "Low";
+
+    public const int SampleTarget = 10;
+    public const int HighThreshold = 100;
+    public const int MediumThreshold = 50;
+
+    public static (string Level, string Label, string? Message) FromCounts(int analyzedInSample, int sampleSize)
+    {
+        var size = sampleSize > 0 ? sampleSize : SampleTarget;
+        var level = analyzedInSample >= HighThreshold
+            ? High
+            : analyzedInSample >= MediumThreshold
+                ? Medium
+                : Low;
+
+        var label = $"{analyzedInSample} / {size} papers analyzed";
+        string? message = level switch
+        {
+            Low => "The identified research gaps may be incomplete because the available literature analysis is limited.",
+            Medium => "Sample coverage is moderate. Extracting more papers in the Top sample can improve gap quality.",
+            _ => null
+        };
+
+        return (level, label, message);
+    }
 }
 
 public class ResearchGapDto

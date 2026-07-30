@@ -42,6 +42,17 @@ public class PaperAnalysisRepository : IPaperAnalysisRepository
             .ToListAsync();
     }
 
+    public async Task<List<PaperAnalysis>> GetByPaperIdsAsync(IEnumerable<int> paperIds)
+    {
+        var ids = paperIds.Distinct().ToList();
+        if (ids.Count == 0) return [];
+
+        return await _db
+            .Include(x => x.Paper)
+            .Where(x => ids.Contains(x.PaperId))
+            .ToListAsync();
+    }
+
     public async Task<List<PaperAnalysis>> GetAnalyzedPapersWithoutFullTextAsync(int topicId, int take = 50)
     {
         return await _db

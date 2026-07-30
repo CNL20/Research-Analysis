@@ -1,11 +1,13 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Hangfire;
 using ScholarTrend.Application.DTOs.Common;
 using ScholarTrend.Application.DTOs.GapAnalysis;
 using ScholarTrend.Application.DTOs.Topics;
 using ScholarTrend.Application.DTOs.TopicInsights;
 using ScholarTrend.Application.Interfaces;
 using ScholarTrend.Application.Services;
+using ScholarTrend.Infrastructure.Jobs;
 
 namespace ScholarTrend.API.Controllers;
 
@@ -21,6 +23,8 @@ public class TopicsController : ControllerBase
     private readonly ITrendAnalysisService _trendAnalysisService;
     private readonly ICoverageReportService _coverageReportService;
     private readonly IPaperAnalysisService _paperAnalysisService;
+    private readonly IBackgroundJobClient _backgroundJobs;
+    private readonly IGapGenerationJobTracker _gapJobTracker;
 
     public TopicsController(
         ITopicService topicService, 
@@ -29,7 +33,9 @@ public class TopicsController : ControllerBase
         IPatternMiningService patternMiningService,
         ITrendAnalysisService trendAnalysisService,
         ICoverageReportService coverageReportService,
-        IPaperAnalysisService paperAnalysisService)
+        IPaperAnalysisService paperAnalysisService,
+        IBackgroundJobClient backgroundJobs,
+        IGapGenerationJobTracker gapJobTracker)
     {
         _topicService = topicService;
         _topicInsightService = topicInsightService;
@@ -38,6 +44,8 @@ public class TopicsController : ControllerBase
         _trendAnalysisService = trendAnalysisService;
         _coverageReportService = coverageReportService;
         _paperAnalysisService = paperAnalysisService;
+        _backgroundJobs = backgroundJobs;
+        _gapJobTracker = gapJobTracker;
     }
 
     /// <summary>
@@ -88,7 +96,7 @@ public class TopicsController : ControllerBase
     }
 
     /// <summary>
-    /// Generate research gap report for a topic.
+    /// Get stored research gap report for a topic (read-only, no AI).
     /// </summary>
     [HttpGet("{id:int}/gaps")]
     [Authorize(Roles = "Researcher,Admin")]
@@ -96,13 +104,54 @@ public class TopicsController : ControllerBase
     {
         try
         {
-            var report = await _researchGapService.GenerateGapReportAsync(id);
+            var report = await _researchGapService.GetGapReportAsync(id);
             return Ok(ApiResponse<ResearchGapReportDto>.SuccessResponse(report));
         }
         catch (ArgumentException ex)
         {
             return NotFound(ApiResponse<ResearchGapReportDto>.FailResponse(ex.Message));
         }
+    }
+
+    /// <summary>
+    /// Enqueue async gap generation (Hangfire). Poll GET .../gaps/jobs/{jobId}.
+    /// </summary>
+    [HttpPost("{id:int}/gaps/generate")]
+    [Authorize(Roles = "Researcher,Admin")]
+    public ActionResult<ApiResponse<GapGenerationJobDto>> EnqueueGapGeneration(
+        int id,
+        [FromQuery] bool force = false)
+    {
+        var tracked = _gapJobTracker.Register(id);
+        var hangfireId = _backgroundJobs.Enqueue<ResearchGapAnalysisJob>(
+            job => job.GenerateGapsForTopicTrackedAsync(id, tracked.JobId, force, CancellationToken.None));
+
+        tracked.Message = $"Queued (Hangfire {hangfireId})";
+        return Accepted(ApiResponse<GapGenerationJobDto>.SuccessResponse(tracked));
+    }
+
+    /// <summary>
+    /// Get status of an async gap-generation job.
+    /// </summary>
+    [HttpGet("gaps/jobs/{jobId}")]
+    [Authorize(Roles = "Researcher,Admin")]
+    public ActionResult<ApiResponse<GapGenerationJobDto>> GetGapGenerationJob(string jobId)
+    {
+        var job = _gapJobTracker.Get(jobId);
+        if (job == null)
+            return NotFound(ApiResponse<GapGenerationJobDto>.FailResponse($"Job {jobId} not found"));
+        return Ok(ApiResponse<GapGenerationJobDto>.SuccessResponse(job));
+    }
+
+    /// <summary>
+    /// Latest generation job for a topic (if any, in-memory).
+    /// </summary>
+    [HttpGet("{id:int}/gaps/jobs/latest")]
+    [Authorize(Roles = "Researcher,Admin")]
+    public ActionResult<ApiResponse<GapGenerationJobDto?>> GetLatestGapGenerationJob(int id)
+    {
+        var job = _gapJobTracker.GetLatestForTopic(id);
+        return Ok(ApiResponse<GapGenerationJobDto?>.SuccessResponse(job));
     }
 
     /// <summary>

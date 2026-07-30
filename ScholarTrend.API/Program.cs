@@ -256,8 +256,10 @@ builder.Services.AddScoped<TopicInsightAggregationJob>();
 // New Research Gap Analysis Jobs
 builder.Services.AddScoped<PaperQualityAssessmentJob>();
 builder.Services.AddScoped<PaperAnalysisExtractionJob>();
+builder.Services.AddSingleton<IGapGenerationJobTracker, GapGenerationJobTracker>();
 builder.Services.AddScoped<PatternMiningJob>();
 builder.Services.AddScoped<ResearchGapAnalysisJob>();
+builder.Services.AddScoped<TopicGapPipelineJob>();
 
 // New Research Gap Analysis Services
 builder.Services.AddScoped<IPaperQualityService, PaperQualityService>();

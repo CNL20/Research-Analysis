@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using ScholarTrend.Application.DTOs.GapAnalysis;
 using ScholarTrend.Application.Interfaces;
 using ScholarTrend.Application.Interfaces.Repositories;
 using ScholarTrend.Application.Services;
@@ -42,20 +43,30 @@ public class PatternMiningJob
 
     public async Task MineTopicPatternsAsync(int topicId, CancellationToken ct = default)
     {
-        _logger.LogInformation("Mining patterns for topic {TopicId}...", topicId);
+        _logger.LogInformation(
+            "Mining patterns for topic {TopicId} (Top-{Sample} sample)...",
+            topicId, SampleCoverageLevels.SampleTarget);
 
         using var scope = _scopeFactory.CreateScope();
         var patternMiningService = scope.ServiceProvider.GetRequiredService<IPatternMiningService>();
+        var paperRepo = scope.ServiceProvider.GetRequiredService<IResearchPaperRepository>();
 
         try
         {
-            var result = await patternMiningService.MinePatternsAsync(topicId, ct);
+            var sampleIds = await paperRepo.GetTopPaperIdsForTopicSampleAsync(
+                topicId, SampleCoverageLevels.SampleTarget);
+
+            var result = sampleIds.Count > 0
+                ? await patternMiningService.MinePatternsForPaperIdsAsync(topicId, sampleIds, ct)
+                : await patternMiningService.MinePatternsAsync(topicId, ct);
+
             _logger.LogInformation(
-                "Mined patterns for topic {TopicId}: {MethodCount} methods, {DatasetCount} datasets, {LimitationCount} limitations",
+                "Mined patterns for topic {TopicId}: {MethodCount} methods, {DatasetCount} datasets, {LimitationCount} limitations (sample {SampleSize})",
                 topicId,
                 result.Methods.Count,
                 result.Datasets.Count,
-                result.Limitations.Count);
+                result.Limitations.Count,
+                sampleIds.Count);
         }
         catch (Exception ex)
         {
