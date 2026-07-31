@@ -1,9 +1,10 @@
+using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using ScholarTrend.Application.DTOs.GapAnalysis;
 using ScholarTrend.Application.Interfaces;
 using ScholarTrend.Application.Interfaces.Repositories;
-using ScholarTrend.Application.Services;
 using ScholarTrend.Infrastructure.Data;
 
 namespace ScholarTrend.Infrastructure.Jobs;
@@ -11,29 +12,61 @@ namespace ScholarTrend.Infrastructure.Jobs;
 public class ResearchGapAnalysisJob
 {
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IGapGenerationJobTracker _tracker;
     private readonly ILogger<ResearchGapAnalysisJob> _logger;
 
     public ResearchGapAnalysisJob(
         IServiceScopeFactory scopeFactory,
+        IGapGenerationJobTracker tracker,
         ILogger<ResearchGapAnalysisJob> logger)
     {
         _scopeFactory = scopeFactory;
+        _tracker = tracker;
         _logger = logger;
     }
 
-    public async Task GenerateGapsForTopicAsync(int topicId, CancellationToken ct = default)
+    /// <summary>Hangfire entry used by topic API async generate (tracked job).</summary>
+    [DisableConcurrentExecution(timeoutInSeconds: 60 * 30)]
+    public async Task GenerateGapsForTopicTrackedAsync(
+        int topicId,
+        string trackerJobId,
+        bool force,
+        CancellationToken ct = default)
     {
-        _logger.LogInformation("Generating research gaps for topic {TopicId}...", topicId);
+        _tracker.MarkRunning(trackerJobId);
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var researchGapService = scope.ServiceProvider.GetRequiredService<IResearchGapService>();
+            var report = await researchGapService.GenerateGapReportAsync(topicId, force, ct);
+            _tracker.MarkCompleted(trackerJobId, report.Gaps.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Tracked gap generation failed for topic {TopicId}", topicId);
+            _tracker.MarkFailed(trackerJobId, ex.Message);
+            throw;
+        }
+    }
+
+    public async Task<ResearchGapReportDto?> GenerateGapsForTopicAsync(int topicId, CancellationToken ct = default)
+    {
+        _logger.LogInformation("Generating research gaps for topic {TopicId} (use cache if fresh)...", topicId);
 
         try
         {
-            // RegenerateGapsAsync deletes existing gaps for the topic first to avoid duplicates
-            // when this job runs on a schedule.
-            await RegenerateGapsAsync(topicId, ct);
+            using var scope = _scopeFactory.CreateScope();
+            var researchGapService = scope.ServiceProvider.GetRequiredService<IResearchGapService>();
+            var report = await researchGapService.GenerateGapReportAsync(topicId, force: false, ct);
+            _logger.LogInformation(
+                "Gap step for topic {TopicId}: {GapCount} gaps, source={Source}, NeedsGeneration={Needs}, Stale={Stale}",
+                topicId, report.Gaps.Count, report.Source, report.NeedsGeneration, report.IsStale);
+            return report;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error generating research gaps for topic {TopicId}", topicId);
+            throw;
         }
     }
 
@@ -55,8 +88,6 @@ public class ResearchGapAnalysisJob
                 _logger.LogInformation("Regenerating research gaps for topic {TopicId} ({TopicName})...",
                     topic.Id, topic.TopicName);
 
-                // RegenerateGapsAsync handles deletion of existing gaps + generation in one place,
-                // preventing the duplicate-gap problem that occurred when this job ran repeatedly.
                 await RegenerateGapsAsync(topic.Id, ct);
 
                 _logger.LogInformation(
@@ -79,7 +110,6 @@ public class ResearchGapAnalysisJob
         using var scope = _scopeFactory.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ScholarTrendDbContext>();
         var researchGapService = scope.ServiceProvider.GetRequiredService<IResearchGapService>();
-        var gapRepo = scope.ServiceProvider.GetRequiredService<IResearchGapRepository>();
 
         var topic = await context.ResearchTopics.FindAsync(new object[] { topicId }, ct);
         if (topic == null)
@@ -88,12 +118,9 @@ public class ResearchGapAnalysisJob
             return;
         }
 
-        await gapRepo.DeleteByTopicAsync(topicId);
-        await context.SaveChangesAsync(ct);
-
         try
         {
-            var report = await researchGapService.GenerateGapReportAsync(topicId, ct);
+            var report = await researchGapService.GenerateGapReportAsync(topicId, force: true, ct);
             _logger.LogInformation(
                 "Regenerated {GapCount} research gaps for topic {TopicId}.",
                 report.Gaps.Count,

@@ -55,21 +55,32 @@ public class AdminMigrationController : ControllerBase
     }
 
     /// <summary>
-    /// Danh sách PDFs gần đây trong hệ thống + tổng hợp theo status.
-    /// Giúp admin kiểm tra PDFs đang ở đâu (B2 cloud hay local), có file thật không, v.v.
+    /// Danh sách PDFs (phân trang) + tổng hợp theo status.
     /// </summary>
     [HttpGet("pdfs")]
     public async Task<ActionResult<ApiResponse<PdfStorageListingDto>>> ListPdfs(
-        [FromQuery] int limit = 50,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? search = null,
+        [FromQuery] string? status = null,
+        [FromQuery] int? limit = null,
         CancellationToken ct = default)
     {
-        var items = await _statusService.GetRecentAsync(limit, ct);
+        // Backward compatible: old clients passed ?limit=N (first page only).
+        if (limit is > 0 && page == 1 && pageSize == 20)
+        {
+            pageSize = Math.Clamp(limit.Value, 1, 100);
+        }
+
+        var (items, totalCount) = await _statusService.GetPagedAsync(page, pageSize, search, status, ct);
         var summary = await _statusService.GetStatusSummaryAsync(ct);
 
         return Ok(ApiResponse<PdfStorageListingDto>.SuccessResponse(
             new PdfStorageListingDto
             {
-                TotalCount = items.Count,
+                TotalCount = totalCount,
+                Page = page < 1 ? 1 : page,
+                PageSize = pageSize,
                 StatusSummary = summary,
                 Items = items
             }));

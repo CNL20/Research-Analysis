@@ -256,8 +256,10 @@ builder.Services.AddScoped<TopicInsightAggregationJob>();
 // New Research Gap Analysis Jobs
 builder.Services.AddScoped<PaperQualityAssessmentJob>();
 builder.Services.AddScoped<PaperAnalysisExtractionJob>();
+builder.Services.AddSingleton<IGapGenerationJobTracker, GapGenerationJobTracker>();
 builder.Services.AddScoped<PatternMiningJob>();
 builder.Services.AddScoped<ResearchGapAnalysisJob>();
+builder.Services.AddScoped<TopicGapPipelineJob>();
 
 // New Research Gap Analysis Services
 builder.Services.AddScoped<IPaperQualityService, PaperQualityService>();
@@ -456,6 +458,16 @@ static void RegisterRecurringJobs(bool syncEnabled, string syncCron, bool trendR
                 "topic-insight-aggregation",
                 job => job.RunAggregationAsync(CancellationToken.None),
                 "0 2 * * *"));
+    }
+    else
+    {
+        TryRegister("remove-daily-paper-sync",
+            () => RecurringJob.RemoveIfExists("daily-paper-sync"));
+        TryRegister("remove-topic-insight-extraction",
+            () => RecurringJob.RemoveIfExists("topic-insight-extraction"));
+        TryRegister("remove-topic-insight-aggregation",
+            () => RecurringJob.RemoveIfExists("topic-insight-aggregation"));
+        Console.WriteLine("[Hangfire] SyncEnabled=false — removed sync and insight recurring jobs.");
     }
 
     if (trendRecalcEnabled)

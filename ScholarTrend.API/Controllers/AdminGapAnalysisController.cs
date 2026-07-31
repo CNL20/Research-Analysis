@@ -1,7 +1,9 @@
+using Hangfire;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ScholarTrend.Application.DTOs.Common;
+using ScholarTrend.Application.DTOs.GapAnalysis;
 using ScholarTrend.Application.Interfaces;
 using ScholarTrend.Application.Interfaces.External;
 using ScholarTrend.Infrastructure.Data;
@@ -20,6 +22,8 @@ public class AdminGapAnalysisController : ControllerBase
     private readonly ResearchGapAnalysisJob _gapJob;
     private readonly IAiExtractionService _aiExtractionService;
     private readonly ScholarTrendDbContext _context;
+    private readonly IBackgroundJobClient _backgroundJobs;
+    private readonly IGapGenerationJobTracker _jobTracker;
     private readonly ILogger<AdminGapAnalysisController> _logger;
 
     public AdminGapAnalysisController(
@@ -29,6 +33,8 @@ public class AdminGapAnalysisController : ControllerBase
         ResearchGapAnalysisJob gapJob,
         IAiExtractionService aiExtractionService,
         ScholarTrendDbContext context,
+        IBackgroundJobClient backgroundJobs,
+        IGapGenerationJobTracker jobTracker,
         ILogger<AdminGapAnalysisController> logger)
     {
         _qualityJob = qualityJob;
@@ -37,6 +43,8 @@ public class AdminGapAnalysisController : ControllerBase
         _gapJob = gapJob;
         _aiExtractionService = aiExtractionService;
         _context = context;
+        _backgroundJobs = backgroundJobs;
+        _jobTracker = jobTracker;
         _logger = logger;
     }
 
@@ -142,17 +150,57 @@ public class AdminGapAnalysisController : ControllerBase
     /// <summary>
     /// Run full pipeline for a topic: quality assessment -> extraction -> pattern mining -> gap generation.
     /// </summary>
+    /// <summary>
+    /// Enqueue full pipeline for a topic (Hangfire). Poll GET pipeline/jobs/{jobId}.
+    /// Returns immediately so the admin UI is not blocked for minutes.
+    /// </summary>
     [HttpPost("pipeline/{topicId:int}")]
-    public async Task<ActionResult<ApiResponse<string>>> RunFullPipeline(int topicId)
+    public ActionResult<ApiResponse<GapGenerationJobDto>> RunFullPipeline(int topicId)
     {
-        _logger.LogInformation("Admin triggered full pipeline for topic {TopicId}", topicId);
+        _logger.LogInformation("Admin enqueued full pipeline for topic {TopicId}", topicId);
+
+        var tracked = _jobTracker.Register(topicId);
+        tracked.Message = "Pipeline queued";
+
+        var hangfireId = _backgroundJobs.Enqueue<TopicGapPipelineJob>(
+            job => job.RunTrackedAsync(topicId, tracked.JobId, CancellationToken.None));
+
+        tracked.Message = $"Pipeline queued (Hangfire {hangfireId}). Poll status with jobId.";
+        return Accepted(ApiResponse<GapGenerationJobDto>.SuccessResponse(tracked));
+    }
+
+    /// <summary>Poll async full-pipeline job status.</summary>
+    [HttpGet("pipeline/jobs/{jobId}")]
+    public ActionResult<ApiResponse<GapGenerationJobDto>> GetPipelineJob(string jobId)
+    {
+        var job = _jobTracker.Get(jobId);
+        if (job == null)
+            return NotFound(ApiResponse<GapGenerationJobDto>.FailResponse($"Job {jobId} not found"));
+        return Ok(ApiResponse<GapGenerationJobDto>.SuccessResponse(job));
+    }
+
+    /// <summary>
+    /// Synchronous pipeline (debug / legacy). Prefer POST pipeline/{id} async enqueue.
+    /// </summary>
+    [HttpPost("pipeline/{topicId:int}/sync")]
+    public async Task<ActionResult<ApiResponse<string>>> RunFullPipelineSync(int topicId)
+    {
+        _logger.LogInformation("Admin triggered SYNC full pipeline for topic {TopicId}", topicId);
+        var sw = System.Diagnostics.Stopwatch.StartNew();
 
         await _qualityJob.AssessTopicPapersAsync(topicId);
-        await _extractionJob.ExtractForTopicAsync(topicId);
-        await _patternJob.MineTopicPatternsAsync(topicId);
-        await _gapJob.GenerateGapsForTopicAsync(topicId);
+        var extracted = await _extractionJob.ExtractForTopicAsync(topicId);
+        if (extracted > 0)
+            await _patternJob.MineTopicPatternsAsync(topicId);
 
-        return Ok(ApiResponse<string>.SuccessResponse($"Full pipeline for topic {topicId} completed"));
+        var gapReport = await _gapJob.GenerateGapsForTopicAsync(topicId);
+        sw.Stop();
+
+        var message =
+            $"Full pipeline (sync) for topic {topicId} completed in {sw.Elapsed.TotalSeconds:F1}s " +
+            $"(extracted={extracted}, gapSource={gapReport?.Source ?? "unknown"}, gaps={gapReport?.Gaps.Count ?? 0}).";
+
+        return Ok(ApiResponse<string>.SuccessResponse(message));
     }
 
     /// <summary>

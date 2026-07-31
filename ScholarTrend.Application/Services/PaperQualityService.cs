@@ -24,10 +24,13 @@ public class PaperQualityService : IPaperQualityService
         if (paper == null)
             throw new ArgumentException($"Paper {paperId} not found");
 
+        var paperPdf = await _unitOfWork.PaperPdfFiles.GetByResearchPaperIdAsync(paperId);
+
         var quality = new PaperQuality
         {
             PaperId = paperId,
-            HasPdf = !string.IsNullOrWhiteSpace(paper.PdfUrl),
+            HasPdf = paperPdf != null || !string.IsNullOrWhiteSpace(paper.PdfUrl),
+            HasFullText = paperPdf != null && !string.IsNullOrWhiteSpace(paperPdf.ExtractedText),
             HasAbstract = !string.IsNullOrWhiteSpace(paper.Abstract),
             AbstractLength = paper.Abstract?.Length ?? 0,
             AuthorCount = await GetAuthorCountAsync(paperId),

@@ -56,7 +56,17 @@ public class GroqExtractionService : IAiExtractionService
             try
             {
                 var response = await _httpClient.SendAsync(requestMessage, cancellationToken);
-                response.EnsureSuccessStatusCode();
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                    _logger.LogError(
+                        "Groq API HTTP {Status}: {Body}",
+                        (int)response.StatusCode,
+                        errBody.Length > 500 ? errBody[..500] : errBody);
+                    if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+                        throw new HttpRequestException("Rate limited", null, response.StatusCode);
+                    return null;
+                }
 
                 var responseData = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: cancellationToken);
                 var textResult = responseData.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString();
@@ -103,8 +113,8 @@ Analyze the following text from an academic paper.
 Identify:
 1. 'methods': Key methodologies, architectures, or algorithms proposed or used.
 2. 'datasets': Datasets or benchmarks used in the evaluation.
-3. 'limitations': Explicit limitations or weaknesses mentioned in the paper.
-4. 'future_work': Explicit future work or next steps mentioned in the paper.
+3. 'limitations': Explicit limitations mentioned. If none are explicitly stated, critically INFER 1-2 potential limitations based on the methods/datasets (must mark inferred ones with ""[AI Inferred]"").
+4. 'future_work': Explicit future work mentioned. If none are explicitly stated, INFER 1-2 concrete actionable future research directions (must mark inferred ones with ""[AI Inferred]"").
 5. 'discussions': Key discussion points and their implications.
 6. 'conclusions': Main conclusions drawn from the research.
 7. 'research_problem': The main research problem or question addressed.
@@ -494,29 +504,40 @@ Return ONLY a valid JSON object with these fields (empty arrays if not found):
         List<PaperAnalysisDto> analyses,
         CancellationToken cancellationToken = default)
     {
-        // Build paper context so AI can reference real paper IDs
-        var paperContext = analyses.Take(50).Select((a, idx) =>
-            $"[Paper {idx + 1}] ID={a.PaperId}, Title=\"{a.Title}\", Method=\"{a.Method}\", Dataset=\"{a.Dataset}\", Year={a.Year}").ToList();
+        // Caller should already Top-K / sample; keep hard caps as a safety net.
+        var methods = patterns.Methods.OrderByDescending(m => m.PaperCount).Take(20).ToList();
+        var datasets = patterns.Datasets.OrderByDescending(d => d.PaperCount).Take(20).ToList();
+        var limitations = patterns.Limitations.OrderByDescending(l => l.PaperCount).Take(30).ToList();
+        var timelineEntries = timeline.Timeline.OrderByDescending(t => t.Year).Take(40).ToList();
+
+        var paperContext = analyses
+            .OrderByDescending(a => a.Limitations.Count > 0 ? 1 : 0)
+            .ThenByDescending(a => a.Confidence)
+            .ThenByDescending(a => a.Year)
+            .Take(40)
+            .Select((a, idx) =>
+                $"[Paper {idx + 1}] ID={a.PaperId}, Title=\"{a.Title}\", Method=\"{a.Method}\", Dataset=\"{a.Dataset}\", Year={a.Year}")
+            .ToList();
 
         var prompt = $@"
 You are an expert academic researcher analyzing research gaps in the field of '{topicName}'.
 
-Based on the following evidence from {analyses.Count} papers:
+Based on the following evidence from {analyses.Count} papers (showing top {paperContext.Count} for context):
 
 PAPER CONTEXT (use these Paper IDs when listing supporting_paper_ids):
 {string.Join("\n", paperContext)}
 
-METHODS TRENDS:
-{JsonSerializer.Serialize(patterns.Methods)}
+METHODS TRENDS (top):
+{JsonSerializer.Serialize(methods)}
 
-DATASET TRENDS:
-{JsonSerializer.Serialize(patterns.Datasets)}
+DATASET TRENDS (top):
+{JsonSerializer.Serialize(datasets)}
 
-LIMITATION PATTERNS:
-{JsonSerializer.Serialize(patterns.Limitations)}
+LIMITATION PATTERNS (top):
+{JsonSerializer.Serialize(limitations)}
 
-GAP TIMELINE:
-{JsonSerializer.Serialize(timeline.Timeline)}
+GAP TIMELINE (recent):
+{JsonSerializer.Serialize(timelineEntries)}
 
 Identify exactly 5-7 DISTINCT and NON-OVERLAPPING research gaps. Each gap MUST be unique in its core theme. Avoid creating multiple gaps about the same underlying issue.
 
@@ -558,39 +579,98 @@ Return ONLY a valid JSON object:
 }}";
 
         var textResult = await CallGroqApiAsync(prompt, cancellationToken);
-        if (string.IsNullOrWhiteSpace(textResult)) return new List<ResearchGapDto>();
+        if (string.IsNullOrWhiteSpace(textResult))
+        {
+            _logger.LogWarning("Groq gap generation returned empty content for topic '{Topic}'.", topicName);
+            return new List<ResearchGapDto>();
+        }
 
         try
         {
             using var jsonDoc = JsonDocument.Parse(textResult);
-            if (jsonDoc.RootElement.TryGetProperty("gaps", out var gapsElement))
+            var root = jsonDoc.RootElement;
+
+            JsonElement gapsElement;
+            if (root.ValueKind == JsonValueKind.Array)
             {
-                var gaps = JsonSerializer.Deserialize<List<ResearchGapDto>>(gapsElement.GetRawText(),
-                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<ResearchGapDto>();
-
-                // Normalize gap_type and provide defaults for missing fields
-                foreach (var gap in gaps)
-                {
-                    gap.GapType = NormalizeGapType(gap.GapType);
-                    gap.SuggestedDirection = string.IsNullOrWhiteSpace(gap.SuggestedDirection)
-                        ? $"Further research is needed to investigate {gap.Title.ToLowerInvariant()}."
-                        : gap.SuggestedDirection;
-                    if (gap.Confidence <= 0) gap.Confidence = 50;
-                    if (gap.Confidence > 100) gap.Confidence = 100;
-                }
-
-                // Deduplicate gaps by gap_type + similar title to avoid AI generating overlapping gaps
-                gaps = DeduplicateGaps(gaps);
-
-                return gaps;
+                gapsElement = root;
             }
-            return new List<ResearchGapDto>();
+            else if (!TryGetGapsArray(root, out gapsElement))
+            {
+                _logger.LogWarning(
+                    "Groq gap JSON missing gaps array for topic '{Topic}'. Raw (truncated): {Raw}",
+                    topicName,
+                    textResult.Length > 500 ? textResult[..500] : textResult);
+                return new List<ResearchGapDto>();
+            }
+
+            var jsonOpts = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+                PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
+            };
+
+            var gaps = JsonSerializer.Deserialize<List<ResearchGapDto>>(gapsElement.GetRawText(), jsonOpts)
+                       ?? new List<ResearchGapDto>();
+
+            // Drop totally empty shells from partial deserialize
+            gaps = gaps
+                .Where(g => !string.IsNullOrWhiteSpace(g.Title) || !string.IsNullOrWhiteSpace(g.Description))
+                .ToList();
+
+            foreach (var gap in gaps)
+            {
+                gap.GapType = NormalizeGapType(gap.GapType);
+                if (gap.GapType.Length > 50)
+                    gap.GapType = gap.GapType[..50];
+                gap.SuggestedDirection = string.IsNullOrWhiteSpace(gap.SuggestedDirection)
+                    ? $"Further research is needed to investigate {gap.Title.ToLowerInvariant()}."
+                    : gap.SuggestedDirection;
+                if (gap.Title?.Length > 500)
+                    gap.Title = gap.Title[..500];
+                if (gap.Confidence <= 0) gap.Confidence = 50;
+                if (gap.Confidence > 100) gap.Confidence = 100;
+                if (string.IsNullOrWhiteSpace(gap.Title))
+                    gap.Title = "Untitled research gap";
+            }
+
+            gaps = DeduplicateGaps(gaps);
+            _logger.LogInformation(
+                "Groq gap generation for '{Topic}' produced {Count} gaps after parse/dedupe",
+                topicName, gaps.Count);
+            return gaps;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to parse Groq research gap generation result.");
+            _logger.LogError(ex,
+                "Failed to parse Groq research gap generation result for '{Topic}'. Raw (truncated): {Raw}",
+                topicName,
+                textResult.Length > 500 ? textResult[..500] : textResult);
             return new List<ResearchGapDto>();
         }
+    }
+
+    private static bool TryGetGapsArray(JsonElement root, out JsonElement gapsElement)
+    {
+        foreach (var name in new[] { "gaps", "Gaps", "research_gaps", "researchGaps", "items" })
+        {
+            if (root.TryGetProperty(name, out gapsElement) && gapsElement.ValueKind == JsonValueKind.Array)
+                return true;
+        }
+
+        // Case-insensitive property scan
+        foreach (var prop in root.EnumerateObject())
+        {
+            if (prop.Value.ValueKind == JsonValueKind.Array &&
+                prop.Name.Contains("gap", StringComparison.OrdinalIgnoreCase))
+            {
+                gapsElement = prop.Value;
+                return true;
+            }
+        }
+
+        gapsElement = default;
+        return false;
     }
 
     private static string NormalizeGapType(string? rawType)

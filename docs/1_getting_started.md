@@ -1,5 +1,5 @@
 # 1. Getting Started (Cài đặt & Hướng dẫn)
-
+ngrok http 5142
 Tài liệu này hướng dẫn cách cấu hình môi trường, chạy dự án và danh sách tài khoản test có sẵn.
 
 ## Yêu cầu hệ thống

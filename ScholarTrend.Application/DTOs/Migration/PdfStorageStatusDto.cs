@@ -20,6 +20,9 @@ public class PdfStorageStatusDto
     public DateTime? CompletedAt { get; set; }
     public string? FailureReason { get; set; }
 
+    /// <summary>True when ExtractedText is already cached.</summary>
+    public bool TextExtracted { get; set; }
+
     /// <summary>
     /// True nếu Status=Ready VÀ size > 0 (file đã được tải về thật sự).
     /// </summary>
