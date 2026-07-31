@@ -160,7 +160,8 @@ public class ReportService : IReportService
             YearFrom = yearFrom,
             YearTo = yearTo,
             MonthFrom = 1,
-            MonthTo = 12
+            MonthTo = 12,
+            Top = Math.Max(items.Count, 1000) // Lấy đủ số lượng để không bị sót
         };
 
         var metricsById = groupBy switch

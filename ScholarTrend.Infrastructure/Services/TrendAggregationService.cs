@@ -280,7 +280,7 @@ public class TrendAggregationService : ITrendAggregationService
         if (entityIds.Count == 0) return entityIds;
 
         var existing = await _context.KeywordTrends
-            .Where(t => entityIds.Contains(t.KeywordId) && t.PaperCount > 0)
+            .Where(t => entityIds.Contains(t.KeywordId))
             .Where(t => t.Year > window.Start.Year ||
                         (t.Year == window.Start.Year && t.Month >= window.Start.Month))
             .ToListAsync(ct);
@@ -340,7 +340,7 @@ public class TrendAggregationService : ITrendAggregationService
         if (entityIds.Count == 0) return entityIds;
 
         var existing = await _context.TopicTrends
-            .Where(t => entityIds.Contains(t.TopicId) && t.PaperCount > 0)
+            .Where(t => entityIds.Contains(t.TopicId))
             .Where(t => t.Year > window.Start.Year ||
                         (t.Year == window.Start.Year && t.Month >= window.Start.Month))
             .ToListAsync(ct);
@@ -399,7 +399,7 @@ public class TrendAggregationService : ITrendAggregationService
         if (entityIds.Count == 0) return entityIds;
 
         var existing = await _context.JournalTrends
-            .Where(t => entityIds.Contains(t.JournalId) && t.PaperCount > 0)
+            .Where(t => entityIds.Contains(t.JournalId))
             .Where(t => t.Year > window.Start.Year ||
                         (t.Year == window.Start.Year && t.Month >= window.Start.Month))
             .ToListAsync(ct);
