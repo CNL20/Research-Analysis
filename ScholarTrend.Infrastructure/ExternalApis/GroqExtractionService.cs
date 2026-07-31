@@ -113,8 +113,8 @@ Analyze the following text from an academic paper.
 Identify:
 1. 'methods': Key methodologies, architectures, or algorithms proposed or used.
 2. 'datasets': Datasets or benchmarks used in the evaluation.
-3. 'limitations': Explicit limitations or weaknesses mentioned in the paper.
-4. 'future_work': Explicit future work or next steps mentioned in the paper.
+3. 'limitations': Explicit limitations mentioned. If none are explicitly stated, critically INFER 1-2 potential limitations based on the methods/datasets (must mark inferred ones with ""[AI Inferred]"").
+4. 'future_work': Explicit future work mentioned. If none are explicitly stated, INFER 1-2 concrete actionable future research directions (must mark inferred ones with ""[AI Inferred]"").
 5. 'discussions': Key discussion points and their implications.
 6. 'conclusions': Main conclusions drawn from the research.
 7. 'research_problem': The main research problem or question addressed.

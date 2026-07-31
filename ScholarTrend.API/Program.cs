@@ -459,6 +459,16 @@ static void RegisterRecurringJobs(bool syncEnabled, string syncCron, bool trendR
                 job => job.RunAggregationAsync(CancellationToken.None),
                 "0 2 * * *"));
     }
+    else
+    {
+        TryRegister("remove-daily-paper-sync",
+            () => RecurringJob.RemoveIfExists("daily-paper-sync"));
+        TryRegister("remove-topic-insight-extraction",
+            () => RecurringJob.RemoveIfExists("topic-insight-extraction"));
+        TryRegister("remove-topic-insight-aggregation",
+            () => RecurringJob.RemoveIfExists("topic-insight-aggregation"));
+        Console.WriteLine("[Hangfire] SyncEnabled=false — removed sync and insight recurring jobs.");
+    }
 
     if (trendRecalcEnabled)
     {
